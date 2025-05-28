@@ -1,0 +1,152 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: var(--color-bg);
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Tailwind-like size utilities (fallback) */
+.w-6 {
+  width: 10rem;
+}
+.h-6 {
+  height: 10rem;
+}
+.rounded-lg {
+  border-radius: 0.3rem;
+}
+
+/* Custom padding classes to replace Tailwind p-6 */
+.form-container,
+.results-grid,
+.podcast-card {
+  padding: 1.5rem; /* 24px equivalent to Tailwind's p-6 */
+  margin: 0.75rem; /* 12px margin around each card */
+}
+
+/* Additional margins for layout */
+.form-container {
+  margin-bottom: 2rem; /* 32px bottom margin */
+  border-radius: 0.75rem;
+}
+
+.results-grid {
+  margin-top: 1rem; /* 16px top margin */
+}
+
+/* Padding for text next to image */
+.text-content {
+  padding-left: 1rem; /* 16px */
+}
+:root {
+  --color-primary-dark: #006A71;
+  --color-primary: #48A6A7;
+  --color-primary-light: #9ACBD0;
+  --color-bg: #F2EFE7;
+}
+
+/* Background utilities */
+.bg-primary-dark {
+  background-color: var(--color-primary-dark);
+}
+.bg-primary {
+  background-color: var(--color-primary);
+}
+.bg-primary-light {
+  background-color: var(--color-primary-light);
+}
+
+/* Text utilities */
+.text-primary-dark {
+  color: var(--color-primary-dark);
+}
+.text-primary {
+  color: var(--color-primary);
+}
+.text-primary-light {
+  color: var(--color-primary-light);
+}
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 1rem;
+  padding: 0.9rem 2.4rem; /* bigger size */
+  margin: 0.5rem;
+  font-size: 1.125rem; /* 18px */
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.btn-primary:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 106, 113, 0.4);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Search input */
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  box-shadow: inset 0 0 0 2px var(--color-primary-light);
+  transition: box-shadow 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-primary-dark);
+}
+
+/* Genre tag */
+.genre-tag {
+  padding: 0.25rem 0.75rem;
+  background-color: var(--color-primary);
+  color: #ffffff;
+  border-radius: 9999px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Page container */
+.page-container {
+  padding: 1.5rem;
+}
+
+.podcast-card {
+  padding: 1.5rem; /* 24px equivalent to Tailwind's p-6 */
+  margin: 0.75rem; /* 12px margin around each card */
+  border: 2px solid var(--color-primary-light);
+  border-radius: 1rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.podcast-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}

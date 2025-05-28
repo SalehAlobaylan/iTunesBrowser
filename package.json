@@ -1,0 +1,37 @@
+{
+  "name": "itunesbrowser",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev:server": "ts-node src/server/server.ts",
+    "dev:next": "next dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:next\"",
+    "build": "next build",
+    "start": "next start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@fastify/cors": "^11.0.1",
+    "@supabase/supabase-js": "^2.49.8",
+    "@tailwindcss/postcss": "^4.1.7",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.2",
+    "dotenv": "^16.5.0",
+    "fastify": "^5.3.3",
+    "next": "^15.3.2",
+    "postcss": "^8.5.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tailwindcss": "^4.1.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
