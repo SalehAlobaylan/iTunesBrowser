@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import {
   Plus,
   Search,
-  KeyRound,
   Pencil,
   Trash2,
   ShieldCheck,
@@ -48,9 +47,10 @@ import {
 import { Label } from '@/components/ui/label';
 import {
   useAdminUsers,
+  useIAMPermissions,
+  useIAMRoles,
   useCreateAdminUser,
   useDeleteAdminUser,
-  useResetAdminUserPassword,
   useUpdateAdminUser,
 } from '@/hooks/use-admin-users';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -58,26 +58,13 @@ import { PageSkeleton } from '@/components/shared/loading-state';
 import type { AdminUser } from '@/lib/api/cms/types';
 import { useAuth } from '@/hooks/use-auth';
 
-const roleOptions = ['admin', 'manager', 'agent'];
-const permissionOptions = [
-  'read:sources',
-  'write:sources',
-  'read:customers',
-  'write:customers',
-  'read:deals',
-  'write:deals',
-  'read:activities',
-  'write:activities',
-];
-
-type DialogMode = 'create' | 'edit' | 'password' | 'delete';
+type DialogMode = 'create' | 'edit' | 'delete';
 
 export default function AdminUsersPage() {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
   const [dialogMode, setDialogMode] = useState<DialogMode | null>(null);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
 
@@ -86,7 +73,6 @@ export default function AdminUsersPage() {
     password: '',
     role: 'admin',
     permissions: [] as string[],
-    is_active: true,
   });
 
   const limit = 10;
@@ -96,24 +82,32 @@ export default function AdminUsersPage() {
     limit,
     search: search || undefined,
     role: roleFilter === 'all' ? undefined : roleFilter,
-    is_active: statusFilter === 'all' ? undefined : statusFilter === 'active',
     enabled: shouldFetch,
   });
+  const { data: iamRoles } = useIAMRoles();
+  const { data: iamPermissions } = useIAMPermissions();
+
+  const roleOptions = useMemo(
+    () => (iamRoles?.map((role) => role.name) ?? ['admin', 'manager', 'agent']),
+    [iamRoles]
+  );
+  const permissionOptions = useMemo(
+    () => (iamPermissions?.map((permission) => permission.key) ?? []),
+    [iamPermissions]
+  );
 
   const createMutation = useCreateAdminUser();
   const updateMutation = useUpdateAdminUser();
   const deleteMutation = useDeleteAdminUser();
-  const resetPasswordMutation = useResetAdminUserPassword();
 
   const isBusy =
     createMutation.isPending ||
     updateMutation.isPending ||
-    deleteMutation.isPending ||
-    resetPasswordMutation.isPending;
+    deleteMutation.isPending;
 
   const openCreate = () => {
     setSelectedUser(null);
-    setFormState({ email: '', password: '', role: 'admin', permissions: [], is_active: true });
+    setFormState({ email: '', password: '', role: 'admin', permissions: [] });
     setDialogMode('create');
   };
 
@@ -124,15 +118,8 @@ export default function AdminUsersPage() {
       password: '',
       role: user.role,
       permissions: user.permissions || [],
-      is_active: user.is_active,
     });
     setDialogMode('edit');
-  };
-
-  const openPasswordReset = (user: AdminUser) => {
-    setSelectedUser(user);
-    setFormState((prev) => ({ ...prev, password: '' }));
-    setDialogMode('password');
   };
 
   const openDelete = (user: AdminUser) => {
@@ -152,7 +139,6 @@ export default function AdminUsersPage() {
           password: formState.password,
           role: formState.role,
           permissions: formState.permissions,
-          is_active: formState.is_active,
         },
         { onSuccess: closeDialog }
       );
@@ -162,20 +148,9 @@ export default function AdminUsersPage() {
         {
           id: selectedUser.id,
           data: {
-            email: formState.email,
             role: formState.role,
             permissions: formState.permissions,
-            is_active: formState.is_active,
           },
-        },
-        { onSuccess: closeDialog }
-      );
-    }
-    if (dialogMode === 'password' && selectedUser) {
-      resetPasswordMutation.mutate(
-        {
-          id: selectedUser.id,
-          data: { password: formState.password },
         },
         { onSuccess: closeDialog }
       );
@@ -191,8 +166,6 @@ export default function AdminUsersPage() {
         return 'Create Admin User';
       case 'edit':
         return 'Edit Admin User';
-      case 'password':
-        return 'Reset Password';
       case 'delete':
         return 'Delete Admin User';
       default:
@@ -257,22 +230,6 @@ export default function AdminUsersPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select
-          value={statusFilter}
-          onValueChange={(value) => {
-            setStatusFilter(value);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Disabled</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {error ? (
@@ -319,9 +276,6 @@ export default function AdminUsersPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => openPasswordReset(user)} title="Reset password">
-                        <KeyRound className="h-4 w-4" />
-                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => openEdit(user)} title="Edit">
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -393,11 +347,11 @@ export default function AdminUsersPage() {
                     value={formState.email}
                     onChange={(e) => setFormState((prev) => ({ ...prev, email: e.target.value }))}
                     placeholder="admin@example.com"
-                    disabled={isBusy}
+                    disabled={isBusy || dialogMode === 'edit'}
                   />
                 </div>
               )}
-              {(dialogMode === 'create' || dialogMode === 'password') && (
+              {dialogMode === 'create' && (
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <Input
@@ -455,28 +409,13 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
               )}
-              {(dialogMode === 'create' || dialogMode === 'edit') && (
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <p className="text-sm font-medium">Active</p>
-                    <p className="text-xs text-muted-foreground">Allow this user to access the console</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={formState.is_active}
-                    onChange={(e) =>
-                      setFormState((prev) => ({ ...prev, is_active: e.target.checked }))
-                    }
-                  />
-                </div>
-              )}
             </div>
           )}
 
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog} disabled={isBusy}>Cancel</Button>
             <Button onClick={handleSubmit} disabled={isBusy} variant={dialogMode === 'delete' ? 'destructive' : 'default'}>
-              {dialogMode === 'delete' ? 'Delete' : dialogMode === 'password' ? 'Reset Password' : 'Save'}
+              {dialogMode === 'delete' ? 'Delete' : 'Save'}
             </Button>
           </DialogFooter>
         </DialogContent>

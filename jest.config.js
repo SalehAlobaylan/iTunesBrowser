@@ -9,7 +9,7 @@ module.exports = {
     '**/*.test.tsx',
   ],
   transform: {
-    '^.+\\.tsx?$': 'ts-jest',
+    '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react-jsx' } }],
   },
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
