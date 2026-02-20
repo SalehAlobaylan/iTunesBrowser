@@ -1,5 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { AggregationHealthPanel } from '@/components/platform/aggregation-health-panel';
 
 export default function DashboardPage() {
     return (
@@ -66,6 +67,8 @@ export default function DashboardPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            <AggregationHealthPanel />
 
             {/* Getting started section */}
             <Card>

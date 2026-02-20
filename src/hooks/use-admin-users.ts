@@ -6,7 +6,9 @@ import {
   updateAdminUser,
   deleteAdminUser,
   resetAdminUserPassword,
-} from '@/lib/api/cms/admin-users';
+  listIAMRoles,
+  listIAMPermissions,
+} from '@/lib/api/iam/admin-users';
 import type {
   AdminUser,
   ListAdminUsersParams,
@@ -14,6 +16,7 @@ import type {
   UpdateAdminUserRequest,
   ResetAdminUserPasswordRequest,
 } from '@/lib/api/cms/types';
+import type { IAMPermission, IAMRole } from '@/lib/api/iam/types';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
 
@@ -23,6 +26,8 @@ export const adminUserKeys = {
   list: (params: ListAdminUsersParams) => [...adminUserKeys.lists(), params] as const,
   details: () => [...adminUserKeys.all, 'detail'] as const,
   detail: (id: string) => [...adminUserKeys.details(), id] as const,
+  iamRoles: () => [...adminUserKeys.all, 'iam-roles'] as const,
+  iamPermissions: () => [...adminUserKeys.all, 'iam-permissions'] as const,
 };
 
 export function useAdminUsers(
@@ -36,6 +41,24 @@ export function useAdminUsers(
     staleTime: CACHE_CONFIG.lists.staleTime,
     gcTime: CACHE_CONFIG.lists.gcTime,
     enabled,
+  });
+}
+
+export function useIAMRoles() {
+  return useQuery<IAMRole[]>({
+    queryKey: adminUserKeys.iamRoles(),
+    queryFn: listIAMRoles,
+    staleTime: CACHE_CONFIG.lists.staleTime,
+    gcTime: CACHE_CONFIG.lists.gcTime,
+  });
+}
+
+export function useIAMPermissions() {
+  return useQuery<IAMPermission[]>({
+    queryKey: adminUserKeys.iamPermissions(),
+    queryFn: listIAMPermissions,
+    staleTime: CACHE_CONFIG.lists.staleTime,
+    gcTime: CACHE_CONFIG.lists.gcTime,
   });
 }
 

@@ -4,7 +4,7 @@ import axios, {
     AxiosRequestConfig,
     AxiosResponse,
 } from 'axios';
-import { getToken, clearAuthState } from '@/lib/stores/auth';
+import { getAuthTokenForService, clearAuthState } from '@/lib/stores/auth';
 
 // API Error type
 export interface ApiError {
@@ -21,6 +21,8 @@ export interface ApiClient {
     patch<T>(url: string, data?: object): Promise<T>;
     delete<T>(url: string): Promise<T>;
 }
+
+type AuthService = 'cms' | 'crm' | 'iam';
 
 // Error handler function type for custom error handling
 type ErrorHandler = (error: ApiError) => void;
@@ -49,7 +51,7 @@ export function setErrorHandlers(handlers: {
 }
 
 // Create an axios instance with interceptors
-function createAxiosInstance(baseURL: string): AxiosInstance {
+function createAxiosInstance(baseURL: string, service: AuthService): AxiosInstance {
     const instance = axios.create({
         baseURL,
         headers: {
@@ -60,7 +62,7 @@ function createAxiosInstance(baseURL: string): AxiosInstance {
     // Request interceptor - inject JWT token
     instance.interceptors.request.use(
         (config) => {
-            const token = getToken();
+            const token = getAuthTokenForService(service);
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
@@ -129,16 +131,19 @@ function createApiClient(axiosInstance: AxiosInstance): ApiClient {
 // Environment variables for base URLs
 const CMS_BASE_URL = process.env.NEXT_PUBLIC_CMS_BASE_URL || 'http://localhost:8080';
 const CRM_BASE_URL = process.env.NEXT_PUBLIC_CRM_BASE_URL || 'http://localhost:8081';
+const IAM_BASE_URL = process.env.NEXT_PUBLIC_IAM_BASE_URL || 'http://localhost:8082';
 
 // Create axios instances
-const cmsAxios = createAxiosInstance(CMS_BASE_URL);
-const crmAxios = createAxiosInstance(CRM_BASE_URL);
+const cmsAxios = createAxiosInstance(CMS_BASE_URL, 'cms');
+const crmAxios = createAxiosInstance(CRM_BASE_URL, 'crm');
+const iamAxios = createAxiosInstance(IAM_BASE_URL, 'iam');
 
 // Export pre-configured API clients
 export const cmsClient: ApiClient = createApiClient(cmsAxios);
 export const crmClient: ApiClient = createApiClient(crmAxios);
+export const iamClient: ApiClient = createApiClient(iamAxios);
 
 // Export a function to create custom clients if needed
-export function createClient(baseURL: string): ApiClient {
-    return createApiClient(createAxiosInstance(baseURL));
+export function createClient(baseURL: string, service: AuthService = 'cms'): ApiClient {
+    return createApiClient(createAxiosInstance(baseURL, service));
 }
