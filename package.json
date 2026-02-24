@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "node scripts/log-service-connections.js && next dev",
+    "build": "node scripts/log-service-connections.js && next build",
+    "start": "node scripts/log-service-connections.js && next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },
