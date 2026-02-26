@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AggregationHealthPanel } from '@/components/platform/aggregation-health-panel';
+import { isAggregationConfigured } from '@/lib/api/aggregation';
 
 export default function DashboardPage() {
     return (
@@ -68,7 +69,7 @@ export default function DashboardPage() {
                 </Card>
             </div>
 
-            <AggregationHealthPanel />
+            {isAggregationConfigured() && <AggregationHealthPanel />}
 
             {/* Getting started section */}
             <Card>
