@@ -10,6 +10,12 @@ import type {
 
 const IAM_BASE_URL = process.env.NEXT_PUBLIC_IAM_BASE_URL;
 
+interface IamErrorPayload {
+    message?: string;
+    error?: string;
+    code?: string;
+}
+
 function ensureIamBaseUrl(): string {
     if (!IAM_BASE_URL) {
         throw {
@@ -31,45 +37,77 @@ function authHeaders(accessToken?: string) {
     };
 }
 
+function normalizeIamApiError(error: unknown): never {
+    if (axios.isAxiosError(error)) {
+        const payload = error.response?.data as IamErrorPayload | undefined;
+        throw {
+            message: payload?.message || payload?.error || error.message || 'IAM request failed',
+            status: error.response?.status || 500,
+            code: payload?.code || error.code,
+        };
+    }
+
+    throw {
+        message: 'IAM request failed',
+        status: 500,
+    };
+}
+
 export async function login(request: LoginRequest): Promise<TokenResponse> {
-    const response = await axios.post<TokenResponse>(
-        `${ensureIamBaseUrl()}/api/v1/auth/login`,
-        request,
-        {
-            headers: authHeaders(),
-        }
-    );
-    return response.data;
+    try {
+        const response = await axios.post<TokenResponse>(
+            `${ensureIamBaseUrl()}/api/v1/auth/login`,
+            request,
+            {
+                headers: authHeaders(),
+            }
+        );
+        return response.data;
+    } catch (error) {
+        normalizeIamApiError(error);
+    }
 }
 
 export async function register(request: RegisterRequest): Promise<RegisterResponse> {
-    const response = await axios.post<RegisterResponse>(
-        `${ensureIamBaseUrl()}/api/v1/auth/register`,
-        request,
-        {
-            headers: authHeaders(),
-        }
-    );
-    return response.data;
+    try {
+        const response = await axios.post<RegisterResponse>(
+            `${ensureIamBaseUrl()}/api/v1/auth/register`,
+            request,
+            {
+                headers: authHeaders(),
+            }
+        );
+        return response.data;
+    } catch (error) {
+        normalizeIamApiError(error);
+    }
 }
 
 export async function refresh(request: RefreshTokenRequest): Promise<TokenResponse> {
-    const response = await axios.post<TokenResponse>(
-        `${ensureIamBaseUrl()}/api/v1/auth/refresh`,
-        request,
-        {
-            headers: authHeaders(),
-        }
-    );
-    return response.data;
+    try {
+        const response = await axios.post<TokenResponse>(
+            `${ensureIamBaseUrl()}/api/v1/auth/refresh`,
+            request,
+            {
+                headers: authHeaders(),
+            }
+        );
+        return response.data;
+    } catch (error) {
+        normalizeIamApiError(error);
+    }
 }
 
 export async function getMyAccess(accessToken: string): Promise<MeResponse> {
-    const response = await axios.get<MeResponse>(
-        `${ensureIamBaseUrl()}/api/v1/roles/me`,
-        {
-            headers: authHeaders(accessToken),
-        }
-    );
-    return response.data;
+    try {
+        const response = await axios.get<MeResponse>(
+            `${ensureIamBaseUrl()}/api/v1/roles/me`,
+            {
+                headers: authHeaders(accessToken),
+            }
+        );
+        return response.data;
+    } catch (error) {
+        normalizeIamApiError(error);
+    }
 }

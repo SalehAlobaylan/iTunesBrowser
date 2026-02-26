@@ -57,6 +57,7 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { PageSkeleton } from '@/components/shared/loading-state';
 import type { AdminUser } from '@/lib/api/cms/types';
 import { useAuth } from '@/hooks/use-auth';
+import { toast } from '@/components/ui/toast';
 
 type DialogMode = 'create' | 'edit' | 'delete';
 
@@ -133,10 +134,31 @@ export default function AdminUsersPage() {
 
   const handleSubmit = () => {
     if (dialogMode === 'create') {
+      const normalizedEmail = formState.email.trim().toLowerCase();
+      const password = formState.password;
+
+      if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        toast({
+          title: 'Invalid email',
+          description: 'Enter a valid email address.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (password.length < 4) {
+        toast({
+          title: 'Invalid password',
+          description: 'Password must be at least 4 characters.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       createMutation.mutate(
         {
-          email: formState.email,
-          password: formState.password,
+          email: normalizedEmail,
+          password,
           role: formState.role,
           permissions: formState.permissions,
         },
@@ -362,6 +384,7 @@ export default function AdminUsersPage() {
                     placeholder="••••••••"
                     disabled={isBusy}
                   />
+                  <p className="text-xs text-muted-foreground">Minimum 4 characters.</p>
                 </div>
               )}
               {(dialogMode === 'create' || dialogMode === 'edit') && (
