@@ -3,6 +3,7 @@ import { CACHE_CONFIG } from '@/app/providers';
 import { toast } from '@/components/ui/toast';
 import {
     fetchAggregationSummary,
+    isAggregationConfigured,
     triggerAggregationJob,
 } from '@/lib/api/aggregation';
 import type {
@@ -23,6 +24,7 @@ export function useAggregationSummary() {
         staleTime: CACHE_CONFIG.lists.staleTime,
         gcTime: CACHE_CONFIG.lists.gcTime,
         refetchInterval: 30_000,
+        enabled: isAggregationConfigured(),
     });
 }
 

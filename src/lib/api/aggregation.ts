@@ -7,15 +7,28 @@ import type {
     TriggerAggregationJobResponse,
 } from '@/types/platform/aggregation';
 
-const AGGREGATION_BASE_URL =
-    process.env.NEXT_PUBLIC_AGGREGATION_BASE_URL || 'http://localhost:5002';
+const AGGREGATION_BASE_URL = process.env.NEXT_PUBLIC_AGGREGATION_BASE_URL;
+const DEV_FALLBACK_AGGREGATION_URL = 'http://localhost:5002';
+const RESOLVED_AGGREGATION_BASE_URL =
+    AGGREGATION_BASE_URL || (process.env.NODE_ENV === 'development' ? DEV_FALLBACK_AGGREGATION_URL : '');
 
-const aggregationClient = createClient(AGGREGATION_BASE_URL);
+const aggregationClient = createClient(RESOLVED_AGGREGATION_BASE_URL || DEV_FALLBACK_AGGREGATION_URL);
+
+export function isAggregationConfigured(): boolean {
+    return Boolean(RESOLVED_AGGREGATION_BASE_URL);
+}
+
+function assertAggregationConfigured(): void {
+    if (!RESOLVED_AGGREGATION_BASE_URL) {
+        throw new Error('Aggregation service is not configured.');
+    }
+}
 
 /**
  * Fetch aggregation service health status.
  */
 export async function fetchAggregationHealth(): Promise<AggregationHealth> {
+    assertAggregationConfigured();
     return aggregationClient.get<AggregationHealth>('/health');
 }
 
@@ -23,6 +36,7 @@ export async function fetchAggregationHealth(): Promise<AggregationHealth> {
  * Fetch queue statistics from all queues.
  */
 export async function fetchQueueStats(): Promise<QueueStats[]> {
+    assertAggregationConfigured();
     return aggregationClient.get<QueueStats[]>('/admin/queues');
 }
 
@@ -56,5 +70,6 @@ export async function fetchAggregationSummary(): Promise<AggregationSummary> {
 export async function triggerAggregationJob(
     data: TriggerAggregationJobRequest
 ): Promise<TriggerAggregationJobResponse> {
+    assertAggregationConfigured();
     return aggregationClient.post<TriggerAggregationJobResponse>('/admin/trigger', data);
 }
