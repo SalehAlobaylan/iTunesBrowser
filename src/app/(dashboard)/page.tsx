@@ -1,9 +1,14 @@
+'use client';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AggregationHealthPanel } from '@/components/platform/aggregation-health-panel';
 import { isAggregationConfigured } from '@/lib/api/aggregation';
+import { useDashboardStats } from '@/hooks/use-dashboard-stats';
 
 export default function DashboardPage() {
+    const { data: stats, isLoading: statsLoading } = useDashboardStats();
+
     return (
         <div className="space-y-6">
             {/* Page header */}
@@ -22,7 +27,7 @@ export default function DashboardPage() {
                         <Badge variant="secondary">Platform</Badge>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">—</div>
+                        <div className="text-2xl font-bold">{statsLoading ? '—' : (stats?.totalSources ?? 0)}</div>
                         <p className="text-xs text-muted-foreground">
                             Content sources available
                         </p>
@@ -35,7 +40,7 @@ export default function DashboardPage() {
                         <Badge variant="secondary">Platform</Badge>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">—</div>
+                        <div className="text-2xl font-bold">{statsLoading ? '—' : (stats?.totalContentItems ?? 0)}</div>
                         <p className="text-xs text-muted-foreground">
                             Total content entries
                         </p>
@@ -48,7 +53,7 @@ export default function DashboardPage() {
                         <Badge variant="info">CRM</Badge>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">—</div>
+                        <div className="text-2xl font-bold">{statsLoading ? '—' : (stats?.totalCustomers ?? 0)}</div>
                         <p className="text-xs text-muted-foreground">
                             Active customers
                         </p>
@@ -61,7 +66,7 @@ export default function DashboardPage() {
                         <Badge variant="info">CRM</Badge>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">—</div>
+                        <div className="text-2xl font-bold">{statsLoading ? '—' : (stats?.openDeals ?? 0)}</div>
                         <p className="text-xs text-muted-foreground">
                             Deals in pipeline
                         </p>

@@ -10,6 +10,8 @@ import type {
     DiscoverSourceFeedsResponse,
     PreviewSourceRequest,
     PreviewSourceResponse,
+    BulkCreateSourcesRequest,
+    BulkCreateSourcesResponse,
 } from '@/types/platform/source';
 
 /**
@@ -58,6 +60,16 @@ export async function deleteSource(id: string): Promise<void> {
  */
 export async function runSource(id: string): Promise<RunSourceResponse> {
     return cmsClient.post<RunSourceResponse>(`/admin/sources/${id}/run`);
+}
+
+/**
+ * Bulk create content sources
+ * POST /admin/sources/bulk
+ */
+export async function bulkCreateSources(
+    data: BulkCreateSourcesRequest
+): Promise<BulkCreateSourcesResponse> {
+    return cmsClient.post<BulkCreateSourcesResponse>('/admin/sources/bulk', data);
 }
 
 /**

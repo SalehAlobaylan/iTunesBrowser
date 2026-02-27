@@ -8,6 +8,7 @@ import {
   runSource,
   discoverSourceFeeds,
   previewSource,
+  bulkCreateSources,
 } from '@/lib/api/cms/sources';
 import type {
   ContentSource,
@@ -16,6 +17,7 @@ import type {
   UpdateSourceRequest,
   DiscoverSourceFeedsRequest,
   PreviewSourceRequest,
+  BulkCreateSourcesRequest,
 } from '@/types/platform/source';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
@@ -181,5 +183,31 @@ export function useDiscoverSourceFeeds() {
 export function usePreviewSource() {
   return useMutation({
     mutationFn: (data: PreviewSourceRequest) => previewSource(data),
+  });
+}
+
+/**
+ * Hook to bulk create sources (e.g., OPML import)
+ */
+export function useBulkCreateSources() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: BulkCreateSourcesRequest) => bulkCreateSources(data),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: sourceKeys.lists() });
+      toast({
+        title: 'Source import complete',
+        description: `Created ${result.accepted} of ${result.total} sources.`,
+        variant: result.failed.length > 0 ? 'default' : 'success',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to import sources',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
   });
 }

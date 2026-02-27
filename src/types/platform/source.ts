@@ -55,6 +55,23 @@ export interface RunSourceResponse {
     job_id?: string;
 }
 
+export interface BulkCreateSourcesRequest {
+    sources: CreateSourceRequest[];
+}
+
+export interface BulkCreateFailure {
+    index: number;
+    name?: string;
+    message: string;
+}
+
+export interface BulkCreateSourcesResponse {
+    created: ContentSource[];
+    failed: BulkCreateFailure[];
+    total: number;
+    accepted: number;
+}
+
 export interface DiscoverSourceFeedsRequest {
     url: string;
 }

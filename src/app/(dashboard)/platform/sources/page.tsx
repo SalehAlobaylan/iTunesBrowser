@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Play, Search, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Play, Search, Pencil, Trash2, Upload } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
@@ -41,9 +41,55 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useSources, useDeleteSource, useRunSource } from '@/hooks/use-sources';
+import { useSources, useDeleteSource, useRunSource, useBulkCreateSources } from '@/hooks/use-sources';
+import { toast } from '@/components/ui/toast';
 import { SOURCE_TYPE_LABELS } from '@/types/platform/source';
-import type { SourceType } from '@/types/platform/source';
+import type { BulkCreateSourcesResponse, CreateSourceRequest, SourceType } from '@/types/platform/source';
+
+function parseOpmlToSources(opmlContent: string): CreateSourceRequest[] {
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(opmlContent, 'text/xml');
+    const parseErrors = xml.getElementsByTagName('parsererror');
+    if (parseErrors.length > 0) {
+        throw new Error('Invalid OPML file');
+    }
+
+    const outlines = Array.from(xml.getElementsByTagName('outline'));
+    const sources: CreateSourceRequest[] = [];
+    const seenFeedUrls = new Set<string>();
+
+    outlines.forEach((outline, index) => {
+        const xmlUrl = outline.getAttribute('xmlUrl') || outline.getAttribute('xmlurl');
+        if (!xmlUrl) {
+            return;
+        }
+
+        const feedUrl = xmlUrl.trim();
+        if (!feedUrl || seenFeedUrls.has(feedUrl)) {
+            return;
+        }
+
+        seenFeedUrls.add(feedUrl);
+        const title =
+            outline.getAttribute('title') ||
+            outline.getAttribute('text') ||
+            `Imported Feed ${index + 1}`;
+
+        sources.push({
+            name: title.trim(),
+            type: 'RSS',
+            feed_url: feedUrl,
+            is_active: true,
+            fetch_interval_minutes: 60,
+        });
+    });
+
+    if (sources.length === 0) {
+        throw new Error('No RSS feeds found in OPML file');
+    }
+
+    return sources;
+}
 
 export default function SourcesPage() {
     const router = useRouter();
@@ -51,6 +97,7 @@ export default function SourcesPage() {
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState<string>('all');
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [importSummary, setImportSummary] = useState<BulkCreateSourcesResponse | null>(null);
 
     const limit = 10;
     const { data, isLoading, error } = useSources({
@@ -62,6 +109,7 @@ export default function SourcesPage() {
 
     const deleteMutation = useDeleteSource();
     const runMutation = useRunSource();
+    const bulkImportMutation = useBulkCreateSources();
 
     const handleDelete = () => {
         if (deleteId) {
@@ -75,6 +123,39 @@ export default function SourcesPage() {
         runMutation.mutate(id);
     };
 
+    const handleOpmlImport = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            return;
+        }
+
+        let sources: CreateSourceRequest[] = [];
+        try {
+            const content = await file.text();
+            sources = parseOpmlToSources(content);
+        } catch (error) {
+            setImportSummary(null);
+            if (error instanceof Error) {
+                toast({
+                    title: 'Invalid OPML file',
+                    description: error.message,
+                    variant: 'destructive',
+                });
+            }
+            event.target.value = '';
+            return;
+        }
+
+        try {
+            const result = await bulkImportMutation.mutateAsync({ sources });
+            setImportSummary(result);
+        } catch {
+            // mutation hook already handles API errors with toast
+        } finally {
+            event.target.value = '';
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -85,13 +166,46 @@ export default function SourcesPage() {
                         Manage your content ingestion sources
                     </p>
                 </div>
-                <Button asChild>
-                    <Link href="/platform/sources/new">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Source
-                    </Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button asChild>
+                        <Link href="/platform/sources/new">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add Source
+                        </Link>
+                    </Button>
+                    <div>
+                        <Input
+                            id="opml-import"
+                            type="file"
+                            accept=".opml,.xml,text/xml,application/xml"
+                            className="hidden"
+                            onChange={handleOpmlImport}
+                        />
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => document.getElementById('opml-import')?.click()}
+                            disabled={bulkImportMutation.isPending}
+                        >
+                            <Upload className="mr-2 h-4 w-4" />
+                            {bulkImportMutation.isPending ? 'Importing...' : 'Import OPML'}
+                        </Button>
+                    </div>
+                </div>
             </div>
+
+            {importSummary && (
+                <div className="rounded-md border p-4">
+                    <p className="font-medium">
+                        Import complete: {importSummary.accepted}/{importSummary.total} sources created
+                    </p>
+                    {importSummary.failed.length > 0 && (
+                        <p className="text-sm text-muted-foreground">
+                            {importSummary.failed.length} entries failed and were skipped.
+                        </p>
+                    )}
+                </div>
+            )}
 
             {/* Filters */}
             <div className="flex items-center gap-4">

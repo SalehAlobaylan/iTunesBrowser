@@ -11,8 +11,9 @@ const AGGREGATION_BASE_URL = process.env.NEXT_PUBLIC_AGGREGATION_BASE_URL;
 const DEV_FALLBACK_AGGREGATION_URL = 'http://localhost:5002';
 const RESOLVED_AGGREGATION_BASE_URL =
     AGGREGATION_BASE_URL || (process.env.NODE_ENV === 'development' ? DEV_FALLBACK_AGGREGATION_URL : '');
-
-const aggregationClient = createClient(RESOLVED_AGGREGATION_BASE_URL || DEV_FALLBACK_AGGREGATION_URL);
+const aggregationClient = RESOLVED_AGGREGATION_BASE_URL
+    ? createClient(RESOLVED_AGGREGATION_BASE_URL, 'cms')
+    : null;
 
 export function isAggregationConfigured(): boolean {
     return Boolean(RESOLVED_AGGREGATION_BASE_URL);
@@ -29,7 +30,7 @@ function assertAggregationConfigured(): void {
  */
 export async function fetchAggregationHealth(): Promise<AggregationHealth> {
     assertAggregationConfigured();
-    return aggregationClient.get<AggregationHealth>('/health');
+    return aggregationClient!.get<AggregationHealth>('/health');
 }
 
 /**
@@ -37,7 +38,7 @@ export async function fetchAggregationHealth(): Promise<AggregationHealth> {
  */
 export async function fetchQueueStats(): Promise<QueueStats[]> {
     assertAggregationConfigured();
-    return aggregationClient.get<QueueStats[]>('/admin/queues');
+    return aggregationClient!.get<QueueStats[]>('/admin/queues');
 }
 
 /**
@@ -71,5 +72,5 @@ export async function triggerAggregationJob(
     data: TriggerAggregationJobRequest
 ): Promise<TriggerAggregationJobResponse> {
     assertAggregationConfigured();
-    return aggregationClient.post<TriggerAggregationJobResponse>('/admin/trigger', data);
+    return aggregationClient!.post<TriggerAggregationJobResponse>('/admin/trigger', data);
 }
