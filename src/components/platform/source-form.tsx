@@ -24,7 +24,7 @@ import { SOURCE_TYPE_LABELS } from '@/types/platform/source';
 
 const sourceSchema = z.object({
     name: z.string().min(1, 'Name is required'),
-    type: z.enum(['RSS', 'PODCAST', 'YOUTUBE', 'TWITTER', 'REDDIT', 'MANUAL'] as const),
+    type: z.enum(['RSS', 'WEBSITE', 'PODCAST', 'YOUTUBE', 'TWITTER', 'REDDIT', 'MANUAL'] as const),
     feed_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
     fetch_interval_minutes: z.coerce.number().min(1, 'Minimum 1 minute'),
     is_active: z.boolean(),
@@ -34,6 +34,12 @@ const sourceSchema = z.object({
         (value) => (value === '' || value === null || value === undefined ? undefined : value),
         z.coerce.number().min(0, 'Must be zero or positive').optional()
     ),
+    selector_item: z.string().optional(),
+    selector_link: z.string().optional(),
+    selector_title: z.string().optional(),
+    selector_excerpt: z.string().optional(),
+    selector_author: z.string().optional(),
+    selector_date: z.string().optional(),
 });
 
 type SourceFormData = z.infer<typeof sourceSchema>;
@@ -59,6 +65,18 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
         };
     }, [source?.api_config]);
 
+    const currentSelectors = useMemo(() => {
+        const raw = source?.api_config?.selectors as Record<string, unknown> | undefined;
+        return {
+            item: typeof raw?.item === 'string' ? raw.item : '',
+            link: typeof raw?.link === 'string' ? raw.link : '',
+            title: typeof raw?.title === 'string' ? raw.title : '',
+            excerpt: typeof raw?.excerpt === 'string' ? raw.excerpt : '',
+            author: typeof raw?.author === 'string' ? raw.author : '',
+            date: typeof raw?.date === 'string' ? raw.date : '',
+        };
+    }, [source?.api_config]);
+
     const {
         register,
         handleSubmit,
@@ -76,6 +94,12 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             include_keywords: currentFilters.includeKeywords,
             exclude_keywords: currentFilters.excludeKeywords,
             min_engagement: currentFilters.minEngagement,
+            selector_item: currentSelectors.item,
+            selector_link: currentSelectors.link,
+            selector_title: currentSelectors.title,
+            selector_excerpt: currentSelectors.excerpt,
+            selector_author: currentSelectors.author,
+            selector_date: currentSelectors.date,
         },
     });
 
@@ -86,9 +110,16 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
     const includeKeywordsInput = watch('include_keywords');
     const excludeKeywordsInput = watch('exclude_keywords');
     const minEngagementValue = watch('min_engagement');
+    const selectorItem = watch('selector_item');
+    const selectorLink = watch('selector_link');
+    const selectorTitle = watch('selector_title');
+    const selectorExcerpt = watch('selector_excerpt');
+    const selectorAuthor = watch('selector_author');
+    const selectorDate = watch('selector_date');
 
-    const showFeedUrl = ['RSS', 'PODCAST', 'YOUTUBE'].includes(selectedType);
-    const showFilters = ['RSS', 'TWITTER', 'REDDIT', 'YOUTUBE', 'PODCAST'].includes(selectedType);
+    const showFeedUrl = ['RSS', 'WEBSITE', 'PODCAST', 'YOUTUBE'].includes(selectedType);
+    const showFilters = ['RSS', 'WEBSITE', 'TWITTER', 'REDDIT', 'YOUTUBE', 'PODCAST'].includes(selectedType);
+    const showWebsiteSelectors = selectedType === 'WEBSITE';
 
     const parseKeywordList = (input?: string): string[] =>
         (input || '')
@@ -155,8 +186,31 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                             exclude_keywords: excludeKeywords,
                             min_engagement: typeof minEngagementValue === 'number' ? minEngagementValue : undefined,
                         },
+                        ...(showWebsiteSelectors
+                            ? {
+                                selectors: {
+                                    item: selectorItem || undefined,
+                                    link: selectorLink || undefined,
+                                    title: selectorTitle || undefined,
+                                    excerpt: selectorExcerpt || undefined,
+                                    author: selectorAuthor || undefined,
+                                    date: selectorDate || undefined,
+                                },
+                            }
+                            : {}),
                     }
-                    : {},
+                    : (showWebsiteSelectors
+                        ? {
+                            selectors: {
+                                item: selectorItem || undefined,
+                                link: selectorLink || undefined,
+                                title: selectorTitle || undefined,
+                                excerpt: selectorExcerpt || undefined,
+                                author: selectorAuthor || undefined,
+                                date: selectorDate || undefined,
+                            },
+                        }
+                        : {}),
             },
             {
                 onError: (error: Error) => {
@@ -174,6 +228,14 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
         const includeKeywords = parseKeywordList(data.include_keywords);
         const excludeKeywords = parseKeywordList(data.exclude_keywords);
         const hasFilters = includeKeywords.length > 0 || excludeKeywords.length > 0 || typeof data.min_engagement === 'number';
+        const hasSelectorConfig = selectedType === 'WEBSITE' && (
+            (data.selector_item && data.selector_item.trim()) ||
+            (data.selector_link && data.selector_link.trim()) ||
+            (data.selector_title && data.selector_title.trim()) ||
+            (data.selector_excerpt && data.selector_excerpt.trim()) ||
+            (data.selector_author && data.selector_author.trim()) ||
+            (data.selector_date && data.selector_date.trim())
+        );
 
         const payload: CreateSourceRequest | UpdateSourceRequest = {
             name: data.name.trim(),
@@ -181,14 +243,31 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             feed_url: data.feed_url?.trim() || undefined,
             fetch_interval_minutes: data.fetch_interval_minutes,
             is_active: data.is_active,
-            api_config: hasFilters
+            api_config: (hasFilters || hasSelectorConfig || selectedType === 'WEBSITE')
                 ? {
                     ...(source?.api_config || {}),
-                    filters: {
-                        include_keywords: includeKeywords,
-                        exclude_keywords: excludeKeywords,
-                        min_engagement: typeof data.min_engagement === 'number' ? data.min_engagement : undefined,
-                    },
+                    ...(hasFilters
+                        ? {
+                            filters: {
+                                include_keywords: includeKeywords,
+                                exclude_keywords: excludeKeywords,
+                                min_engagement: typeof data.min_engagement === 'number' ? data.min_engagement : undefined,
+                            },
+                        }
+                        : {}),
+                    ...(selectedType === 'WEBSITE'
+                        ? {
+                            selectors: {
+                                item: data.selector_item?.trim() || undefined,
+                                link: data.selector_link?.trim() || undefined,
+                                title: data.selector_title?.trim() || undefined,
+                                excerpt: data.selector_excerpt?.trim() || undefined,
+                                author: data.selector_author?.trim() || undefined,
+                                date: data.selector_date?.trim() || undefined,
+                            },
+                            url: data.feed_url?.trim() || undefined,
+                        }
+                        : {}),
                 }
                 : (source?.api_config || undefined),
         };
@@ -243,17 +322,52 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
 
                     {showFeedUrl && (
                         <div className="space-y-2">
-                            <Label htmlFor="feed_url">Feed URL</Label>
+                            <Label htmlFor="feed_url">{selectedType === 'WEBSITE' ? 'Source URL' : 'Feed URL'}</Label>
                             <Input
                                 id="feed_url"
                                 type="url"
-                                placeholder="https://example.com/feed.xml"
+                                placeholder={selectedType === 'WEBSITE' ? 'https://example.com/news' : 'https://example.com/feed.xml'}
                                 {...register('feed_url')}
                                 disabled={isLoading}
                             />
                             {errors.feed_url && (
                                 <p className="text-sm text-destructive">{errors.feed_url.message}</p>
                             )}
+                        </div>
+                    )}
+
+                    {showWebsiteSelectors && (
+                        <div className="space-y-3 rounded-md border p-3">
+                            <p className="text-sm font-medium">Website Selectors</p>
+                            <p className="text-xs text-muted-foreground">
+                                Configure selectors for websites without RSS feeds.
+                            </p>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor="selector_item">Item Selector</Label>
+                                    <Input id="selector_item" placeholder="article, .post" {...register('selector_item')} disabled={isLoading} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="selector_link">Link Selector</Label>
+                                    <Input id="selector_link" placeholder="a[href]" {...register('selector_link')} disabled={isLoading} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="selector_title">Title Selector</Label>
+                                    <Input id="selector_title" placeholder="h2, .title" {...register('selector_title')} disabled={isLoading} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="selector_excerpt">Excerpt Selector</Label>
+                                    <Input id="selector_excerpt" placeholder="p, .summary" {...register('selector_excerpt')} disabled={isLoading} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="selector_author">Author Selector</Label>
+                                    <Input id="selector_author" placeholder=".author" {...register('selector_author')} disabled={isLoading} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="selector_date">Date Selector</Label>
+                                    <Input id="selector_date" placeholder="time, .date" {...register('selector_date')} disabled={isLoading} />
+                                </div>
+                            </div>
                         </div>
                     )}
 

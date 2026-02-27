@@ -12,7 +12,7 @@ export const customerSchema = z.object({
 // Source form validation schema
 export const sourceSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  type: z.enum(['RSS', 'PODCAST', 'YOUTUBE', 'TWITTER', 'REDDIT', 'MANUAL']),
+  type: z.enum(['RSS', 'WEBSITE', 'PODCAST', 'YOUTUBE', 'TWITTER', 'REDDIT', 'MANUAL']),
   feed_url: z.string().url('Invalid URL').optional().or(z.literal('')),
   is_active: z.boolean().optional(),
   fetch_interval_minutes: z.number().min(5).max(1440).optional(),

@@ -42,6 +42,7 @@ import type { AggregationTriggerSourceType } from '@/types/platform/aggregation'
 
 const SOURCE_TYPE_OPTIONS: AggregationTriggerSourceType[] = [
     'RSS',
+    'WEBSITE',
     'YOUTUBE',
     'PODCAST',
     'PODCAST_DISCOVERY',

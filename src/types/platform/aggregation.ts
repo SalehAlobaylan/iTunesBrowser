@@ -26,6 +26,7 @@ export interface AggregationSummary {
 
 export type AggregationTriggerSourceType =
     | 'RSS'
+    | 'WEBSITE'
     | 'YOUTUBE'
     | 'PODCAST'
     | 'PODCAST_DISCOVERY'
