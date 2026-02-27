@@ -7,14 +7,14 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SourceForm } from '@/components/platform/source-form';
 import { useCreateSource } from '@/hooks/use-sources';
-import type { CreateSourceRequest } from '@/types/platform/source';
+import type { CreateSourceRequest, UpdateSourceRequest } from '@/types/platform/source';
 
 export default function NewSourcePage() {
     const router = useRouter();
     const createMutation = useCreateSource();
 
-    const handleSubmit = (data: CreateSourceRequest) => {
-        createMutation.mutate(data, {
+    const handleSubmit = (data: CreateSourceRequest | UpdateSourceRequest) => {
+        createMutation.mutate(data as CreateSourceRequest, {
             onSuccess: () => {
                 router.push('/platform/sources');
             },

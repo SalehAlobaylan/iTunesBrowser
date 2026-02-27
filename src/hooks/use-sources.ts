@@ -6,12 +6,16 @@ import {
   updateSource,
   deleteSource,
   runSource,
+  discoverSourceFeeds,
+  previewSource,
 } from '@/lib/api/cms/sources';
 import type {
   ContentSource,
   ListSourcesParams,
   CreateSourceRequest,
   UpdateSourceRequest,
+  DiscoverSourceFeedsRequest,
+  PreviewSourceRequest,
 } from '@/types/platform/source';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
@@ -159,5 +163,23 @@ export function useRunSource() {
         variant: 'destructive',
       });
     },
+  });
+}
+
+/**
+ * Hook to discover feed URLs from a website URL
+ */
+export function useDiscoverSourceFeeds() {
+  return useMutation({
+    mutationFn: (data: DiscoverSourceFeedsRequest) => discoverSourceFeeds(data),
+  });
+}
+
+/**
+ * Hook to preview source ingestion results
+ */
+export function usePreviewSource() {
+  return useMutation({
+    mutationFn: (data: PreviewSourceRequest) => previewSource(data),
   });
 }
