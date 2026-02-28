@@ -25,8 +25,17 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
     const { id } = use(params);
     const { data: item, isLoading, error } = useContentItem(id);
     const updateStatusMutation = useUpdateContentStatus();
+    const moderationMetadata = (item?.metadata?.moderation as Record<string, unknown> | undefined) || undefined;
+    const moderationDecision = typeof moderationMetadata?.decision === 'string' ? moderationMetadata.decision : undefined;
+    const moderationReason = typeof moderationMetadata?.reason === 'string' ? moderationMetadata.reason : undefined;
 
     const handleArchive = () => {
+        updateStatusMutation.mutate({ id, status: 'ARCHIVED' });
+    };
+    const handleApprove = () => {
+        updateStatusMutation.mutate({ id, status: 'READY' });
+    };
+    const handleReject = () => {
         updateStatusMutation.mutate({ id, status: 'ARCHIVED' });
     };
 
@@ -126,6 +135,24 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                             <Archive className="mr-2 h-4 w-4" />
                             Archive
                         </Button>
+                    )}
+                    {item.status === 'PENDING' && (
+                        <>
+                            <Button
+                                variant="default"
+                                onClick={handleApprove}
+                                disabled={updateStatusMutation.isPending}
+                            >
+                                Approve
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                onClick={handleReject}
+                                disabled={updateStatusMutation.isPending}
+                            >
+                                Reject
+                            </Button>
+                        </>
                     )}
                 </div>
             </div>
@@ -299,6 +326,18 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                                         {formatDistanceToNow(new Date(item.updated_at), { addSuffix: true })}
                                     </dd>
                                 </div>
+                                {moderationDecision && (
+                                    <div>
+                                        <dt className="text-muted-foreground">Moderation Decision</dt>
+                                        <dd className="font-medium capitalize">{moderationDecision.replace('_', ' ')}</dd>
+                                    </div>
+                                )}
+                                {moderationReason && (
+                                    <div>
+                                        <dt className="text-muted-foreground">Moderation Reason</dt>
+                                        <dd className="font-medium">{moderationReason}</dd>
+                                    </div>
+                                )}
                             </dl>
                         </CardContent>
                     </Card>

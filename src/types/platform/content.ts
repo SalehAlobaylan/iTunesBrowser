@@ -25,6 +25,7 @@ export interface ContentItem {
     like_count: number;
     view_count: number;
     share_count: number;
+    metadata?: Record<string, unknown>;
 }
 
 // API request/response types

@@ -1,47 +1,68 @@
-![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/postgresql-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
-![Fastify](https://img.shields.io/badge/fastify-%23000000.svg?style=for-the-badge&logo=fastify&logoColor=white)
-![Next JS](https://img.shields.io/badge/Next-black?style=for-the-badge&logo=next.js&logoColor=white)
-![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![Jest](https://img.shields.io/badge/-jest-%23C21325?style=for-the-badge&logo=jest&logoColor=white)
+# Platform Console
 
-# iTunes Podcast Browser
+Admin dashboard for Wahb platform operations and CRM workflows.
 
-Simple podcast search app using iTunes API with Next.js frontend and Fastify backend.
+## Stack
+
+- Next.js 15
+- React 19
+- TypeScript
+- TanStack Query
+- Radix UI + Tailwind
 
 ## Quick Start
 
-1. **Install dependencies:**
-
 ```bash
 npm install
-```
-
-2. **Setup environment:**
-   Create `.env` file with your Supabase credentials:
-
-```
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_key
-```
-
-3. **Run the app:**
-
-```bash
 npm run dev
 ```
 
-Visit: http://localhost:3000
+Default local URL: `http://localhost:3005`
 
-## How it works
+## Required Environment Variables
 
-1. Search for podcasts
-2. Data fetched from iTunes API
-3. Results stored in Supabase
-4. Displayed on frontend
+```bash
+NEXT_PUBLIC_CMS_BASE_URL=http://localhost:8080
+NEXT_PUBLIC_CRM_BASE_URL=http://localhost:4000
+NEXT_PUBLIC_IAM_BASE_URL=http://localhost:4003
+```
 
-## Servers
+Optional:
 
-- Frontend: http://localhost:3000
-- Backend: http://localhost:4000
+```bash
+NEXT_PUBLIC_AGGREGATION_BASE_URL=http://localhost:5002
+NEXT_PUBLIC_GRAFANA_URL=http://localhost:3002
+```
+
+## Implemented Platform Features
+
+### Source Management
+
+- Content source CRUD
+- Run-now trigger
+- Feed discovery from website URL
+- Source preview (fetch + normalize, no write)
+- OPML bulk import
+- Source-level filters
+- WEBSITE source type with selector configuration
+- Moderation v1 source settings
+
+### Content Management
+
+- Content list with status/type filters
+- Content detail view
+- Archive action
+- Moderation actions for pending items:
+  - Approve -> `READY`
+  - Reject -> `ARCHIVED`
+
+### Dashboard
+
+- Wired platform + CRM stats cards
+- Aggregation monitoring panel (queues, health, manual trigger)
+
+## API Dependencies
+
+- CMS admin API (`/admin/*`) for platform data and operations
+- CRM admin API (`/admin/*`) for CRM data
+- Aggregation admin/health endpoints (optional, for monitoring panel)

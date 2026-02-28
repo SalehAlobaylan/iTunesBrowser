@@ -34,6 +34,12 @@ const sourceSchema = z.object({
         (value) => (value === '' || value === null || value === undefined ? undefined : value),
         z.coerce.number().min(0, 'Must be zero or positive').optional()
     ),
+    moderation_trusted_source: z.boolean().optional(),
+    moderation_blocked_keywords: z.string().optional(),
+    moderation_min_content_length: z.preprocess(
+        (value) => (value === '' || value === null || value === undefined ? undefined : value),
+        z.coerce.number().min(0, 'Must be zero or positive').optional()
+    ),
     selector_item: z.string().optional(),
     selector_link: z.string().optional(),
     selector_title: z.string().optional(),
@@ -62,6 +68,14 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             includeKeywords: Array.isArray(raw?.include_keywords) ? raw?.include_keywords.join(', ') : '',
             excludeKeywords: Array.isArray(raw?.exclude_keywords) ? raw?.exclude_keywords.join(', ') : '',
             minEngagement: typeof raw?.min_engagement === 'number' ? raw.min_engagement : undefined,
+        };
+    }, [source?.api_config]);
+    const currentModeration = useMemo(() => {
+        const raw = source?.api_config?.moderation as Record<string, unknown> | undefined;
+        return {
+            trustedSource: Boolean(raw?.trusted_source),
+            blockedKeywords: Array.isArray(raw?.blocked_keywords) ? raw?.blocked_keywords.join(', ') : '',
+            minContentLength: typeof raw?.min_content_length === 'number' ? raw.min_content_length : 80,
         };
     }, [source?.api_config]);
 
@@ -94,6 +108,9 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             include_keywords: currentFilters.includeKeywords,
             exclude_keywords: currentFilters.excludeKeywords,
             min_engagement: currentFilters.minEngagement,
+            moderation_trusted_source: currentModeration.trustedSource,
+            moderation_blocked_keywords: currentModeration.blockedKeywords,
+            moderation_min_content_length: currentModeration.minContentLength,
             selector_item: currentSelectors.item,
             selector_link: currentSelectors.link,
             selector_title: currentSelectors.title,
@@ -110,6 +127,9 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
     const includeKeywordsInput = watch('include_keywords');
     const excludeKeywordsInput = watch('exclude_keywords');
     const minEngagementValue = watch('min_engagement');
+    const moderationTrustedSource = Boolean(watch('moderation_trusted_source'));
+    const moderationBlockedKeywords = watch('moderation_blocked_keywords');
+    const moderationMinContentLength = watch('moderation_min_content_length');
     const selectorItem = watch('selector_item');
     const selectorLink = watch('selector_link');
     const selectorTitle = watch('selector_title');
@@ -172,6 +192,11 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
         const includeKeywords = parseKeywordList(includeKeywordsInput);
         const excludeKeywords = parseKeywordList(excludeKeywordsInput);
         const hasFilters = includeKeywords.length > 0 || excludeKeywords.length > 0 || typeof minEngagementValue === 'number';
+        const blockedKeywords = parseKeywordList(moderationBlockedKeywords);
+        const hasModerationSettings =
+            moderationTrustedSource ||
+            blockedKeywords.length > 0 ||
+            typeof moderationMinContentLength === 'number';
 
         previewMutation.mutate(
             {
@@ -179,13 +204,17 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                 url: feedUrl.trim(),
                 name: sourceName || undefined,
                 limit: 10,
-                settings: hasFilters
+                settings: (hasFilters || hasModerationSettings || showWebsiteSelectors)
                     ? {
-                        filters: {
-                            include_keywords: includeKeywords,
-                            exclude_keywords: excludeKeywords,
-                            min_engagement: typeof minEngagementValue === 'number' ? minEngagementValue : undefined,
-                        },
+                        ...(hasFilters
+                            ? {
+                                filters: {
+                                    include_keywords: includeKeywords,
+                                    exclude_keywords: excludeKeywords,
+                                    min_engagement: typeof minEngagementValue === 'number' ? minEngagementValue : undefined,
+                                },
+                            }
+                            : {}),
                         ...(showWebsiteSelectors
                             ? {
                                 selectors: {
@@ -198,19 +227,20 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                                 },
                             }
                             : {}),
+                        ...(hasModerationSettings
+                            ? {
+                                moderation: {
+                                    trusted_source: moderationTrustedSource,
+                                    blocked_keywords: blockedKeywords,
+                                    min_content_length:
+                                        typeof moderationMinContentLength === 'number'
+                                            ? moderationMinContentLength
+                                            : undefined,
+                                },
+                            }
+                            : {}),
                     }
-                    : (showWebsiteSelectors
-                        ? {
-                            selectors: {
-                                item: selectorItem || undefined,
-                                link: selectorLink || undefined,
-                                title: selectorTitle || undefined,
-                                excerpt: selectorExcerpt || undefined,
-                                author: selectorAuthor || undefined,
-                                date: selectorDate || undefined,
-                            },
-                        }
-                        : {}),
+                    : {},
             },
             {
                 onError: (error: Error) => {
@@ -228,6 +258,11 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
         const includeKeywords = parseKeywordList(data.include_keywords);
         const excludeKeywords = parseKeywordList(data.exclude_keywords);
         const hasFilters = includeKeywords.length > 0 || excludeKeywords.length > 0 || typeof data.min_engagement === 'number';
+        const moderationBlockedKeywordList = parseKeywordList(data.moderation_blocked_keywords);
+        const hasModerationSettings =
+            Boolean(data.moderation_trusted_source) ||
+            moderationBlockedKeywordList.length > 0 ||
+            typeof data.moderation_min_content_length === 'number';
         const hasSelectorConfig = selectedType === 'WEBSITE' && (
             (data.selector_item && data.selector_item.trim()) ||
             (data.selector_link && data.selector_link.trim()) ||
@@ -243,7 +278,7 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             feed_url: data.feed_url?.trim() || undefined,
             fetch_interval_minutes: data.fetch_interval_minutes,
             is_active: data.is_active,
-            api_config: (hasFilters || hasSelectorConfig || selectedType === 'WEBSITE')
+            api_config: (hasFilters || hasSelectorConfig || selectedType === 'WEBSITE' || hasModerationSettings)
                 ? {
                     ...(source?.api_config || {}),
                     ...(hasFilters
@@ -266,6 +301,18 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                                 date: data.selector_date?.trim() || undefined,
                             },
                             url: data.feed_url?.trim() || undefined,
+                        }
+                        : {}),
+                    ...(hasModerationSettings
+                        ? {
+                            moderation: {
+                                trusted_source: Boolean(data.moderation_trusted_source),
+                                blocked_keywords: moderationBlockedKeywordList,
+                                min_content_length:
+                                    typeof data.moderation_min_content_length === 'number'
+                                        ? data.moderation_min_content_length
+                                        : undefined,
+                            },
                         }
                         : {}),
                 }
@@ -406,6 +453,54 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                             </div>
                         </div>
                     )}
+
+                    <div className="space-y-3 rounded-md border p-3">
+                        <p className="text-sm font-medium">Moderation (v1)</p>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label>Trusted Source</Label>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant={moderationTrustedSource ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => setValue('moderation_trusted_source', true)}
+                                        disabled={isLoading}
+                                    >
+                                        Trusted
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant={!moderationTrustedSource ? 'default' : 'outline'}
+                                        size="sm"
+                                        onClick={() => setValue('moderation_trusted_source', false)}
+                                        disabled={isLoading}
+                                    >
+                                        Untrusted
+                                    </Button>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="moderation_min_content_length">Min Content Length</Label>
+                                <Input
+                                    id="moderation_min_content_length"
+                                    type="number"
+                                    min={0}
+                                    {...register('moderation_min_content_length')}
+                                    disabled={isLoading}
+                                />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="moderation_blocked_keywords">Blocked Keywords (comma-separated)</Label>
+                                <Input
+                                    id="moderation_blocked_keywords"
+                                    placeholder="spam, scam, giveaway"
+                                    {...register('moderation_blocked_keywords')}
+                                    disabled={isLoading}
+                                />
+                            </div>
+                        </div>
+                    </div>
 
                     <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
