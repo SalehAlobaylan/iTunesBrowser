@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Select,
     SelectContent,
@@ -21,21 +22,43 @@ import { SOURCE_TYPE_LABELS } from '@/types/platform/source';
 
 const sourceSchema = z.object({
     name: z.string().min(1, 'Name is required'),
-    type: z.enum(['RSS', 'PODCAST', 'YOUTUBE', 'TWITTER', 'REDDIT', 'MANUAL'] as const),
+    type: z.enum(['RSS', 'PODCAST', 'YOUTUBE', 'TWITTER', 'REDDIT', 'TELEGRAM', 'MANUAL'] as const),
     feed_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
     fetch_interval_minutes: z.coerce.number().min(1, 'Minimum 1 minute'),
     is_active: z.boolean(),
+    telegram_channel_username: z.string().optional(),
+    telegram_min_duration_sec: z.coerce.number().min(1, 'Minimum 1 second').optional(),
+    telegram_max_duration_sec: z.coerce.number().min(1, 'Minimum 1 second').optional(),
+    telegram_media_audio: z.boolean().default(true),
+    telegram_media_voice: z.boolean().default(true),
+    telegram_media_video: z.boolean().default(false),
+    telegram_media_photo: z.boolean().default(false),
 });
 
 type SourceFormData = z.infer<typeof sourceSchema>;
+type SourceFormSubmitData = {
+    name: SourceFormData['name'];
+    type: SourceFormData['type'];
+    feed_url?: string;
+    fetch_interval_minutes: SourceFormData['fetch_interval_minutes'];
+    is_active: SourceFormData['is_active'];
+    api_config?: Record<string, unknown>;
+};
 
 interface SourceFormProps {
     source?: ContentSource;
-    onSubmit: (data: SourceFormData) => void;
+    onSubmit: (data: SourceFormSubmitData) => void;
     isLoading?: boolean;
 }
 
 export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
+    const sourceApiConfig = source?.api_config as Record<string, unknown> | undefined;
+    const sourceMediaTypes = Array.isArray(sourceApiConfig?.['media_types'])
+        ? sourceApiConfig?.['media_types'].filter(
+            (value): value is string => typeof value === 'string'
+        )
+        : [];
+
     const {
         register,
         handleSubmit,
@@ -50,16 +73,64 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             feed_url: source?.feed_url || '',
             fetch_interval_minutes: source?.fetch_interval_minutes || 60,
             is_active: source?.is_active ?? true,
+            telegram_channel_username: typeof sourceApiConfig?.['channel_username'] === 'string'
+                ? sourceApiConfig['channel_username']
+                : '',
+            telegram_min_duration_sec: typeof sourceApiConfig?.['min_duration_sec'] === 'number'
+                ? sourceApiConfig['min_duration_sec']
+                : 120,
+            telegram_max_duration_sec: typeof sourceApiConfig?.['max_duration_sec'] === 'number'
+                ? sourceApiConfig['max_duration_sec']
+                : undefined,
+            telegram_media_audio: sourceMediaTypes.length === 0 || sourceMediaTypes.includes('audio'),
+            telegram_media_voice: sourceMediaTypes.length === 0 || sourceMediaTypes.includes('voice'),
+            telegram_media_video: sourceMediaTypes.includes('video'),
+            telegram_media_photo: sourceMediaTypes.includes('photo'),
         },
     });
 
     const selectedType = watch('type');
     const isActive = watch('is_active');
+    const telegramMediaAudio = watch('telegram_media_audio');
+    const telegramMediaVoice = watch('telegram_media_voice');
+    const telegramMediaVideo = watch('telegram_media_video');
+    const telegramMediaPhoto = watch('telegram_media_photo');
 
-    const showFeedUrl = ['RSS', 'PODCAST', 'YOUTUBE'].includes(selectedType);
+    const showFeedUrl = ['RSS', 'PODCAST', 'YOUTUBE', 'TELEGRAM'].includes(selectedType);
+    const showTelegramConfig = selectedType === 'TELEGRAM';
+
+    const submitForm = (data: SourceFormData) => {
+        const payload: SourceFormSubmitData = {
+            name: data.name,
+            type: data.type,
+            fetch_interval_minutes: data.fetch_interval_minutes,
+            is_active: data.is_active,
+            feed_url: data.feed_url || undefined,
+        };
+
+        if (data.type === 'TELEGRAM') {
+            const mediaTypes = [
+                data.telegram_media_audio ? 'audio' : null,
+                data.telegram_media_voice ? 'voice' : null,
+                data.telegram_media_video ? 'video' : null,
+                data.telegram_media_photo ? 'photo' : null,
+            ].filter((value): value is 'audio' | 'voice' | 'video' | 'photo' => value !== null);
+
+            payload.api_config = {
+                channel_username: data.telegram_channel_username?.trim() || undefined,
+                min_duration_sec: data.telegram_min_duration_sec || 120,
+                max_duration_sec: data.telegram_max_duration_sec || undefined,
+                media_types: mediaTypes.length > 0 ? mediaTypes : ['audio', 'voice'],
+            };
+        } else {
+            payload.api_config = source?.api_config;
+        }
+
+        onSubmit(payload);
+    };
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(submitForm)} className="space-y-6">
             <Card>
                 <CardHeader>
                     <CardTitle>Source Details</CardTitle>
@@ -105,17 +176,107 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
 
                     {showFeedUrl && (
                         <div className="space-y-2">
-                            <Label htmlFor="feed_url">Feed URL</Label>
+                            <Label htmlFor="feed_url">
+                                {selectedType === 'TELEGRAM' ? 'Channel URL' : 'Feed URL'}
+                            </Label>
                             <Input
                                 id="feed_url"
                                 type="url"
-                                placeholder="https://example.com/feed.xml"
+                                placeholder={
+                                    selectedType === 'TELEGRAM'
+                                        ? 'https://t.me/channel_name'
+                                        : 'https://example.com/feed.xml'
+                                }
                                 {...register('feed_url')}
                                 disabled={isLoading}
                             />
                             {errors.feed_url && (
                                 <p className="text-sm text-destructive">{errors.feed_url.message}</p>
                             )}
+                        </div>
+                    )}
+
+                    {showTelegramConfig && (
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="telegram_channel_username">Channel Username (optional)</Label>
+                                <Input
+                                    id="telegram_channel_username"
+                                    placeholder="@channel_name"
+                                    {...register('telegram_channel_username')}
+                                    disabled={isLoading}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Leave empty to derive from Channel URL.
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="telegram_min_duration_sec">Minimum Audio Duration (seconds)</Label>
+                                <Input
+                                    id="telegram_min_duration_sec"
+                                    type="number"
+                                    min={1}
+                                    {...register('telegram_min_duration_sec')}
+                                    disabled={isLoading}
+                                />
+                                {errors.telegram_min_duration_sec && (
+                                    <p className="text-sm text-destructive">
+                                        {errors.telegram_min_duration_sec.message}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="telegram_max_duration_sec">Maximum Duration (seconds, optional)</Label>
+                                <Input
+                                    id="telegram_max_duration_sec"
+                                    type="number"
+                                    min={1}
+                                    {...register('telegram_max_duration_sec')}
+                                    disabled={isLoading}
+                                />
+                                {errors.telegram_max_duration_sec && (
+                                    <p className="text-sm text-destructive">
+                                        {errors.telegram_max_duration_sec.message}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label>Media Types</Label>
+                                <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <Checkbox
+                                            checked={telegramMediaAudio}
+                                            onCheckedChange={(checked) => setValue('telegram_media_audio', Boolean(checked))}
+                                            disabled={isLoading}
+                                        />
+                                        Audio Files
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <Checkbox
+                                            checked={telegramMediaVoice}
+                                            onCheckedChange={(checked) => setValue('telegram_media_voice', Boolean(checked))}
+                                            disabled={isLoading}
+                                        />
+                                        Voice Notes
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <Checkbox
+                                            checked={telegramMediaVideo}
+                                            onCheckedChange={(checked) => setValue('telegram_media_video', Boolean(checked))}
+                                            disabled={isLoading}
+                                        />
+                                        Videos
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm">
+                                        <Checkbox
+                                            checked={telegramMediaPhoto}
+                                            onCheckedChange={(checked) => setValue('telegram_media_photo', Boolean(checked))}
+                                            disabled={isLoading}
+                                        />
+                                        Photos
+                                    </label>
+                                </div>
+                            </div>
                         </div>
                     )}
 

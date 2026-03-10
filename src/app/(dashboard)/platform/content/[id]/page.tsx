@@ -15,7 +15,7 @@ import {
     CONTENT_STATUS_LABELS,
     CONTENT_STATUS_VARIANTS,
 } from '@/types/platform/content';
-import type { ContentType, ContentStatus } from '@/types/platform/content';
+import type { ContentType, ContentStatus, NewsMetadata } from '@/types/platform/content';
 
 interface ContentDetailPageProps {
     params: Promise<{ id: string }>;
@@ -29,6 +29,8 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
     const handleArchive = () => {
         updateStatusMutation.mutate({ id, status: 'ARCHIVED' });
     };
+
+    const news = extractNewsMetadata(item?.metadata);
 
     if (isLoading) {
         return (
@@ -303,6 +305,91 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                         </CardContent>
                     </Card>
 
+                    {/* News Classification */}
+                    {news && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>News Classification</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-sm text-muted-foreground">Likely News</div>
+                                    <Badge variant={news.likelyNews ? 'success' : 'secondary'}>
+                                        {news.likelyNews ? 'Yes' : 'No'}
+                                    </Badge>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                        <div className="text-muted-foreground">Score</div>
+                                        <div className="font-medium">{news.score}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-muted-foreground">Confidence</div>
+                                        <div className="font-medium capitalize">{news.confidence}</div>
+                                    </div>
+                                </div>
+
+                                {news.categoryHints && news.categoryHints.length > 0 && (
+                                    <div>
+                                        <div className="mb-2 text-sm text-muted-foreground">Category Hints</div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {news.categoryHints.map((category) => (
+                                                <Badge key={category} variant="outline">
+                                                    {category}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {news.matchedKeywords && news.matchedKeywords.length > 0 && (
+                                    <div>
+                                        <div className="mb-2 text-sm text-muted-foreground">Matched Keywords</div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {news.matchedKeywords.map((keyword) => (
+                                                <Badge key={keyword} variant="secondary">
+                                                    {keyword}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {news.signals && (
+                                    <div className="space-y-2 text-sm">
+                                        <div className="text-muted-foreground">Signals</div>
+                                        <dl className="space-y-1">
+                                            <div className="flex justify-between gap-3">
+                                                <dt className="text-muted-foreground">Breaking Prefix</dt>
+                                                <dd className="font-medium">{formatBoolean(news.signals.hasBreakingPrefix)}</dd>
+                                            </div>
+                                            <div className="flex justify-between gap-3">
+                                                <dt className="text-muted-foreground">Verified Source</dt>
+                                                <dd className="font-medium">{formatBoolean(news.signals.verifiedSource)}</dd>
+                                            </div>
+                                            <div className="flex justify-between gap-3">
+                                                <dt className="text-muted-foreground">Source Looks News</dt>
+                                                <dd className="font-medium">{formatBoolean(news.signals.sourceLooksNews)}</dd>
+                                            </div>
+                                            <div className="flex justify-between gap-3">
+                                                <dt className="text-muted-foreground">Has Attribution</dt>
+                                                <dd className="font-medium">{formatBoolean(news.signals.hasAttribution)}</dd>
+                                            </div>
+                                            <div className="flex justify-between gap-3">
+                                                <dt className="text-muted-foreground">Recency (hours)</dt>
+                                                <dd className="font-medium">
+                                                    {typeof news.signals.recencyHours === 'number'
+                                                        ? news.signals.recencyHours
+                                                        : 'N/A'}
+                                                </dd>
+                                            </div>
+                                        </dl>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {/* URLs */}
                     {(item.original_url || item.media_url || item.thumbnail_url) && (
                         <Card>
@@ -352,4 +439,49 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
             </div>
         </div>
     );
+}
+
+function extractNewsMetadata(metadata?: Record<string, unknown>): NewsMetadata | null {
+    if (!metadata || typeof metadata !== 'object') {
+        return null;
+    }
+
+    const news = metadata['news'];
+    if (!news || typeof news !== 'object') {
+        return null;
+    }
+
+    const candidate = news as Record<string, unknown>;
+    const likelyNews = candidate['likelyNews'];
+    const score = candidate['score'];
+    const confidence = candidate['confidence'];
+
+    if (typeof likelyNews !== 'boolean' || typeof score !== 'number') {
+        return null;
+    }
+    if (confidence !== 'low' && confidence !== 'medium' && confidence !== 'high') {
+        return null;
+    }
+
+    return {
+        version: typeof candidate['version'] === 'string' ? candidate['version'] : undefined,
+        likelyNews,
+        score,
+        confidence,
+        categoryHints: Array.isArray(candidate['categoryHints'])
+            ? candidate['categoryHints'].filter((item): item is string => typeof item === 'string')
+            : [],
+        matchedKeywords: Array.isArray(candidate['matchedKeywords'])
+            ? candidate['matchedKeywords'].filter((item): item is string => typeof item === 'string')
+            : [],
+        signals: typeof candidate['signals'] === 'object' && candidate['signals'] !== null
+            ? candidate['signals'] as NewsMetadata['signals']
+            : undefined,
+    };
+}
+
+function formatBoolean(value?: boolean): string {
+    if (value === true) return 'Yes';
+    if (value === false) return 'No';
+    return 'N/A';
 }

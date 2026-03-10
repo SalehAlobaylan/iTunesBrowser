@@ -18,6 +18,7 @@ export interface ContentItem {
     original_url?: string;
     duration_sec?: number;
     topic_tags?: string[];
+    metadata?: Record<string, unknown>;
     published_at?: string;
     created_at: string;
     updated_at: string;
@@ -25,6 +26,24 @@ export interface ContentItem {
     like_count: number;
     view_count: number;
     share_count: number;
+}
+
+export type NewsConfidence = 'low' | 'medium' | 'high';
+
+export interface NewsMetadata {
+    version?: string;
+    likelyNews: boolean;
+    score: number;
+    confidence: NewsConfidence;
+    categoryHints?: string[];
+    matchedKeywords?: string[];
+    signals?: {
+        hasBreakingPrefix?: boolean;
+        verifiedSource?: boolean;
+        sourceLooksNews?: boolean;
+        hasAttribution?: boolean;
+        recencyHours?: number | null;
+    };
 }
 
 // API request/response types

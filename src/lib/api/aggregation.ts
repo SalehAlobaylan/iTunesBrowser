@@ -12,7 +12,10 @@ const DEV_FALLBACK_AGGREGATION_URL = 'http://localhost:5002';
 const RESOLVED_AGGREGATION_BASE_URL =
     AGGREGATION_BASE_URL || (process.env.NODE_ENV === 'development' ? DEV_FALLBACK_AGGREGATION_URL : '');
 
-const aggregationClient = createClient(RESOLVED_AGGREGATION_BASE_URL || DEV_FALLBACK_AGGREGATION_URL);
+const aggregationClient = createClient(
+    RESOLVED_AGGREGATION_BASE_URL || DEV_FALLBACK_AGGREGATION_URL,
+    'iam'
+);
 
 export function isAggregationConfigured(): boolean {
     return Boolean(RESOLVED_AGGREGATION_BASE_URL);

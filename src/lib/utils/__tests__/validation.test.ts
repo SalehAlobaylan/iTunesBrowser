@@ -100,6 +100,19 @@ describe('validation schemas', () => {
       const result = sourceSchema.safeParse(invalidData);
       expect(result.success).toBe(false);
     });
+
+    it('should accept TELEGRAM source type', () => {
+      const telegramData = {
+        name: 'Telegram Channel',
+        type: 'TELEGRAM' as const,
+        feed_url: 'https://t.me/example_channel',
+        is_active: true,
+        fetch_interval_minutes: 30,
+      };
+
+      const result = sourceSchema.safeParse(telegramData);
+      expect(result.success).toBe(true);
+    });
   });
 
   describe('dealSchema', () => {

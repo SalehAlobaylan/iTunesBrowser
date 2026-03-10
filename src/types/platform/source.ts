@@ -1,6 +1,6 @@
 // Content Source types for Platform Module
 
-export type SourceType = 'RSS' | 'PODCAST' | 'YOUTUBE' | 'TWITTER' | 'REDDIT' | 'MANUAL';
+export type SourceType = 'RSS' | 'PODCAST' | 'YOUTUBE' | 'TWITTER' | 'REDDIT' | 'TELEGRAM' | 'MANUAL';
 
 export interface ContentSource {
     id: string;
@@ -62,5 +62,6 @@ export const SOURCE_TYPE_LABELS: Record<SourceType, string> = {
     YOUTUBE: 'YouTube',
     TWITTER: 'Twitter/X',
     REDDIT: 'Reddit',
+    TELEGRAM: 'Telegram',
     MANUAL: 'Manual',
 };
