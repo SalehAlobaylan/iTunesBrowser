@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Menu, X, LayoutDashboard } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { navigation, NavigationSection } from '@/lib/constants/routes';
@@ -38,12 +39,14 @@ export function Sidebar({ className }: SidebarProps) {
       >
         {mobile || !sidebarCollapsed ? (
           <Link href="/" className="flex items-center gap-2">
-            <LayoutDashboard className="h-6 w-6 text-primary" />
+            <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={28} height={28} className="dark:hidden object-contain" />
+            <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={28} height={28} className="hidden dark:block object-contain" />
             <span className="text-lg font-semibold">Platform Console</span>
           </Link>
         ) : (
-          <Link href="/" className="mx-auto">
-            <LayoutDashboard className="h-6 w-6 text-primary" />
+          <Link href="/" className="mx-auto flex h-full items-center justify-center pt-2">
+            <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={24} height={24} className="dark:hidden object-contain" />
+            <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={24} height={24} className="hidden dark:block object-contain" />
           </Link>
         )}
         {mobile && (

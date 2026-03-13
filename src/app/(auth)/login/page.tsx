@@ -1,4 +1,4 @@
-import { LayoutDashboard } from 'lucide-react';
+import Image from 'next/image';
 import {
     Card,
     CardContent,
@@ -12,8 +12,9 @@ export default function LoginPage() {
     return (
         <div className="w-full max-w-md px-4">
             <div className="flex justify-center mb-8">
-                <div className="flex items-center gap-2">
-                    <LayoutDashboard className="h-10 w-10 text-primary" />
+                <div className="flex items-center gap-3">
+                    <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={36} height={36} className="dark:hidden object-contain" />
+                    <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={36} height={36} className="hidden dark:block object-contain" />
                     <span className="text-2xl font-bold">Platform Console</span>
                 </div>
             </div>
