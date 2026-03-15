@@ -76,3 +76,22 @@ export async function triggerAggregationJob(
     assertAggregationConfigured();
     return aggregationClient.post<TriggerAggregationJobResponse>('/admin/trigger', data);
 }
+
+export interface PurgeQueuesRequest {
+    queue?: string;
+    includeFailed?: boolean;
+}
+
+export interface PurgeQueuesResponse {
+    success: boolean;
+    message: string;
+    purged: Record<string, number>;
+}
+
+/**
+ * Purge jobs from aggregation queues.
+ */
+export async function purgeQueues(data?: PurgeQueuesRequest): Promise<PurgeQueuesResponse> {
+    assertAggregationConfigured();
+    return aggregationClient.post<PurgeQueuesResponse>('/admin/queues/purge', data || {});
+}

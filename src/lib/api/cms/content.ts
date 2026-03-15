@@ -32,3 +32,23 @@ export async function updateContentStatus(
 ): Promise<ContentItem> {
     return cmsClient.patch<ContentItem>(`/admin/content/${id}/status`, data);
 }
+
+export interface BulkDeleteRequest {
+    status?: string;
+    source_name?: string;
+    created_before?: string;
+    dry_run?: boolean;
+}
+
+export interface BulkDeleteResponse {
+    deleted_count: number;
+    message: string;
+}
+
+/**
+ * Bulk delete content items based on filters
+ * POST /admin/content/bulk-delete
+ */
+export async function bulkDeleteContent(data: BulkDeleteRequest): Promise<BulkDeleteResponse> {
+    return cmsClient.post<BulkDeleteResponse>('/admin/content/bulk-delete', data);
+}

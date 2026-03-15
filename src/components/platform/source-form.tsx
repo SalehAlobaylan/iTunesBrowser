@@ -37,6 +37,8 @@ const sourceSchema = z.object({
     telegram_max_results: z.coerce.number().min(1, 'Minimum 1').max(200, 'Maximum 200').optional(),
     telegram_max_age_hours: z.coerce.number().min(1, 'Minimum 1 hour').optional(),
     telegram_min_text_length: z.coerce.number().min(1, 'Minimum 1').max(2000, 'Maximum 2000').optional(),
+    youtube_max_results: z.coerce.number().min(1, 'Minimum 1').max(50, 'Maximum 50').optional(),
+    youtube_max_age_hours: z.coerce.number().min(1, 'Minimum 1 hour').optional(),
 });
 
 type SourceFormData = z.infer<typeof sourceSchema>;
@@ -100,6 +102,12 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             telegram_min_text_length: typeof sourceApiConfig?.['min_text_length'] === 'number'
                 ? sourceApiConfig['min_text_length']
                 : undefined,
+            youtube_max_results: typeof sourceApiConfig?.['max_results'] === 'number'
+                ? sourceApiConfig['max_results']
+                : 20,
+            youtube_max_age_hours: typeof sourceApiConfig?.['max_age_hours'] === 'number'
+                ? sourceApiConfig['max_age_hours']
+                : undefined,
         },
     });
 
@@ -118,6 +126,7 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
 
     const showFeedUrl = ['RSS', 'PODCAST', 'YOUTUBE', 'TELEGRAM'].includes(selectedType);
     const showTelegramConfig = selectedType === 'TELEGRAM';
+    const showYoutubeConfig = selectedType === 'YOUTUBE';
 
     const submitForm = (data: SourceFormData) => {
         const payload: SourceFormSubmitData = {
@@ -149,6 +158,11 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                 ...(data.telegram_max_results ? { max_results: data.telegram_max_results } : {}),
                 ...(data.telegram_max_age_hours ? { max_age_hours: data.telegram_max_age_hours } : {}),
                 ...(data.telegram_min_text_length ? { min_text_length: data.telegram_min_text_length } : {}),
+            };
+        } else if (data.type === 'YOUTUBE') {
+            payload.api_config = {
+                ...(data.youtube_max_results ? { max_results: data.youtube_max_results } : {}),
+                ...(data.youtube_max_age_hours ? { max_age_hours: data.youtube_max_age_hours } : {}),
             };
         } else {
             payload.api_config = source?.api_config;
@@ -400,6 +414,56 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                                         )}
                                     </div>
                                 )}
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {showYoutubeConfig && (
+                        <Card className="border-dashed">
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                                    YouTube Fetch Limits
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid gap-4 md:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor="youtube_max_results">Max Videos per Fetch</Label>
+                                    <Input
+                                        id="youtube_max_results"
+                                        type="number"
+                                        min={1}
+                                        max={50}
+                                        placeholder="20"
+                                        {...register('youtube_max_results')}
+                                        disabled={isLoading}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Max videos to fetch per cycle (1–50). Default: 20.
+                                    </p>
+                                    {errors.youtube_max_results && (
+                                        <p className="text-sm text-destructive">{errors.youtube_max_results.message}</p>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="youtube_max_age_hours">
+                                        Max Video Age (hours)
+                                    </Label>
+                                    <Input
+                                        id="youtube_max_age_hours"
+                                        type="number"
+                                        min={1}
+                                        placeholder="e.g. 24"
+                                        {...register('youtube_max_age_hours')}
+                                        disabled={isLoading}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Skip videos older than this. Leave empty for no limit.
+                                    </p>
+                                    {errors.youtube_max_age_hours && (
+                                        <p className="text-sm text-destructive">{errors.youtube_max_age_hours.message}</p>
+                                    )}
+                                </div>
                             </CardContent>
                         </Card>
                     )}
