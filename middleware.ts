@@ -8,7 +8,6 @@ const publicRoutes = ['/login'];
 const protectedRoutes = [
     '/',
     '/platform',
-    '/crm',
 ];
 
 export function middleware(request: NextRequest) {

@@ -6,7 +6,6 @@ import { defineConfig, devices } from '@playwright/test';
  * This configuration sets up E2E tests for critical user flows:
  * - Login
  * - Platform: create/edit source, trigger "Run Now"
- * - CRM: create customer, create deal, move deal stage
  */
 export default defineConfig({
   testDir: './e2e',

@@ -13,7 +13,7 @@ describe('auth token selection', () => {
         });
     });
 
-    it('returns CMS token for cms and crm services', () => {
+    it('returns CMS token for cms service', () => {
         useAuthStore.setState({
             token: 'legacy-token',
             cmsToken: 'cms-token',
@@ -21,7 +21,6 @@ describe('auth token selection', () => {
         });
 
         expect(getAuthTokenForService('cms')).toBe('cms-token');
-        expect(getAuthTokenForService('crm')).toBe('cms-token');
     });
 
     it('falls back to legacy token when cms token is missing', () => {
@@ -32,7 +31,6 @@ describe('auth token selection', () => {
         });
 
         expect(getAuthTokenForService('cms')).toBe('legacy-token');
-        expect(getAuthTokenForService('crm')).toBe('legacy-token');
     });
 
     it('returns IAM access token for iam service', () => {

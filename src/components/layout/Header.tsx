@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, LogOut, Moon, Sun, User } from 'lucide-react';
+import { LogOut, Moon, Sun, User, ChevronDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,6 @@ export function Header({ className }: HeaderProps) {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [mounted, setMounted] = useState(false);
 
-  // Handle theme on mount
   useEffect(() => {
     setMounted(true);
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
@@ -44,59 +43,52 @@ export function Header({ className }: HeaderProps) {
     document.documentElement.classList.toggle('dark', newTheme === 'dark');
   };
 
-  const handleLogout = () => {
-    logout();
-  };
-
   return (
     <header
-      className={`flex h-16 items-center justify-between border-b bg-card px-4 sm:px-6 ${className || ''}`}
+      className={`flex h-14 items-center justify-between border-b bg-card/80 backdrop-blur-sm px-4 sm:px-6 ${className || ''}`}
     >
-      {/* Breadcrumb */}
       <Breadcrumb />
 
-      {/* Right side actions */}
-      <div className="flex items-center gap-2">
-        {/* Theme toggle */}
+      <div className="flex items-center gap-1">
         {mounted && (
           <Button
             variant="ghost"
             size="icon"
             onClick={toggleTheme}
+            className="h-8 w-8 rounded-lg"
             aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
           >
             {theme === 'light' ? (
-              <Moon className="h-5 w-5" />
+              <Moon className="h-4 w-4" />
             ) : (
-              <Sun className="h-5 w-5" />
+              <Sun className="h-4 w-4" />
             )}
           </Button>
         )}
 
-        {/* Notifications placeholder */}
-        <Button variant="ghost" size="icon" aria-label="Notifications">
-          <Bell className="h-5 w-5" />
-        </Button>
-
-        {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <User className="h-5 w-5" />
-              <span className="sr-only">User menu</span>
+            <Button variant="ghost" className="h-8 gap-2 rounded-lg px-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10">
+                <User className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span className="hidden text-sm font-medium sm:inline-block">
+                {user?.email?.split('@')[0] || 'User'}
+              </span>
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
-              <div className="flex flex-col">
-                <span>{user?.email || 'Unknown'}</span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">{user?.email || 'Unknown'}</span>
                 <span className="text-xs font-normal capitalize text-muted-foreground">
                   {user?.role || 'User'}
                 </span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
+            <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
             </DropdownMenuItem>

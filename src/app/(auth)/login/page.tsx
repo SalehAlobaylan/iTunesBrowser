@@ -1,4 +1,7 @@
+'use client';
+
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import {
     Card,
     CardContent,
@@ -7,23 +10,54 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { LoginForm } from '@/components/auth';
+import { useAuthStore } from '@/lib/stores/auth';
+import { toast } from '@/components/ui/toast';
 
 export default function LoginPage() {
+    const router = useRouter();
+    const login = useAuthStore((state) => state.login);
+
+    const handleQuickLogin = async () => {
+        try {
+            await login('admin@gmail.com', 'admin');
+            toast({
+                title: 'Welcome back!',
+                description: 'Quick sign-in successful.',
+                variant: 'success',
+            });
+            router.push('/');
+        } catch {
+            toast({
+                title: 'Quick login failed',
+                description: 'Could not sign in with default credentials.',
+                variant: 'destructive',
+            });
+        }
+    };
+
     return (
-        <div className="w-full max-w-md px-4">
-            <div className="flex justify-center mb-8">
-                <div className="flex items-center gap-3">
-                    <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={36} height={36} className="dark:hidden object-contain" />
-                    <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={36} height={36} className="hidden dark:block object-contain" />
-                    <span className="text-2xl font-bold">Platform Console</span>
+        <div className="w-full max-w-sm px-4">
+            <div className="mb-8 flex flex-col items-center gap-3">
+                <button
+                    type="button"
+                    onClick={handleQuickLogin}
+                    className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 shadow-sm transition-transform hover:scale-110 active:scale-95 cursor-pointer"
+                    title="Quick sign in"
+                >
+                    <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={28} height={28} className="dark:hidden object-contain" />
+                    <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={28} height={28} className="hidden dark:block object-contain" />
+                </button>
+                <div className="text-center">
+                    <h1 className="text-xl font-semibold tracking-tight">Platform Console</h1>
+                    <p className="mt-0.5 text-sm text-muted-foreground">Wahb Content Management</p>
                 </div>
             </div>
 
-            <Card>
-                <CardHeader className="space-y-1">
-                    <CardTitle className="text-2xl text-center">Sign in</CardTitle>
-                    <CardDescription className="text-center">
-                        Enter your credentials to access the admin console
+            <Card className="shadow-sm">
+                <CardHeader className="space-y-1 pb-4">
+                    <CardTitle className="text-lg text-center">Sign in</CardTitle>
+                    <CardDescription className="text-center text-xs">
+                        Enter your credentials to continue
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

@@ -33,7 +33,6 @@ npx playwright test --project=chromium
 
 - `auth.spec.ts` - Authentication flows (login, logout, protected routes)
 - `platform-sources.spec.ts` - Platform sources management
-- `crm.spec.ts` - CRM customers and deals management
 
 ## Environment Variables
 
@@ -75,6 +74,4 @@ The following E2E tests need to be implemented:
 
 - [ ] Authentication: Complete login flow with test credentials
 - [ ] Platform: Create source, edit source, run ingestion
-- [ ] CRM: Create customer, add contact, create deal
-- [ ] CRM: Move deal through pipeline stages
 - [ ] Responsive: Verify mobile sidebar and touch interactions

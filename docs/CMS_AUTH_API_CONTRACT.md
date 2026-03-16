@@ -1,8 +1,10 @@
 # CMS Auth API Contract for Platform Console
 
-**Document Version:** 1.0  
-**Date:** 2026-02-02  
-**Purpose:** Define authentication API contract between CMS Service and Platform Console  
+> **Note (March 2026):** CRM-Service has been removed from the monorepo. References to CRM in this document are outdated.
+
+**Document Version:** 1.0
+**Date:** 2026-02-02
+**Purpose:** Define authentication API contract between CMS Service and Platform Console
 **Consumer:** Platform Console (Next.js Frontend)  
 **Provider:** CMS Service (Go/Gin Backend)
 

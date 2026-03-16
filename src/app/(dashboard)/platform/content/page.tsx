@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, ExternalLink, Trash2, Zap } from 'lucide-react';
-import { formatDistanceToNow, format, subDays } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,8 +44,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useContent } from '@/hooks/use-content';
-import { useSources } from '@/hooks/use-sources';
-import { bulkDeleteContent } from '@/lib/api/cms/content';
+import { bulkDeleteContent, listSourceNames } from '@/lib/api/cms/content';
 import { purgeQueues } from '@/lib/api/aggregation';
 import {
     CONTENT_TYPE_LABELS,
@@ -62,7 +61,7 @@ export default function ContentPage() {
     const [typeFilter, setTypeFilter] = useState<string>('all');
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
-    const defaultCreatedBefore = format(subDays(new Date(), 7), "yyyy-MM-dd'T'HH:mm:ss");
+    const defaultCreatedBefore = format(new Date(), "yyyy-MM-dd'T'HH:mm:ss");
     const [deleteFilters, setDeleteFilters] = useState({
         status: 'FAILED',
         source_name: '',
@@ -80,15 +79,13 @@ export default function ContentPage() {
         type: typeFilter === 'all' ? undefined : (typeFilter as ContentType),
     });
 
-    // Fetch sources for the dropdown
-    const { data: sourcesData } = useSources({ limit: 100 });
-    const sourceNames = useMemo(() => {
-        const names = new Set<string>();
-        sourcesData?.data?.forEach(s => {
-            if (s.name) names.add(s.name);
-        });
-        return Array.from(names).sort();
-    }, [sourcesData]);
+    // Fetch all distinct source names from CMS for bulk-delete filter
+    const [sourceNames, setSourceNames] = useState<string[]>([]);
+    useEffect(() => {
+        if (deleteDialogOpen) {
+            listSourceNames().then(setSourceNames).catch(() => setSourceNames([]));
+        }
+    }, [deleteDialogOpen]);
 
     const [isDeleting, setIsDeleting] = useState(false);
     const [isPurging, setIsPurging] = useState(false);
@@ -99,7 +96,7 @@ export default function ContentPage() {
             const result = await bulkDeleteContent({
                 status: deleteFilters.status || undefined,
                 source_name: deleteFilters.source_name || undefined,
-                created_before: deleteFilters.created_before || undefined,
+                created_before: deleteFilters.created_before ? deleteFilters.created_before + 'Z' : undefined,
                 dry_run: deleteFilters.dryRun,
             });
             

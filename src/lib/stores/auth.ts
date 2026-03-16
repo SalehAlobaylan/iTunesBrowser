@@ -90,7 +90,7 @@ interface AuthState {
     user: User | null;
     // Backward-compatible token field used by existing hooks/components.
     token: string | null;
-    // CMS token used for CMS + CRM APIs during bridge mode.
+    // CMS token used for CMS APIs during bridge mode.
     cmsToken: string | null;
     // IAM access/refresh tokens used for IAM authentication.
     iamAccessToken: string | null;
@@ -387,7 +387,7 @@ export function getToken(): string | null {
 }
 
 // Helper function to retrieve service-specific tokens for API clients.
-export function getAuthTokenForService(service: 'cms' | 'crm' | 'iam'): string | null {
+export function getAuthTokenForService(service: 'cms' | 'iam'): string | null {
     const state = useAuthStore.getState();
     if (service === 'iam') {
         return state.iamAccessToken;

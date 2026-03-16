@@ -22,7 +22,7 @@ export interface ApiClient {
     delete<T>(url: string): Promise<T>;
 }
 
-type AuthService = 'cms' | 'crm' | 'iam';
+type AuthService = 'cms' | 'iam';
 
 // Error handler function type for custom error handling
 type ErrorHandler = (error: ApiError) => void;
@@ -130,17 +130,14 @@ function createApiClient(axiosInstance: AxiosInstance): ApiClient {
 
 // Environment variables for base URLs
 const CMS_BASE_URL = process.env.NEXT_PUBLIC_CMS_BASE_URL || 'http://localhost:8080';
-const CRM_BASE_URL = process.env.NEXT_PUBLIC_CRM_BASE_URL || 'http://localhost:8081';
 const IAM_BASE_URL = process.env.NEXT_PUBLIC_IAM_BASE_URL || 'http://localhost:4003';
 
 // Create axios instances
 const cmsAxios = createAxiosInstance(CMS_BASE_URL, 'cms');
-const crmAxios = createAxiosInstance(CRM_BASE_URL, 'crm');
 const iamAxios = createAxiosInstance(IAM_BASE_URL, 'iam');
 
 // Export pre-configured API clients
 export const cmsClient: ApiClient = createApiClient(cmsAxios);
-export const crmClient: ApiClient = createApiClient(crmAxios);
 export const iamClient: ApiClient = createApiClient(iamAxios);
 
 // Export a function to create custom clients if needed

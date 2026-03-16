@@ -1,12 +1,7 @@
 import {
-    Database,
+    LayoutDashboard,
+    Rss,
     FileText,
-    Users,
-    TrendingUp,
-    Calendar,
-    CheckSquare,
-    Tag,
-    BarChart,
     Shield,
     type LucideIcon,
 } from 'lucide-react';
@@ -24,21 +19,16 @@ export interface NavigationSection {
 
 export const navigation: NavigationSection[] = [
     {
-        title: 'Platform',
+        title: 'Overview',
         items: [
-            { name: 'Sources', href: '/platform/sources', icon: Database },
-            { name: 'Content', href: '/platform/content', icon: FileText },
+            { name: 'Dashboard', href: '/', icon: LayoutDashboard },
         ],
     },
     {
-        title: 'CRM',
+        title: 'Platform',
         items: [
-            { name: 'Customers', href: '/crm/customers', icon: Users },
-            { name: 'Deals', href: '/crm/deals', icon: TrendingUp },
-            { name: 'Activities', href: '/crm/activities', icon: Calendar },
-            { name: 'My Tasks', href: '/crm/my-tasks', icon: CheckSquare },
-            { name: 'Tags', href: '/crm/tags', icon: Tag },
-            { name: 'Reports', href: '/crm/reports/overview', icon: BarChart },
+            { name: 'Sources', href: '/platform/sources', icon: Rss },
+            { name: 'Content', href: '/platform/content', icon: FileText },
         ],
     },
     {
@@ -56,14 +46,6 @@ export const ROUTES = {
     PLATFORM: {
         SOURCES: '/platform/sources',
         CONTENT: '/platform/content',
-    },
-    CRM: {
-        CUSTOMERS: '/crm/customers',
-        DEALS: '/crm/deals',
-        ACTIVITIES: '/crm/activities',
-        MY_TASKS: '/crm/my-tasks',
-        TAGS: '/crm/tags',
-        REPORTS: '/crm/reports/overview',
     },
     ADMIN: {
         USERS: '/admin/users',

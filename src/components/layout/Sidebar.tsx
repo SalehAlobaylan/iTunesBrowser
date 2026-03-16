@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, PanelLeftClose, PanelLeft } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { navigation, NavigationSection } from '@/lib/constants/routes';
@@ -24,12 +24,15 @@ export function Sidebar({ className }: SidebarProps) {
     setMobileSidebarOpen,
   } = useUIStore();
 
+  const isActive = (href: string) =>
+    href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');
+
   const NavContent = ({ mobile = false }: { mobile?: boolean }) => (
     <>
       {/* Logo / Brand */}
       <div
         className={cn(
-          'flex h-16 items-center border-b px-4',
+          'flex h-14 items-center border-b px-4',
           mobile
             ? 'justify-between'
             : sidebarCollapsed
@@ -38,13 +41,13 @@ export function Sidebar({ className }: SidebarProps) {
         )}
       >
         {mobile || !sidebarCollapsed ? (
-          <Link href="/" className="flex items-center gap-2">
-            <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={28} height={28} className="dark:hidden object-contain" />
-            <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={28} height={28} className="hidden dark:block object-contain" />
-            <span className="text-lg font-semibold">Platform Console</span>
+          <Link href="/" className="flex items-center gap-2.5">
+            <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={26} height={26} className="dark:hidden object-contain" />
+            <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={26} height={26} className="hidden dark:block object-contain" />
+            <span className="text-sm font-semibold tracking-tight">Platform Console</span>
           </Link>
         ) : (
-          <Link href="/" className="mx-auto flex h-full items-center justify-center pt-2">
+          <Link href="/" className="mx-auto flex items-center justify-center">
             <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={24} height={24} className="dark:hidden object-contain" />
             <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={24} height={24} className="hidden dark:block object-contain" />
           </Link>
@@ -54,32 +57,33 @@ export function Sidebar({ className }: SidebarProps) {
             variant="ghost"
             size="icon"
             onClick={() => setMobileSidebarOpen(false)}
-            className="lg:hidden"
+            className="lg:hidden h-8 w-8"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </Button>
         )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4">
+      <nav className="flex-1 overflow-y-auto scrollbar-thin py-3">
         {navigation.map((section: NavigationSection) => (
-          <div key={section.title} className="mb-6">
+          <div key={section.title} className="mb-1">
             {(mobile || !sidebarCollapsed) && (
-              <h3 className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <h3 className="mb-1 px-4 pt-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
                 {section.title}
               </h3>
             )}
+            {sidebarCollapsed && !mobile && (
+              <div className="mx-auto my-2 h-px w-6 bg-border" />
+            )}
             <ul
               className={cn(
-                'space-y-1',
-                mobile || !sidebarCollapsed ? 'px-2' : 'px-1'
+                'space-y-0.5',
+                mobile || !sidebarCollapsed ? 'px-2' : 'px-1.5'
               )}
             >
               {section.items.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  pathname.startsWith(item.href + '/');
+                const active = isActive(item.href);
                 const Icon = item.icon;
                 return (
                   <li key={item.name}>
@@ -87,17 +91,17 @@ export function Sidebar({ className }: SidebarProps) {
                       href={item.href}
                       onClick={() => mobile && setMobileSidebarOpen(false)}
                       className={cn(
-                        'flex touch-manipulation items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
-                        isActive
-                          ? 'bg-primary text-primary-foreground'
-                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                        'flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors',
+                        active
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:bg-accent hover:text-foreground',
                         !mobile && sidebarCollapsed && 'justify-center px-2'
                       )}
                       title={
                         sidebarCollapsed && !mobile ? item.name : undefined
                       }
                     >
-                      <Icon className="h-5 w-5 flex-shrink-0" />
+                      <Icon className="h-4 w-4 flex-shrink-0" />
                       {(mobile || !sidebarCollapsed) && (
                         <span>{item.name}</span>
                       )}
@@ -117,12 +121,16 @@ export function Sidebar({ className }: SidebarProps) {
             variant="ghost"
             size="sm"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden w-full justify-center lg:flex"
+            className="hidden w-full justify-center lg:flex h-8 text-muted-foreground hover:text-foreground"
             aria-label={
               sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
             }
           >
-            {sidebarCollapsed ? '→' : '←'}
+            {sidebarCollapsed ? (
+              <PanelLeft className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
           </Button>
         </div>
       )}
@@ -134,8 +142,8 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          'hidden flex-col border-r bg-card transition-all duration-300 lg:flex',
-          sidebarCollapsed ? 'w-16' : 'w-64',
+          'hidden flex-col border-r bg-card transition-all duration-200 lg:flex',
+          sidebarCollapsed ? 'w-[52px]' : 'w-60',
           className
         )}
       >
@@ -148,13 +156,13 @@ export function Sidebar({ className }: SidebarProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="fixed left-4 top-4 z-40 h-10 w-10 border bg-background shadow-sm"
+            className="fixed left-4 top-3.5 z-40 h-8 w-8 border bg-background shadow-sm"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-4 w-4" />
             <span className="sr-only">Open sidebar</span>
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="w-64 p-0">
+        <SheetContent side="left" className="w-60 p-0">
           <div className="flex h-full flex-col">
             <NavContent mobile />
           </div>

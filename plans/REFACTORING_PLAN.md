@@ -1,6 +1,8 @@
 # Platform Console — Comprehensive Refactoring Plan
 
-**Version:** 1.0  
+> **Note (March 2026):** CRM-Service has been removed from the monorepo. All CRM references in this plan are outdated and no longer applicable.
+
+**Version:** 1.0
 **Created:** January 24, 2026  
 **Project:** iTunesBrowser → Platform Console  
 **Target:** Admin Dashboard for Wahb Platform + CRM Frontend

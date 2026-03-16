@@ -52,3 +52,12 @@ export interface BulkDeleteResponse {
 export async function bulkDeleteContent(data: BulkDeleteRequest): Promise<BulkDeleteResponse> {
     return cmsClient.post<BulkDeleteResponse>('/admin/content/bulk-delete', data);
 }
+
+/**
+ * Get all distinct source names
+ * GET /admin/content/source-names
+ */
+export async function listSourceNames(): Promise<string[]> {
+    const res = await cmsClient.get<{ source_names: string[] }>('/admin/content/source-names');
+    return res.source_names ?? [];
+}

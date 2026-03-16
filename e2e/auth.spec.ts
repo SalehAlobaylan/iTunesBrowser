@@ -49,7 +49,7 @@ test.describe('Authentication', () => {
 
   test('should redirect unauthenticated users to login', async ({ page }) => {
     // Try to access protected route without authentication
-    await page.goto('/crm/customers');
+    await page.goto('/platform/sources');
 
     // Should redirect to login
     await expect(page).toHaveURL(/.*login.*/);
