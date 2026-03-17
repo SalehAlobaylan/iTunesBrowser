@@ -5,7 +5,6 @@ describe('auth token selection', () => {
         useAuthStore.setState({
             user: null,
             token: null,
-            cmsToken: null,
             iamAccessToken: null,
             iamRefreshToken: null,
             isAuthenticated: false,
@@ -13,30 +12,18 @@ describe('auth token selection', () => {
         });
     });
 
-    it('returns CMS token for cms service', () => {
+    it('returns IAM token for cms service (unified auth)', () => {
         useAuthStore.setState({
-            token: 'legacy-token',
-            cmsToken: 'cms-token',
+            token: 'iam-token',
             iamAccessToken: 'iam-token',
         });
 
-        expect(getAuthTokenForService('cms')).toBe('cms-token');
-    });
-
-    it('falls back to legacy token when cms token is missing', () => {
-        useAuthStore.setState({
-            token: 'legacy-token',
-            cmsToken: null,
-            iamAccessToken: 'iam-token',
-        });
-
-        expect(getAuthTokenForService('cms')).toBe('legacy-token');
+        expect(getAuthTokenForService('cms')).toBe('iam-token');
     });
 
     it('returns IAM access token for iam service', () => {
         useAuthStore.setState({
-            token: 'legacy-token',
-            cmsToken: 'cms-token',
+            token: 'iam-token',
             iamAccessToken: 'iam-token',
         });
 
@@ -45,8 +32,7 @@ describe('auth token selection', () => {
 
     it('clearAuthState clears all persisted tokens', () => {
         useAuthStore.setState({
-            token: 'legacy-token',
-            cmsToken: 'cms-token',
+            token: 'iam-token',
             iamAccessToken: 'iam-token',
             iamRefreshToken: 'refresh-token',
             isAuthenticated: true,
@@ -56,10 +42,8 @@ describe('auth token selection', () => {
 
         const state = useAuthStore.getState();
         expect(state.token).toBeNull();
-        expect(state.cmsToken).toBeNull();
         expect(state.iamAccessToken).toBeNull();
         expect(state.iamRefreshToken).toBeNull();
         expect(state.isAuthenticated).toBe(false);
     });
 });
-

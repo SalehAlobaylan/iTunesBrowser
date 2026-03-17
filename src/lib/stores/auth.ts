@@ -1,22 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import axios from 'axios';
-import { login as cmsLogin, getMe as getCmsMe } from '@/lib/api/cms/auth';
 import { login as iamLogin, refresh as iamRefresh, getMyAccess as getIamMyAccess } from '@/lib/api/iam/auth';
-import type { User, MeResponse as CmsMeResponse } from '@/lib/api/cms/types';
+import type { User } from '@/lib/api/cms/types';
 import type { MeResponse as IamMeResponse } from '@/lib/api/iam/types';
 
-export type AuthMode = 'cms' | 'bridge' | 'iam';
-
-const AUTH_MODE: AuthMode = (() => {
-    const mode = process.env.NEXT_PUBLIC_AUTH_MODE?.toLowerCase();
-    if (mode === 'cms' || mode === 'bridge' || mode === 'iam') {
-        return mode;
-    }
-    return 'bridge';
-})();
-
-const ROLE_PRIORITY = ['admin', 'manager', 'agent', 'user'] as const;
+const ROLE_PRIORITY = ['admin', 'manager', 'editor', 'agent', 'user'] as const;
 
 function selectPrimaryRole(roles: string[], isAdmin: boolean): string {
     const normalized = roles.map((role) => role.toLowerCase());
@@ -37,15 +26,6 @@ function mapIamUser(me: IamMeResponse): User {
         email: me.email,
         role: me.role || selectPrimaryRole(me.roles, me.is_admin),
         permissions: me.permissions || [],
-    };
-}
-
-function mapCmsUser(me: CmsMeResponse): User {
-    return {
-        id: me.id,
-        email: me.email,
-        role: me.role,
-        permissions: me.permissions,
     };
 }
 
@@ -86,16 +66,20 @@ function toAuthError(error: unknown): AuthErrorShape {
     };
 }
 
+const EMPTY_AUTH = {
+    user: null,
+    token: null,
+    iamAccessToken: null,
+    iamRefreshToken: null,
+    isAuthenticated: false,
+    isLoading: false,
+};
+
 interface AuthState {
     user: User | null;
-    // Backward-compatible token field used by existing hooks/components.
     token: string | null;
-    // CMS token used for CMS APIs during bridge mode.
-    cmsToken: string | null;
-    // IAM access/refresh tokens used for IAM authentication.
     iamAccessToken: string | null;
     iamRefreshToken: string | null;
-    authMode: AuthMode;
     isAuthenticated: boolean;
     isLoading: boolean;
     login: (email: string, password: string) => Promise<void>;
@@ -110,258 +94,80 @@ export const useAuthStore = create<AuthState>()(
         (set, get) => ({
             user: null,
             token: null,
-            cmsToken: null,
             iamAccessToken: null,
             iamRefreshToken: null,
-            authMode: AUTH_MODE,
             isAuthenticated: false,
-            isLoading: true, // Start as loading until checkAuth completes
+            isLoading: true,
 
             login: async (email: string, password: string) => {
                 set({ isLoading: true });
                 try {
-                    const { authMode } = get();
-
-                    if (authMode === 'cms') {
-                        const response = await cmsLogin({ email, password });
-                        set({
-                            token: response.token,
-                            cmsToken: response.token,
-                            iamAccessToken: null,
-                            iamRefreshToken: null,
-                            user: {
-                                id: response.user.id,
-                                email: response.user.email,
-                                role: response.user.role,
-                            },
-                            isAuthenticated: true,
-                            isLoading: false,
-                        });
-                        return;
-                    }
-
                     const iamTokens = await iamLogin({ email, password });
                     const iamMe = await getIamMyAccess(iamTokens.access_token);
 
-                    if (authMode === 'iam') {
-                        set({
-                            token: iamTokens.access_token,
-                            cmsToken: null,
-                            iamAccessToken: iamTokens.access_token,
-                            iamRefreshToken: iamTokens.refresh_token,
-                            user: mapIamUser(iamMe),
-                            isAuthenticated: true,
-                            isLoading: false,
-                        });
-                        return;
-                    }
-
-                    const cmsSession = await cmsLogin({ email, password }).catch(() => {
-                        throw {
-                            message: 'IAM login succeeded, but CMS bridge login failed. Ensure IAM and CMS credentials are mirrored.',
-                            status: 401,
-                            code: 'BRIDGE_CMS_LOGIN_FAILED',
-                        } as AuthErrorShape;
-                    });
-
                     set({
-                        token: cmsSession.token,
-                        cmsToken: cmsSession.token,
+                        token: iamTokens.access_token,
                         iamAccessToken: iamTokens.access_token,
                         iamRefreshToken: iamTokens.refresh_token,
-                    });
-
-                    const cmsMe = await getCmsMe().catch(() => {
-                        throw {
-                            message: 'IAM login succeeded, but CMS bridge session validation failed.',
-                            status: 401,
-                            code: 'BRIDGE_CMS_SESSION_INVALID',
-                        } as AuthErrorShape;
-                    });
-
-                    set({
-                        user: mapCmsUser(cmsMe),
+                        user: mapIamUser(iamMe),
                         isAuthenticated: true,
                         isLoading: false,
                     });
                 } catch (error) {
-                    set({
-                        user: null,
-                        token: null,
-                        cmsToken: null,
-                        iamAccessToken: null,
-                        iamRefreshToken: null,
-                        isAuthenticated: false,
-                        isLoading: false,
-                    });
+                    set(EMPTY_AUTH);
                     throw toAuthError(error);
                 }
             },
 
             logout: () => {
-                set({
-                    user: null,
-                    token: null,
-                    cmsToken: null,
-                    iamAccessToken: null,
-                    iamRefreshToken: null,
-                    isAuthenticated: false,
-                    isLoading: false,
-                });
-                // Redirect to login page
+                set(EMPTY_AUTH);
                 if (typeof window !== 'undefined') {
                     window.location.href = '/login';
                 }
             },
 
             checkAuth: async () => {
-                const { authMode } = get();
+                let accessToken = get().iamAccessToken;
+                const refreshToken = get().iamRefreshToken;
 
-                if (authMode === 'cms') {
-                    const activeCmsToken = get().cmsToken || get().token;
-
-                    if (!activeCmsToken) {
-                        set({ isLoading: false, isAuthenticated: false });
-                        return;
-                    }
-
-                    set({ token: activeCmsToken, cmsToken: activeCmsToken });
-
-                    try {
-                        const user = await getCmsMe();
-                        set({
-                            user: mapCmsUser(user),
-                            isAuthenticated: true,
-                            isLoading: false,
-                        });
-                    } catch {
-                        set({
-                            user: null,
-                            token: null,
-                            cmsToken: null,
-                            iamAccessToken: null,
-                            iamRefreshToken: null,
-                            isAuthenticated: false,
-                            isLoading: false,
-                        });
-                    }
-                    return;
-                }
-
-                let iamAccessToken = get().iamAccessToken;
-                const iamRefreshToken = get().iamRefreshToken;
-
-                if (!iamAccessToken) {
-                    set({
-                        user: null,
-                        token: null,
-                        cmsToken: null,
-                        iamAccessToken: null,
-                        iamRefreshToken: null,
-                        isAuthenticated: false,
-                        isLoading: false,
-                    });
+                if (!accessToken) {
+                    set({ ...EMPTY_AUTH });
                     return;
                 }
 
                 let iamMe: IamMeResponse | null = null;
                 try {
-                    iamMe = await getIamMyAccess(iamAccessToken);
+                    iamMe = await getIamMyAccess(accessToken);
                 } catch {
-                    if (!iamRefreshToken) {
-                        set({
-                            user: null,
-                            token: null,
-                            cmsToken: null,
-                            iamAccessToken: null,
-                            iamRefreshToken: null,
-                            isAuthenticated: false,
-                            isLoading: false,
-                        });
+                    if (!refreshToken) {
+                        set(EMPTY_AUTH);
                         return;
                     }
 
                     try {
-                        const refreshed = await iamRefresh({ refresh_token: iamRefreshToken });
-                        iamAccessToken = refreshed.access_token;
-                        iamMe = await getIamMyAccess(iamAccessToken);
+                        const refreshed = await iamRefresh({ refresh_token: refreshToken });
+                        accessToken = refreshed.access_token;
+                        iamMe = await getIamMyAccess(accessToken);
                         set({
                             iamAccessToken: refreshed.access_token,
                             iamRefreshToken: refreshed.refresh_token,
                         });
                     } catch {
-                        set({
-                            user: null,
-                            token: null,
-                            cmsToken: null,
-                            iamAccessToken: null,
-                            iamRefreshToken: null,
-                            isAuthenticated: false,
-                            isLoading: false,
-                        });
+                        set(EMPTY_AUTH);
                         return;
                     }
                 }
 
-                if (authMode === 'iam') {
-                    set({
-                        token: iamAccessToken,
-                        user: iamMe ? mapIamUser(iamMe) : null,
-                        isAuthenticated: Boolean(iamMe),
-                        isLoading: false,
-                    });
-                    return;
-                }
-
-                const activeCmsToken = get().cmsToken || get().token;
-                if (!activeCmsToken) {
-                    set({
-                        user: null,
-                        token: null,
-                        cmsToken: null,
-                        iamAccessToken: null,
-                        iamRefreshToken: null,
-                        isAuthenticated: false,
-                        isLoading: false,
-                    });
-                    return;
-                }
-
-                set({ token: activeCmsToken, cmsToken: activeCmsToken });
-
-                try {
-                    const cmsMe = await getCmsMe();
-                    set({
-                        user: mapCmsUser(cmsMe),
-                        token: activeCmsToken,
-                        cmsToken: activeCmsToken,
-                        isAuthenticated: true,
-                        isLoading: false,
-                    });
-                } catch {
-                    set({
-                        user: null,
-                        token: null,
-                        cmsToken: null,
-                        iamAccessToken: null,
-                        iamRefreshToken: null,
-                        isAuthenticated: false,
-                        isLoading: false,
-                    });
-                }
-            },
-
-            // Clear auth without redirect (used by 401 handler)
-            clearAuth: () => {
                 set({
-                    user: null,
-                    token: null,
-                    cmsToken: null,
-                    iamAccessToken: null,
-                    iamRefreshToken: null,
-                    isAuthenticated: false,
+                    token: accessToken,
+                    user: iamMe ? mapIamUser(iamMe) : null,
+                    isAuthenticated: Boolean(iamMe),
                     isLoading: false,
                 });
+            },
+
+            clearAuth: () => {
+                set(EMPTY_AUTH);
             },
 
             setLoading: (loading: boolean) => {
@@ -372,7 +178,6 @@ export const useAuthStore = create<AuthState>()(
             name: 'platform-console-auth',
             partialize: (state) => ({
                 token: state.token,
-                cmsToken: state.cmsToken,
                 iamAccessToken: state.iamAccessToken,
                 iamRefreshToken: state.iamRefreshToken,
                 user: state.user,
@@ -381,21 +186,15 @@ export const useAuthStore = create<AuthState>()(
     )
 );
 
-// Helper function to get token outside of React components
 export function getToken(): string | null {
     return useAuthStore.getState().token;
 }
 
-// Helper function to retrieve service-specific tokens for API clients.
-export function getAuthTokenForService(service: 'cms' | 'iam'): string | null {
-    const state = useAuthStore.getState();
-    if (service === 'iam') {
-        return state.iamAccessToken;
-    }
-    return state.cmsToken || state.token;
+// Both CMS and IAM API clients use the same IAM token.
+export function getAuthTokenForService(_service: 'cms' | 'iam'): string | null {
+    return useAuthStore.getState().iamAccessToken;
 }
 
-// Helper function to clear auth from outside React (used by API client)
 export function clearAuthState(): void {
     useAuthStore.getState().clearAuth();
 }

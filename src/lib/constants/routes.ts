@@ -2,6 +2,7 @@ import {
     LayoutDashboard,
     Rss,
     FileText,
+    Brain,
     Shield,
     type LucideIcon,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ export const navigation: NavigationSection[] = [
         items: [
             { name: 'Sources', href: '/platform/sources', icon: Rss },
             { name: 'Content', href: '/platform/content', icon: FileText },
+            { name: 'Intelligence', href: '/platform/intelligence', icon: Brain },
         ],
     },
     {
@@ -46,6 +48,7 @@ export const ROUTES = {
     PLATFORM: {
         SOURCES: '/platform/sources',
         CONTENT: '/platform/content',
+        INTELLIGENCE: '/platform/intelligence',
     },
     ADMIN: {
         USERS: '/admin/users',
