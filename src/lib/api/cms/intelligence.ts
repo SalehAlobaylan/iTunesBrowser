@@ -2,6 +2,7 @@ import { cmsClient } from '@/lib/api/client';
 import type {
     RankingConfig,
     UpdateRankingConfigRequest,
+    ModeDefinition,
     ContentFlagListResponse,
     ContentFlag,
     UpsertFlagRequest,
@@ -16,6 +17,13 @@ import type {
     SignalHealth,
     PreviewFeedResponse,
 } from '@/types/platform/intelligence';
+
+// ---- Modes ----
+export const getModes = () =>
+    cmsClient.get<ModeDefinition[]>('/admin/intelligence/modes');
+
+export const setMode = (mode: string) =>
+    cmsClient.put<RankingConfig>('/admin/intelligence/mode', { mode });
 
 // ---- Ranking Config ----
 export const getRankingConfig = () =>

@@ -79,6 +79,7 @@ export async function triggerAggregationJob(
 
 export interface PurgeQueuesRequest {
     queue?: string;
+    states?: string[];
     includeFailed?: boolean;
 }
 

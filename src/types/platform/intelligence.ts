@@ -2,6 +2,8 @@
 // Intelligence / Ranking types
 // ============================
 
+export type RankingMode = 'fresh_first' | 'trending' | 'most_relevant' | 'ai_curated' | 'balanced' | 'custom';
+
 export interface RankingConfig {
     tenant_id: string;
     freshness_weight: number;
@@ -17,9 +19,18 @@ export interface RankingConfig {
     recirculation_enabled: boolean;
     recirculation_max_age_days: number;
     engagement_normalization: 'log' | 'linear';
+    mode: RankingMode;
     is_active: boolean;
     created_at: string;
     updated_at: string;
+}
+
+export interface ModeDefinition {
+    mode: RankingMode;
+    name: string;
+    description: string;
+    icon: string;
+    weights: Record<string, number>;
 }
 
 export type UpdateRankingConfigRequest = Partial<Omit<RankingConfig, 'tenant_id' | 'created_at' | 'updated_at'>>;

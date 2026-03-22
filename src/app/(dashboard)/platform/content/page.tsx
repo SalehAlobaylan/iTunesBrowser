@@ -61,6 +61,15 @@ export default function ContentPage() {
     const [typeFilter, setTypeFilter] = useState<string>('all');
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
+    const [purgeQueue, setPurgeQueue] = useState<string>('all');
+    const [purgeStates, setPurgeStates] = useState<Record<string, boolean>>({
+        waiting: true,
+        delayed: true,
+        active: true,
+        completed: false,
+        failed: true,
+    });
+    const [purgeResult, setPurgeResult] = useState<{ message: string; purged: Record<string, number> } | null>(null);
     const defaultCreatedBefore = format(new Date(), "yyyy-MM-dd'T'HH:mm:ss");
     const [deleteFilters, setDeleteFilters] = useState({
         status: 'FAILED',
@@ -117,17 +126,26 @@ export default function ContentPage() {
     };
 
     const handlePurgeQueues = async () => {
+        const selectedStates = Object.entries(purgeStates)
+            .filter(([, v]) => v)
+            .map(([k]) => k);
+        if (selectedStates.length === 0) return;
+
         setIsPurging(true);
+        setPurgeResult(null);
         try {
-            const result = await purgeQueues({ includeFailed: true });
-            toast({ 
-                title: 'Queues purged', 
-                description: result.message 
+            const result = await purgeQueues({
+                queue: purgeQueue === 'all' ? undefined : purgeQueue,
+                states: selectedStates,
             });
-            setPurgeDialogOpen(false);
+            setPurgeResult({ message: result.message, purged: result.purged });
+            toast({
+                title: 'Queues purged',
+                description: result.message
+            });
         } catch (error) {
-            toast({ 
-                title: 'Purge failed', 
+            toast({
+                title: 'Purge failed',
                 description: error instanceof Error ? error.message : 'Unknown error',
                 variant: 'destructive'
             });
@@ -205,33 +223,85 @@ export default function ContentPage() {
                     </SelectContent>
                 </Select>
                 <div className="flex gap-2 mr-auto">
-                    <Dialog open={purgeDialogOpen} onOpenChange={setPurgeDialogOpen}>
+                    <Dialog open={purgeDialogOpen} onOpenChange={(open) => { setPurgeDialogOpen(open); if (!open) setPurgeResult(null); }}>
                         <DialogTrigger asChild>
                             <Button variant="outline" size="sm">
                                 <Zap className="h-4 w-4 mr-2" />
-                                Stop Spamming
+                                Purge Queues
                             </Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>Stop Queue Spamming</DialogTitle>
+                                <DialogTitle>Purge Queues</DialogTitle>
                                 <DialogDescription>
-                                    This will purge all pending/failed jobs from aggregation queues. 
-                                    This is useful when jobs are stuck or infinitely looping.
+                                    Remove jobs from aggregation queues. Active jobs will be force-stopped.
                                 </DialogDescription>
                             </DialogHeader>
-                            <div className="py-4">
-                                <p className="text-sm text-muted-foreground">
-                                    Clicking "Purge Queues" will remove all waiting, delayed, and failed jobs.
-                                    Active jobs will continue to run.
-                                </p>
+                            <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                    <Label>Queue</Label>
+                                    <Select value={purgeQueue} onValueChange={setPurgeQueue}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select queue" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Queues</SelectItem>
+                                            <SelectItem value="fetch-queue">Fetch (RSS/YouTube/X scraping)</SelectItem>
+                                            <SelectItem value="normalize-queue">Normalize (content normalization)</SelectItem>
+                                            <SelectItem value="media-queue">Media (FFmpeg transcode/thumbnails)</SelectItem>
+                                            <SelectItem value="ai-queue">AI (transcription/embeddings)</SelectItem>
+                                            <SelectItem value="aggregation-dlq">Dead Letter Queue</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Job States to Purge</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[
+                                            { key: 'waiting', label: 'Waiting', desc: 'Queued, not started' },
+                                            { key: 'delayed', label: 'Delayed', desc: 'Scheduled for later' },
+                                            { key: 'active', label: 'Active', desc: 'Running now (FFmpeg, etc.)' },
+                                            { key: 'failed', label: 'Failed', desc: 'Errored out' },
+                                            { key: 'completed', label: 'Completed', desc: 'Already finished' },
+                                        ].map(({ key, label, desc }) => (
+                                            <div key={key} className="flex items-start gap-2">
+                                                <Checkbox
+                                                    id={`purge-${key}`}
+                                                    checked={purgeStates[key]}
+                                                    onCheckedChange={(checked) =>
+                                                        setPurgeStates((prev) => ({ ...prev, [key]: checked as boolean }))
+                                                    }
+                                                />
+                                                <div>
+                                                    <Label htmlFor={`purge-${key}`} className="text-sm font-medium">{label}</Label>
+                                                    <p className="text-[11px] text-muted-foreground">{desc}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                {purgeStates.active && (
+                                    <p className="text-xs text-amber-600">
+                                        Workers will be paused to force-stop active jobs (e.g. FFmpeg transcodes), then resumed.
+                                    </p>
+                                )}
+                                {purgeResult && (
+                                    <div className="p-3 rounded-md bg-muted space-y-1">
+                                        <p className="font-medium text-sm">{purgeResult.message}</p>
+                                        {Object.entries(purgeResult.purged).map(([queue, count]) => (
+                                            <p key={queue} className="text-xs text-muted-foreground">
+                                                {queue}: {count} jobs removed
+                                            </p>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                             <DialogFooter>
                                 <Button variant="outline" onClick={() => setPurgeDialogOpen(false)}>
                                     Cancel
                                 </Button>
                                 <Button variant="destructive" onClick={handlePurgeQueues} disabled={isPurging}>
-                                    {isPurging ? 'Purging...' : 'Purge Queues'}
+                                    {isPurging ? 'Purging...' : 'Purge'}
                                 </Button>
                             </DialogFooter>
                         </DialogContent>

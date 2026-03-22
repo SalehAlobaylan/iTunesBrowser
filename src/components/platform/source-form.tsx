@@ -39,6 +39,8 @@ const sourceSchema = z.object({
     telegram_min_text_length: z.coerce.number().min(1, 'Minimum 1').max(2000, 'Maximum 2000').optional(),
     youtube_max_results: z.coerce.number().min(1, 'Minimum 1').max(50, 'Maximum 50').optional(),
     youtube_max_age_hours: z.coerce.number().min(1, 'Minimum 1 hour').optional(),
+    youtube_min_duration_minutes: z.coerce.number().min(0, 'Minimum 0').optional(),
+    youtube_max_duration_minutes: z.coerce.number().min(1, 'Minimum 1 minute').optional(),
 });
 
 type SourceFormData = z.infer<typeof sourceSchema>;
@@ -108,6 +110,12 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             youtube_max_age_hours: typeof sourceApiConfig?.['max_age_hours'] === 'number'
                 ? sourceApiConfig['max_age_hours']
                 : undefined,
+            youtube_min_duration_minutes: typeof sourceApiConfig?.['min_duration_minutes'] === 'number'
+                ? sourceApiConfig['min_duration_minutes']
+                : undefined,
+            youtube_max_duration_minutes: typeof sourceApiConfig?.['max_duration_minutes'] === 'number'
+                ? sourceApiConfig['max_duration_minutes']
+                : undefined,
         },
     });
 
@@ -163,6 +171,8 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             payload.api_config = {
                 ...(data.youtube_max_results ? { max_results: data.youtube_max_results } : {}),
                 ...(data.youtube_max_age_hours ? { max_age_hours: data.youtube_max_age_hours } : {}),
+                ...(data.youtube_min_duration_minutes ? { min_duration_minutes: data.youtube_min_duration_minutes } : {}),
+                ...(data.youtube_max_duration_minutes ? { max_duration_minutes: data.youtube_max_duration_minutes } : {}),
             };
         } else {
             payload.api_config = source?.api_config;
@@ -462,6 +472,46 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                                     </p>
                                     {errors.youtube_max_age_hours && (
                                         <p className="text-sm text-destructive">{errors.youtube_max_age_hours.message}</p>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="youtube_min_duration_minutes">
+                                        Min Duration (minutes)
+                                    </Label>
+                                    <Input
+                                        id="youtube_min_duration_minutes"
+                                        type="number"
+                                        min={0}
+                                        placeholder="e.g. 1"
+                                        {...register('youtube_min_duration_minutes')}
+                                        disabled={isLoading}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Skip videos shorter than this. Leave empty for no minimum.
+                                    </p>
+                                    {errors.youtube_min_duration_minutes && (
+                                        <p className="text-sm text-destructive">{errors.youtube_min_duration_minutes.message}</p>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="youtube_max_duration_minutes">
+                                        Max Duration (minutes)
+                                    </Label>
+                                    <Input
+                                        id="youtube_max_duration_minutes"
+                                        type="number"
+                                        min={1}
+                                        placeholder="e.g. 15"
+                                        {...register('youtube_max_duration_minutes')}
+                                        disabled={isLoading}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Skip videos longer than this. Prevents long podcasts from overwhelming FFmpeg.
+                                    </p>
+                                    {errors.youtube_max_duration_minutes && (
+                                        <p className="text-sm text-destructive">{errors.youtube_max_duration_minutes.message}</p>
                                     )}
                                 </div>
                             </CardContent>

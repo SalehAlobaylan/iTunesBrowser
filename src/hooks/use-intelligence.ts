@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+    getModes, setMode,
     getRankingConfig, updateRankingConfig,
     listContentFlags, upsertContentFlag, deleteContentFlag, bulkSetFlags,
     getEmbeddingClusters, getSimilarContent, getEmbeddingStats,
@@ -14,6 +15,7 @@ import { CACHE_CONFIG } from '@/app/providers';
 // ---- Query Keys ----
 export const intelligenceKeys = {
     all: ['intelligence'] as const,
+    modes: () => [...intelligenceKeys.all, 'modes'] as const,
     config: () => [...intelligenceKeys.all, 'config'] as const,
     flags: () => [...intelligenceKeys.all, 'flags'] as const,
     flagList: (params: object) => [...intelligenceKeys.flags(), params] as const,
@@ -28,6 +30,29 @@ export const intelligenceKeys = {
     previewForYou: (overrides?: object) => [...intelligenceKeys.all, 'preview-foryou', overrides] as const,
     previewNews: (overrides?: object) => [...intelligenceKeys.all, 'preview-news', overrides] as const,
 };
+
+// ---- Modes ----
+export function useModes() {
+    return useQuery({
+        queryKey: intelligenceKeys.modes(),
+        queryFn: getModes,
+        staleTime: CACHE_CONFIG.reference.staleTime,
+        gcTime: CACHE_CONFIG.reference.gcTime,
+    });
+}
+
+export function useSetMode() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (mode: string) => setMode(mode),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: intelligenceKeys.config() });
+            qc.invalidateQueries({ queryKey: intelligenceKeys.scoreDist() });
+            toast({ title: 'Mode activated', variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to set mode', description: e.message, variant: 'destructive' }),
+    });
+}
 
 // ---- Ranking Config ----
 export function useRankingConfig() {

@@ -10,3 +10,5 @@ export { ScoreWaterfall } from './score-waterfall';
 export { AlgorithmFlow } from './algorithm-flow';
 export { FlagDistributionChart } from './flag-distribution-chart';
 export { EmbeddingCoverageStats } from './embedding-coverage-stats';
+export { ModeCard } from './mode-card';
+export { AdvancedSettingsDialog } from './advanced-settings-dialog';
