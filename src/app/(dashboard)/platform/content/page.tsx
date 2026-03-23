@@ -371,7 +371,7 @@ export default function ContentPage() {
                                         checked={deleteFilters.dryRun}
                                         onCheckedChange={(checked) => setDeleteFilters({ ...deleteFilters, dryRun: checked as boolean })}
                                     />
-                                    <Label htmlFor="dryRun">Preview only (don't delete)</Label>
+                                    <Label htmlFor="dryRun">Preview only (don&apos;t delete)</Label>
                                 </div>
                                 {deleteResult && (
                                     <div className={`p-3 rounded-md ${deleteFilters.dryRun ? 'bg-muted' : 'bg-green-50'}`}>

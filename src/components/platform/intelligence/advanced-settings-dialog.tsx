@@ -94,7 +94,7 @@ export function AdvancedSettingsDialog({ config, onSave, isSaving }: AdvancedSet
                 <DialogHeader>
                     <DialogTitle>Advanced Ranking Configuration</DialogTitle>
                     <DialogDescription>
-                        Fine-tune individual signal weights and algorithm parameters. Saving custom weights will switch the mode to "Custom".
+                        Fine-tune individual signal weights and algorithm parameters. Saving custom weights will switch the mode to &quot;Custom&quot;.
                     </DialogDescription>
                 </DialogHeader>
 
