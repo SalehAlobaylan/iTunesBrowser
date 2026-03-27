@@ -96,3 +96,29 @@ export async function purgeQueues(data?: PurgeQueuesRequest): Promise<PurgeQueue
     assertAggregationConfigured();
     return aggregationClient.post<PurgeQueuesResponse>('/admin/queues/purge', data || {});
 }
+
+/**
+ * Enqueue media jobs for PENDING content items.
+ * POST /admin/retry-pending
+ */
+export async function retryPending(data?: { source?: string; limit?: number }): Promise<RetryResponse> {
+    assertAggregationConfigured();
+    return aggregationClient.post<RetryResponse>('/admin/retry-pending', data || {});
+}
+
+/**
+ * Re-queue FAILED content items back into the media pipeline.
+ * POST /admin/retry-failed
+ */
+export async function retryFailed(data?: { source?: string; limit?: number }): Promise<RetryResponse> {
+    assertAggregationConfigured();
+    return aggregationClient.post<RetryResponse>('/admin/retry-failed', data || {});
+}
+
+export interface RetryResponse {
+    success: boolean;
+    message: string;
+    requeued: number;
+    total: number;
+    errors: string[];
+}

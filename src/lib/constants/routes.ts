@@ -2,7 +2,9 @@ import {
     LayoutDashboard,
     Rss,
     FileText,
+    Activity,
     Brain,
+    Sparkles,
     Shield,
     type LucideIcon,
 } from 'lucide-react';
@@ -30,7 +32,9 @@ export const navigation: NavigationSection[] = [
         items: [
             { name: 'Sources', href: '/platform/sources', icon: Rss },
             { name: 'Content', href: '/platform/content', icon: FileText },
+            { name: 'Pipeline', href: '/platform/pipeline', icon: Activity },
             { name: 'Intelligence', href: '/platform/intelligence', icon: Brain },
+            { name: 'Enrichment', href: '/platform/enrichment', icon: Sparkles },
         ],
     },
     {
@@ -48,7 +52,9 @@ export const ROUTES = {
     PLATFORM: {
         SOURCES: '/platform/sources',
         CONTENT: '/platform/content',
+        PIPELINE: '/platform/pipeline',
         INTELLIGENCE: '/platform/intelligence',
+        ENRICHMENT: '/platform/enrichment',
     },
     ADMIN: {
         USERS: '/admin/users',

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Database, FileText, Shield, Activity, ArrowRight, Rss, Video, MessageSquare } from 'lucide-react';
+import { Database, FileText, Shield, Activity, ArrowRight, Rss, Video, MessageSquare, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ export default function DashboardPage() {
     const { data: sourcesData } = useSources({ page: 1, limit: 1 });
     const { data: contentData } = useContent({ page: 1, limit: 1 });
     const { data: readyData } = useContent({ page: 1, limit: 1, status: 'READY' });
+    const { data: pendingData } = useContent({ page: 1, limit: 1, status: 'PENDING' });
     const { data: failedData } = useContent({ page: 1, limit: 1, status: 'FAILED' });
 
     const stats = [
@@ -42,10 +43,18 @@ export default function DashboardPage() {
             bgColor: 'bg-emerald-500/10',
         },
         {
+            label: 'Pending',
+            value: pendingData?.total ?? 0,
+            icon: Clock,
+            href: '/platform/pipeline',
+            color: 'text-amber-500',
+            bgColor: 'bg-amber-500/10',
+        },
+        {
             label: 'Failed',
             value: failedData?.total ?? 0,
             icon: Activity,
-            href: '/platform/content',
+            href: '/platform/pipeline',
             color: 'text-red-500',
             bgColor: 'bg-red-500/10',
         },
@@ -67,6 +76,13 @@ export default function DashboardPage() {
             badges: ['Articles', 'Videos', 'Podcasts'],
         },
         {
+            title: 'Pipeline Control',
+            description: 'Monitor queue health, retry pending/failed items, and manage content processing.',
+            href: '/platform/pipeline',
+            icon: Activity,
+            badges: ['Queues', 'Retry', 'Monitoring'],
+        },
+        {
             title: 'Admin Users',
             description: 'Manage admin access, roles, and permissions for the Platform Console.',
             href: '/admin/users',
@@ -86,7 +102,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Stats grid */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                 {stats.map((stat) => {
                     const Icon = stat.icon;
                     return (
