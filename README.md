@@ -5,7 +5,7 @@
 
 # Platform Console
 
-Admin dashboard for the Wahb platform. Manages content sources, ingested content, the ranking algorithm, and CRM operations.
+Admin dashboard for the Wahb platform. Manages content sources, ingested content, and the ranking algorithm.
 
 **Production:** https://wahb-console.salehspace.dev
 
