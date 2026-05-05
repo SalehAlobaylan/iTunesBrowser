@@ -3,6 +3,10 @@ import {
   listContent,
   getContent,
   updateContentStatus,
+  getStatusCounts,
+  deleteContentByIds,
+  bulkSetContentStatus,
+  type BulkSetStatusRequest,
 } from '@/lib/api/cms/content';
 import type {
   ContentItem,
@@ -20,17 +24,40 @@ export const contentKeys = {
     [...contentKeys.lists(), params] as const,
   details: () => [...contentKeys.all, 'detail'] as const,
   detail: (id: string) => [...contentKeys.details(), id] as const,
+  statusCounts: () => [...contentKeys.all, 'status-counts'] as const,
 };
 
 /**
- * Hook to fetch paginated list of content
+ * Hook to fetch paginated list of content. Pass `{ paused: true }` to
+ * suspend the auto-refresh interval (e.g. while a bulk action is running).
  */
-export function useContent(params: ListContentParams = {}) {
+export function useContent(
+  params: ListContentParams = {},
+  options: { paused?: boolean } = {}
+) {
+  const { paused = false } = options;
   return useQuery({
     queryKey: contentKeys.list(params),
     queryFn: () => listContent(params),
     staleTime: CACHE_CONFIG.lists.staleTime,
     gcTime: CACHE_CONFIG.lists.gcTime,
+    refetchInterval: paused ? false : 30_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * Per-status totals across the tenant.
+ */
+export function useStatusCounts(options: { paused?: boolean } = {}) {
+  const { paused = false } = options;
+  return useQuery({
+    queryKey: contentKeys.statusCounts(),
+    queryFn: () => getStatusCounts(),
+    staleTime: CACHE_CONFIG.lists.staleTime,
+    gcTime: CACHE_CONFIG.lists.gcTime,
+    refetchInterval: paused ? false : 30_000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -62,6 +89,59 @@ export function useUpdateContentStatus() {
       toast({
         title: 'Status updated',
         description: `Content status changed to ${updatedItem.status}.`,
+        variant: 'success',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to update status',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Delete a list of content items in one call (uses the extended bulk-delete).
+ */
+export function useDeleteContentByIds() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => deleteContentByIds(ids),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: contentKeys.statusCounts() });
+      toast({
+        title: 'Content deleted',
+        description: response.message || `Deleted ${response.deleted_count} items.`,
+        variant: 'success',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to delete content',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+}
+
+/**
+ * Move all items matching a `from_status` (and optional source) to `to_status`.
+ * Used by the Tools menu — distinct from per-row PATCH.
+ */
+export function useBulkSetContentStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (req: BulkSetStatusRequest) => bulkSetContentStatus(req),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: contentKeys.statusCounts() });
+      toast({
+        title: 'Status updated',
+        description: response.message || `${response.updated_count} items updated.`,
         variant: 'success',
       });
     },

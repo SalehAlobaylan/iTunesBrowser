@@ -1,13 +1,10 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import Link from 'next/link';
-import { Search, ExternalLink, Trash2, Zap } from 'lucide-react';
-import { formatDistanceToNow, format } from 'date-fns';
+import { useEffect, useMemo, useState } from 'react';
+import { Search, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
     Select,
     SelectContent,
@@ -16,22 +13,14 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import {
     Pagination,
     PaginationContent,
+    PaginationEllipsis,
     PaginationItem,
     PaginationLink,
     PaginationNext,
     PaginationPrevious,
 } from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
     Dialog,
     DialogContent,
@@ -39,489 +28,479 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { useContent } from '@/hooks/use-content';
-import { bulkDeleteContent, listSourceNames } from '@/lib/api/cms/content';
-import { purgeQueues } from '@/lib/api/aggregation';
+import { toast } from '@/components/ui/toast';
+import {
+    useContent,
+    useStatusCounts,
+    useUpdateContentStatus,
+    useDeleteContentByIds,
+} from '@/hooks/use-content';
+import { useBulkAction } from '@/hooks/use-bulk-action';
+import { listSourceNames } from '@/lib/api/cms/content';
+import {
+    triggerBatchEnrichment,
+    ENRICHMENT_BATCH_LIMIT,
+} from '@/lib/api/cms/enrichment';
 import {
     CONTENT_TYPE_LABELS,
     CONTENT_STATUS_LABELS,
-    CONTENT_STATUS_VARIANTS,
 } from '@/types/platform/content';
-import type { ContentType, ContentStatus } from '@/types/platform/content';
-import { toast } from '@/components/ui/toast';
+import type {
+    ContentItem,
+    ContentStatus,
+    ContentType,
+} from '@/types/platform/content';
+
+import { useContentListQueryState } from '@/components/platform/content/list/use-content-list-query-state';
+import { StatusCountsStrip } from '@/components/platform/content/list/status-counts-strip';
+import { ContentTable } from '@/components/platform/content/list/content-table';
+import { ContentBulkActionBar } from '@/components/platform/content/list/content-bulk-action-bar';
+import { BulkSetStatusDialog } from '@/components/platform/content/list/bulk-set-status-dialog';
+import { BulkReEnrichDialog } from '@/components/platform/content/list/bulk-reenrich-dialog';
+import { ToolsMenu } from '@/components/platform/content/list/tools-menu';
+
+const PAGE_LIMIT = 10;
 
 export default function ContentPage() {
-    const [page, setPage] = useState(1);
-    const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
-    const [typeFilter, setTypeFilter] = useState<string>('all');
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
-    const [purgeQueue, setPurgeQueue] = useState<string>('all');
-    const [purgeStates, setPurgeStates] = useState<Record<string, boolean>>({
-        waiting: true,
-        delayed: true,
-        active: true,
-        completed: false,
-        failed: true,
-    });
-    const [purgeResult, setPurgeResult] = useState<{ message: string; purged: Record<string, number> } | null>(null);
-    const defaultCreatedBefore = format(new Date(), "yyyy-MM-dd'T'HH:mm:ss");
-    const [deleteFilters, setDeleteFilters] = useState({
-        status: 'FAILED',
-        source_name: '',
-        created_before: defaultCreatedBefore,
-        dryRun: true,
-    });
-    const [deleteResult, setDeleteResult] = useState<{ deleted_count: number; message: string } | null>(null);
+    const { state, setState, toggleSort } = useContentListQueryState();
 
-    const limit = 10;
-    const { data, isLoading, error, refetch } = useContent({
-        page,
-        limit,
-        search: search || undefined,
-        status: statusFilter === 'all' ? undefined : (statusFilter as ContentStatus),
-        type: typeFilter === 'all' ? undefined : (typeFilter as ContentType),
-    });
-
-    // Fetch all distinct source names from CMS for bulk-delete filter
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+    const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+    const [bulkReEnrichOpen, setBulkReEnrichOpen] = useState(false);
     const [sourceNames, setSourceNames] = useState<string[]>([]);
+
+    const bulkStatus = useBulkAction({ mode: 'sequential' });
+    const bulkEnrich = useBulkAction({ mode: 'sequential' });
+    const updateStatus = useUpdateContentStatus();
+    const deleteByIds = useDeleteContentByIds();
+
+    const bulkBusy =
+        bulkStatus.running ||
+        bulkEnrich.running ||
+        deleteByIds.isPending;
+
+    const { data, isLoading, error, refetch } = useContent(
+        {
+            page: state.page,
+            limit: PAGE_LIMIT,
+            search: state.search || undefined,
+            status: state.status === 'all' ? undefined : (state.status as ContentStatus),
+            type: state.type === 'all' ? undefined : (state.type as ContentType),
+            source_name: state.sourceName || undefined,
+        },
+        { paused: bulkBusy }
+    );
+
+    const counts = useStatusCounts({ paused: bulkBusy });
+
+    // Lazy-load source names once for the toolbar filter.
     useEffect(() => {
-        if (deleteDialogOpen) {
-            listSourceNames().then(setSourceNames).catch(() => setSourceNames([]));
-        }
-    }, [deleteDialogOpen]);
+        listSourceNames().then(setSourceNames).catch(() => setSourceNames([]));
+    }, []);
 
-    const [isDeleting, setIsDeleting] = useState(false);
-    const [isPurging, setIsPurging] = useState(false);
+    // Clear selection on page/filter change.
+    useEffect(() => {
+        setSelected(new Set());
+    }, [state.page, state.search, state.status, state.type, state.sourceName]);
 
-    const handleBulkDelete = async () => {
-        setIsDeleting(true);
-        try {
-            const result = await bulkDeleteContent({
-                status: deleteFilters.status || undefined,
-                source_name: deleteFilters.source_name || undefined,
-                created_before: deleteFilters.created_before ? deleteFilters.created_before + 'Z' : undefined,
-                dry_run: deleteFilters.dryRun,
-            });
-            
-            setDeleteResult(result);
-            if (!deleteFilters.dryRun) {
-                toast({ title: 'Content deleted', description: `Deleted ${result.deleted_count} items` });
-                refetch();
+    const items: ContentItem[] = useMemo(() => data?.data ?? [], [data]);
+
+    const selectedItems = useMemo(
+        () => items.filter((i) => selected.has(i.id)),
+        [items, selected]
+    );
+
+    const toggleOne = (id: string) => {
+        setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
+
+    const toggleAllOnPage = (ids: string[], on: boolean) => {
+        setSelected((prev) => {
+            const next = new Set(prev);
+            for (const id of ids) {
+                if (on) next.add(id);
+                else next.delete(id);
             }
-        } catch (error) {
-            toast({ 
-                title: 'Delete failed', 
-                description: error instanceof Error ? error.message : 'Unknown error',
-                variant: 'destructive'
-            });
-        } finally {
-            setIsDeleting(false);
-        }
+            return next;
+        });
     };
 
-    const handlePurgeQueues = async () => {
-        const selectedStates = Object.entries(purgeStates)
-            .filter(([, v]) => v)
-            .map(([k]) => k);
-        if (selectedStates.length === 0) return;
+    const handleSingleDelete = () => {
+        if (!deleteId) return;
+        deleteByIds.mutate([deleteId], {
+            onSuccess: () => setDeleteId(null),
+        });
+    };
 
-        setIsPurging(true);
-        setPurgeResult(null);
-        try {
-            const result = await purgeQueues({
-                queue: purgeQueue === 'all' ? undefined : purgeQueue,
-                states: selectedStates,
-            });
-            setPurgeResult({ message: result.message, purged: result.purged });
+    const handleBulkSetStatus = async (target: ContentStatus) => {
+        const ids = [...selected];
+        if (ids.length === 0) return;
+        const result = await bulkStatus.run(ids, async (id) => {
+            await updateStatus.mutateAsync({ id, status: target });
+        });
+        await refetch();
+        if (result.failed.length === 0) {
             toast({
-                title: 'Queues purged',
-                description: result.message
+                title: 'Status updated',
+                description: `${result.completed} item${result.completed === 1 ? '' : 's'} → ${CONTENT_STATUS_LABELS[target]}.`,
+                variant: 'success',
             });
-        } catch (error) {
+        } else {
             toast({
-                title: 'Purge failed',
-                description: error instanceof Error ? error.message : 'Unknown error',
-                variant: 'destructive'
+                title: 'Update finished with errors',
+                description: `${result.completed} succeeded, ${result.failed.length} failed.`,
+                variant: 'destructive',
             });
-        } finally {
-            setIsPurging(false);
         }
+        setSelected(new Set());
+        setBulkStatusOpen(false);
     };
 
-    const openDeleteDialog = (dryRun: boolean) => {
-        setDeleteFilters({ ...deleteFilters, dryRun });
-        setDeleteResult(null);
-        setDeleteDialogOpen(true);
+    const handleBulkReEnrich = async () => {
+        const ids = [...selected];
+        if (ids.length === 0) return;
+
+        // Chunk into batches of 10 (backend limit).
+        const chunks: string[][] = [];
+        for (let i = 0; i < ids.length; i += ENRICHMENT_BATCH_LIMIT) {
+            chunks.push(ids.slice(i, i + ENRICHMENT_BATCH_LIMIT));
+        }
+
+        // Drive useBulkAction over chunk indexes (use the chunk index as the "id").
+        const result = await bulkEnrich.run(
+            chunks.map((_, i) => String(i)),
+            async (idxStr) => {
+                await triggerBatchEnrichment(chunks[Number(idxStr)]);
+            }
+        );
+
+        if (result.failed.length === 0) {
+            toast({
+                title: 'Enrichment triggered',
+                description: `${ids.length} items, ${chunks.length} batch${chunks.length === 1 ? '' : 'es'}.`,
+                variant: 'success',
+            });
+        } else {
+            toast({
+                title: 'Enrichment finished with errors',
+                description: `${result.failed.length} batch${result.failed.length === 1 ? '' : 'es'} failed.`,
+                variant: 'destructive',
+            });
+        }
+        setSelected(new Set());
+        setBulkReEnrichOpen(false);
     };
+
+    const handleBulkDelete = () => {
+        const ids = [...selected];
+        if (ids.length === 0) return;
+        deleteByIds.mutate(ids, {
+            onSuccess: () => {
+                setSelected(new Set());
+                setBulkDeleteOpen(false);
+            },
+        });
+    };
+
+    const totalPages = data?.total_pages ?? 1;
+    const pageNumbers = useMemo(
+        () => buildPagination(state.page, totalPages),
+        [state.page, totalPages]
+    );
 
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Content</h1>
-                <p className="text-muted-foreground">
-                    Browse and manage ingested content items
-                </p>
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Content</h1>
+                    <p className="text-muted-foreground">
+                        Browse, triage and act on ingested content items
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={() => {
+                            refetch();
+                            counts.refetch();
+                        }}
+                        disabled={isLoading || bulkBusy}
+                        aria-label="Refresh"
+                    >
+                        <RefreshCw className="h-4 w-4" />
+                    </Button>
+                    <ToolsMenu />
+                </div>
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-wrap items-center gap-4">
-                <div className="relative flex-1 min-w-[200px] max-w-sm">
+            {/* Status counts strip */}
+            <StatusCountsStrip
+                counts={counts.data}
+                isLoading={counts.isLoading}
+                activeStatus={state.status}
+                onSelect={(s) => setState({ status: s })}
+            />
+
+            {/* Toolbar */}
+            <div className="flex flex-wrap items-center gap-3">
+                <div className="relative max-w-sm flex-1 min-w-[180px]">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                        placeholder="Search by title..."
-                        value={search}
-                        onChange={(e) => {
-                            setSearch(e.target.value);
-                            setPage(1);
-                        }}
+                        placeholder="Search title / excerpt / author…"
+                        value={state.search}
+                        onChange={(e) => setState({ search: e.target.value })}
                         className="pl-9"
                     />
                 </div>
                 <Select
-                    value={statusFilter}
-                    onValueChange={(value) => {
-                        setStatusFilter(value);
-                        setPage(1);
-                    }}
+                    value={state.status}
+                    onValueChange={(v) => setState({ status: v as typeof state.status })}
                 >
                     <SelectTrigger className="w-[140px]">
                         <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        {Object.entries(CONTENT_STATUS_LABELS).map(([value, label]) => (
-                            <SelectItem key={value} value={value}>
-                                {label}
+                        <SelectItem value="all">All statuses</SelectItem>
+                        {Object.entries(CONTENT_STATUS_LABELS).map(([v, l]) => (
+                            <SelectItem key={v} value={v}>
+                                {l}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
                 <Select
-                    value={typeFilter}
-                    onValueChange={(value) => {
-                        setTypeFilter(value);
-                        setPage(1);
-                    }}
+                    value={state.type}
+                    onValueChange={(v) => setState({ type: v as typeof state.type })}
                 >
                     <SelectTrigger className="w-[140px]">
                         <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        {Object.entries(CONTENT_TYPE_LABELS).map(([value, label]) => (
-                            <SelectItem key={value} value={value}>
-                                {label}
+                        <SelectItem value="all">All types</SelectItem>
+                        {Object.entries(CONTENT_TYPE_LABELS).map(([v, l]) => (
+                            <SelectItem key={v} value={v}>
+                                {l}
                             </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
-                <div className="flex gap-2 mr-auto">
-                    <Dialog open={purgeDialogOpen} onOpenChange={(open) => { setPurgeDialogOpen(open); if (!open) setPurgeResult(null); }}>
-                        <DialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                                <Zap className="h-4 w-4 mr-2" />
-                                Purge Queues
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Purge Queues</DialogTitle>
-                                <DialogDescription>
-                                    Remove jobs from aggregation queues. Active jobs will be force-stopped.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                    <Label>Queue</Label>
-                                    <Select value={purgeQueue} onValueChange={setPurgeQueue}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select queue" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All Queues</SelectItem>
-                                            <SelectItem value="fetch-queue">Fetch (RSS/YouTube/X scraping)</SelectItem>
-                                            <SelectItem value="normalize-queue">Normalize (content normalization)</SelectItem>
-                                            <SelectItem value="media-queue">Media (FFmpeg transcode/thumbnails)</SelectItem>
-                                            <SelectItem value="ai-queue">AI (transcription/embeddings)</SelectItem>
-                                            <SelectItem value="aggregation-dlq">Dead Letter Queue</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Job States to Purge</Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {[
-                                            { key: 'waiting', label: 'Waiting', desc: 'Queued, not started' },
-                                            { key: 'delayed', label: 'Delayed', desc: 'Scheduled for later' },
-                                            { key: 'active', label: 'Active', desc: 'Running now (FFmpeg, etc.)' },
-                                            { key: 'failed', label: 'Failed', desc: 'Errored out' },
-                                            { key: 'completed', label: 'Completed', desc: 'Already finished' },
-                                        ].map(({ key, label, desc }) => (
-                                            <div key={key} className="flex items-start gap-2">
-                                                <Checkbox
-                                                    id={`purge-${key}`}
-                                                    checked={purgeStates[key]}
-                                                    onCheckedChange={(checked) =>
-                                                        setPurgeStates((prev) => ({ ...prev, [key]: checked as boolean }))
-                                                    }
-                                                />
-                                                <div>
-                                                    <Label htmlFor={`purge-${key}`} className="text-sm font-medium">{label}</Label>
-                                                    <p className="text-[11px] text-muted-foreground">{desc}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                {purgeStates.active && (
-                                    <p className="text-xs text-amber-600">
-                                        Workers will be paused to force-stop active jobs (e.g. FFmpeg transcodes), then resumed.
-                                    </p>
-                                )}
-                                {purgeResult && (
-                                    <div className="p-3 rounded-md bg-muted space-y-1">
-                                        <p className="font-medium text-sm">{purgeResult.message}</p>
-                                        {Object.entries(purgeResult.purged).map(([queue, count]) => (
-                                            <p key={queue} className="text-xs text-muted-foreground">
-                                                {queue}: {count} jobs removed
-                                            </p>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setPurgeDialogOpen(false)}>
-                                    Cancel
-                                </Button>
-                                <Button variant="destructive" onClick={handlePurgeQueues} disabled={isPurging}>
-                                    {isPurging ? 'Purging...' : 'Purge'}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                    <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                        <DialogTrigger asChild>
-                            <Button variant="destructive" size="sm">
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Bulk Delete
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Bulk Delete Content</DialogTitle>
-                                <DialogDescription>
-                                    Delete multiple content items based on filters. This action cannot be undone.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                    <Label>Status</Label>
-                                    <Select
-                                        value={deleteFilters.status}
-                                        onValueChange={(v) => setDeleteFilters({ ...deleteFilters, status: v })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select status" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="FAILED">FAILED</SelectItem>
-                                            <SelectItem value="PENDING">PENDING</SelectItem>
-                                            <SelectItem value="PROCESSING">PROCESSING</SelectItem>
-                                            <SelectItem value="READY">READY</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Source (optional)</Label>
-                                    <Select
-                                        value={deleteFilters.source_name || 'all'}
-                                        onValueChange={(v) => setDeleteFilters({ ...deleteFilters, source_name: v === 'all' ? '' : v })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="All sources" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All sources</SelectItem>
-                                            {sourceNames.map(name => (
-                                                <SelectItem key={name} value={name}>
-                                                    {name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Created before</Label>
-                                    <Input
-                                        type="datetime-local"
-                                        value={deleteFilters.created_before}
-                                        onChange={(e) => setDeleteFilters({ ...deleteFilters, created_before: e.target.value })}
-                                    />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Checkbox
-                                        id="dryRun"
-                                        checked={deleteFilters.dryRun}
-                                        onCheckedChange={(checked) => setDeleteFilters({ ...deleteFilters, dryRun: checked as boolean })}
-                                    />
-                                    <Label htmlFor="dryRun">Preview only (don&apos;t delete)</Label>
-                                </div>
-                                {deleteResult && (
-                                    <div className={`p-3 rounded-md ${deleteFilters.dryRun ? 'bg-muted' : 'bg-green-50'}`}>
-                                        <p className="font-medium">{deleteResult.message}</p>
-                                        <p className="text-2xl font-bold">{deleteResult.deleted_count} items</p>
-                                    </div>
-                                )}
-                            </div>
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-                                    Cancel
-                                </Button>
-                                <Button
-                                    variant="destructive"
-                                    onClick={handleBulkDelete}
-                                    disabled={isDeleting}
-                                >
-                                    {isDeleting ? 'Deleting...' : deleteFilters.dryRun ? 'Preview' : 'Delete'}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                </div>
+                <Select
+                    value={state.sourceName || 'all'}
+                    onValueChange={(v) =>
+                        setState({ sourceName: v === 'all' ? '' : v })
+                    }
+                >
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Source" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All sources</SelectItem>
+                        {sourceNames.map((n) => (
+                            <SelectItem key={n} value={n}>
+                                {n}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
+
+            {/* Bulk action bar */}
+            <ContentBulkActionBar
+                count={selected.size}
+                busy={bulkBusy}
+                progress={
+                    bulkBusy
+                        ? {
+                              completed: bulkStatus.completed + bulkEnrich.completed,
+                              total: bulkStatus.total + bulkEnrich.total,
+                          }
+                        : null
+                }
+                onClear={() => setSelected(new Set())}
+                onSetStatus={() => setBulkStatusOpen(true)}
+                onReEnrich={() => setBulkReEnrichOpen(true)}
+                onDelete={() => setBulkDeleteOpen(true)}
+            />
 
             {/* Table */}
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[300px]">Title</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Source</TableHead>
-                            <TableHead>Published</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? (
-                            Array.from({ length: 5 }).map((_, i) => (
-                                <TableRow key={i}>
-                                    <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-                                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                                    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                                    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                                    <TableCell><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
-                                </TableRow>
-                            ))
-                        ) : error ? (
-                            <TableRow>
-                                <TableCell colSpan={6} className="text-center text-destructive py-8">
-                                    Failed to load content. Please try again.
-                                </TableCell>
-                            </TableRow>
-                        ) : data?.data.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                                    No content found. Content will appear here once sources are ingested.
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            data?.data.map((item) => (
-                                <TableRow key={item.id}>
-                                    <TableCell>
-                                        <Link
-                                            href={`/platform/content/${item.id}`}
-                                            className="font-medium hover:underline line-clamp-1"
-                                        >
-                                            {item.title}
-                                        </Link>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant="outline">
-                                            {CONTENT_TYPE_LABELS[item.type as ContentType]}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant={CONTENT_STATUS_VARIANTS[item.status as ContentStatus]}>
-                                            {CONTENT_STATUS_LABELS[item.status as ContentStatus]}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-muted-foreground">
-                                        {item.source_name || '—'}
-                                    </TableCell>
-                                    <TableCell className="text-muted-foreground">
-                                        {item.published_at
-                                            ? formatDistanceToNow(new Date(item.published_at), { addSuffix: true })
-                                            : '—'}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            {item.original_url && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    asChild
-                                                    title="View Original"
-                                                >
-                                                    <a href={item.original_url} target="_blank" rel="noopener noreferrer">
-                                                        <ExternalLink className="h-4 w-4" />
-                                                    </a>
-                                                </Button>
-                                            )}
-                                            <Button variant="ghost" size="sm" asChild>
-                                                <Link href={`/platform/content/${item.id}`}>View</Link>
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
+            <ContentTable
+                items={items}
+                isLoading={isLoading}
+                isError={Boolean(error)}
+                selected={selected}
+                onToggle={toggleOne}
+                onToggleAll={toggleAllOnPage}
+                sortField={state.sortField}
+                sortDir={state.sortDir}
+                onToggleSort={toggleSort}
+                onDeleteRow={(id) => setDeleteId(id)}
+            />
 
             {/* Pagination */}
-            {data && data.total_pages > 1 && (
+            {data && totalPages > 1 && (
                 <Pagination>
                     <PaginationContent>
                         <PaginationItem>
                             <PaginationPrevious
-                                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                className={page <= 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                onClick={() => setState({ page: Math.max(1, state.page - 1) })}
+                                className={
+                                    state.page <= 1
+                                        ? 'pointer-events-none opacity-50'
+                                        : 'cursor-pointer'
+                                }
                             />
                         </PaginationItem>
-                        {Array.from({ length: Math.min(data.total_pages, 5) }, (_, i) => {
-                            const pageNum = i + 1;
-                            return (
-                                <PaginationItem key={pageNum}>
+                        {pageNumbers.map((p, i) =>
+                            p === '…' ? (
+                                <PaginationItem key={`e-${i}`}>
+                                    <PaginationEllipsis />
+                                </PaginationItem>
+                            ) : (
+                                <PaginationItem key={p}>
                                     <PaginationLink
-                                        onClick={() => setPage(pageNum)}
-                                        isActive={pageNum === page}
+                                        onClick={() => setState({ page: p })}
+                                        isActive={p === state.page}
                                         className="cursor-pointer"
                                     >
-                                        {pageNum}
+                                        {p}
                                     </PaginationLink>
                                 </PaginationItem>
-                            );
-                        })}
+                            )
+                        )}
                         <PaginationItem>
                             <PaginationNext
-                                onClick={() => setPage((p) => Math.min(data.total_pages, p + 1))}
-                                className={page >= data.total_pages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                                onClick={() =>
+                                    setState({
+                                        page: Math.min(totalPages, state.page + 1),
+                                    })
+                                }
+                                className={
+                                    state.page >= totalPages
+                                        ? 'pointer-events-none opacity-50'
+                                        : 'cursor-pointer'
+                                }
                             />
                         </PaginationItem>
                     </PaginationContent>
                 </Pagination>
             )}
+
+            {/* Single-row delete */}
+            <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Delete content</DialogTitle>
+                        <DialogDescription>
+                            This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteId(null)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleSingleDelete}
+                            disabled={deleteByIds.isPending}
+                        >
+                            {deleteByIds.isPending ? 'Deleting…' : 'Delete'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bulk delete */}
+            <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+                <DialogContent className="max-h-[80vh]">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Delete {selectedItems.length} content item
+                            {selectedItems.length === 1 ? '' : 's'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="max-h-64 overflow-y-auto rounded-md border">
+                        <ul className="divide-y text-sm">
+                            {selectedItems.map((i) => (
+                                <li
+                                    key={i.id}
+                                    className="flex items-center justify-between px-3 py-2"
+                                >
+                                    <span className="line-clamp-1 truncate font-medium">
+                                        {i.title}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                        {CONTENT_STATUS_LABELS[i.status]}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setBulkDeleteOpen(false)}
+                            disabled={deleteByIds.isPending}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleBulkDelete}
+                            disabled={deleteByIds.isPending}
+                        >
+                            {deleteByIds.isPending
+                                ? 'Deleting…'
+                                : `Delete ${selectedItems.length}`}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <BulkSetStatusDialog
+                open={bulkStatusOpen}
+                count={selectedItems.length}
+                onClose={() => setBulkStatusOpen(false)}
+                onSubmit={handleBulkSetStatus}
+                isSubmitting={bulkStatus.running}
+            />
+
+            <BulkReEnrichDialog
+                open={bulkReEnrichOpen}
+                count={selectedItems.length}
+                onClose={() => setBulkReEnrichOpen(false)}
+                onConfirm={handleBulkReEnrich}
+                isSubmitting={bulkEnrich.running}
+            />
         </div>
     );
+}
+
+/**
+ * Build a compact pagination list: 1 … 4 5 6 … 50.
+ * For ≤ 7 pages, just enumerate all of them.
+ */
+function buildPagination(current: number, total: number): Array<number | '…'> {
+    if (total <= 7) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const out: Array<number | '…'> = [1];
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+    if (start > 2) out.push('…');
+    for (let p = start; p <= end; p += 1) out.push(p);
+    if (end < total - 1) out.push('…');
+    out.push(total);
+    return out;
 }

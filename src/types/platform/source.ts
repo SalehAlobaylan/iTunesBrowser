@@ -65,3 +65,49 @@ export const SOURCE_TYPE_LABELS: Record<SourceType, string> = {
     TELEGRAM: 'Telegram',
     MANUAL: 'Manual',
 };
+
+// Preview / discover (admin tooling)
+// Mirrors Go structs in CMS adminSourceController.go
+export interface DiscoverFeedsRequest {
+    url: string;
+}
+
+export interface DiscoveredFeed {
+    url: string;
+    title?: string;
+    type: string;
+}
+
+export interface DiscoverFeedsResponse {
+    success: boolean;
+    feeds: DiscoveredFeed[];
+    message: string;
+}
+
+export interface PreviewSourceRequest {
+    sourceType: SourceType;
+    url: string;
+    name?: string;
+    settings?: Record<string, unknown>;
+    limit?: number;
+}
+
+export interface PreviewItem {
+    idempotencyKey: string;
+    type: string;
+    title: string;
+    excerpt?: string;
+    author?: string;
+    originalUrl: string;
+    publishedAt?: string;
+}
+
+export interface PreviewSourceResponse {
+    success: boolean;
+    message: string;
+    fetched: number;
+    normalized: number;
+    skipped: number;
+    errors: number;
+    items: PreviewItem[];
+}

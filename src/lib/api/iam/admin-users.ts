@@ -59,17 +59,19 @@ export async function listAdminUsers(params: ListAdminUsersParams = {}): Promise
   const response = await iamClient.get<ListResponse<IAMUser>>('/api/v1/iam/users');
   const filtered = applyUserFilters(response.data, params);
 
+  const hasPagination = Boolean(params.page || params.limit);
   const page = params.page && params.page > 0 ? params.page : 1;
-  const limit = params.limit && params.limit > 0 ? params.limit : 20;
+  const limit = params.limit && params.limit > 0 ? params.limit : Math.max(filtered.length, 1);
   const start = (page - 1) * limit;
-  const data = filtered.slice(start, start + limit).map(mapIAMUser);
+  const paged = hasPagination ? filtered.slice(start, start + limit) : filtered;
+  const data = paged.map(mapIAMUser);
 
   return {
     data,
     total: filtered.length,
-    page,
+    page: hasPagination ? page : 1,
     limit,
-    total_pages: Math.max(1, Math.ceil(filtered.length / limit)),
+    total_pages: hasPagination ? Math.max(1, Math.ceil(filtered.length / limit)) : 1,
   };
 }
 

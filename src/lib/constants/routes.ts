@@ -40,7 +40,7 @@ export const navigation: NavigationSection[] = [
     {
         title: 'Admin',
         items: [
-            { name: 'Users', href: '/admin/users', icon: Shield },
+            { name: 'Auth Center', href: '/admin/users', icon: Shield },
         ],
     },
 ];

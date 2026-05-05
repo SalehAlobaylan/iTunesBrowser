@@ -6,6 +6,10 @@ import type {
     CreateSourceRequest,
     UpdateSourceRequest,
     RunSourceResponse,
+    PreviewSourceRequest,
+    PreviewSourceResponse,
+    DiscoverFeedsRequest,
+    DiscoverFeedsResponse,
 } from '@/types/platform/source';
 
 /**
@@ -54,4 +58,24 @@ export async function deleteSource(id: string): Promise<void> {
  */
 export async function runSource(id: string): Promise<RunSourceResponse> {
     return cmsClient.post<RunSourceResponse>(`/admin/sources/${id}/run`);
+}
+
+/**
+ * Preview a source without persisting it (fetches a small sample of items).
+ * POST /admin/sources/preview
+ */
+export async function previewSource(
+    req: PreviewSourceRequest
+): Promise<PreviewSourceResponse> {
+    return cmsClient.post<PreviewSourceResponse>('/admin/sources/preview', req);
+}
+
+/**
+ * Discover candidate feed URLs from a website URL.
+ * POST /admin/sources/discover
+ */
+export async function discoverFeeds(
+    req: DiscoverFeedsRequest
+): Promise<DiscoverFeedsResponse> {
+    return cmsClient.post<DiscoverFeedsResponse>('/admin/sources/discover', req);
 }

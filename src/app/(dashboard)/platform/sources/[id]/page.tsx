@@ -10,10 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SourceForm } from '@/components/platform/source-form';
+import { SourceWizard } from '@/components/platform/sources/wizard/source-wizard';
 import { useSource, useUpdateSource, useRunSource } from '@/hooks/use-sources';
 import { SOURCE_TYPE_LABELS } from '@/types/platform/source';
-import type { UpdateSourceRequest, SourceType } from '@/types/platform/source';
+import type { CreateSourceRequest, SourceType } from '@/types/platform/source';
 
 interface SourceDetailPageProps {
     params: Promise<{ id: string }>;
@@ -27,7 +27,7 @@ export default function SourceDetailPage({ params }: SourceDetailPageProps) {
     const updateMutation = useUpdateSource();
     const runMutation = useRunSource();
 
-    const handleSubmit = (data: UpdateSourceRequest) => {
+    const handleSubmit = (data: CreateSourceRequest) => {
         updateMutation.mutate(
             { id, data },
             {
@@ -152,12 +152,12 @@ export default function SourceDetailPage({ params }: SourceDetailPageProps) {
                 </CardContent>
             </Card>
 
-            {/* Edit Form */}
-            <div className="max-w-2xl">
-                <SourceForm
+            {/* Edit Wizard */}
+            <div className="max-w-4xl">
+                <SourceWizard
                     source={source}
                     onSubmit={handleSubmit}
-                    isLoading={updateMutation.isPending}
+                    isSubmitting={updateMutation.isPending}
                 />
             </div>
         </div>

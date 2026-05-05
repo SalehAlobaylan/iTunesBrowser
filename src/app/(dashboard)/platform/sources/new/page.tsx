@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { SourceForm } from '@/components/platform/source-form';
+import { SourceWizard } from '@/components/platform/sources/wizard/source-wizard';
 import { useCreateSource } from '@/hooks/use-sources';
 import type { CreateSourceRequest } from '@/types/platform/source';
 
@@ -38,11 +38,11 @@ export default function NewSourcePage() {
                 </div>
             </div>
 
-            {/* Form */}
-            <div className="max-w-2xl">
-                <SourceForm
+            {/* Wizard */}
+            <div className="max-w-4xl">
+                <SourceWizard
                     onSubmit={handleSubmit}
-                    isLoading={createMutation.isPending}
+                    isSubmitting={createMutation.isPending}
                 />
             </div>
         </div>

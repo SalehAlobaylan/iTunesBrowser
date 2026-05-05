@@ -33,7 +33,10 @@ export const getMissingEnrichments = (params?: MissingEnrichmentsParams) =>
 
 // ── Trigger Single ──────────────────────────────────────────
 
-export const triggerEnrichment = (id: string, types: string[]) =>
+export const triggerEnrichment = (
+    id: string,
+    types: string[] = ['transcript', 'embedding', 'news']
+) =>
     unwrapCmsData(
         cmsClient.post<CmsEnvelope<TriggerEnrichmentResponse>>(
             `/admin/enrichment/trigger/${id}`,
@@ -43,7 +46,20 @@ export const triggerEnrichment = (id: string, types: string[]) =>
 
 // ── Trigger Batch ───────────────────────────────────────────
 
-export const triggerBatchEnrichment = (contentIds: string[], types: string[]) =>
+/** Backend caps trigger-batch at 10 ids per call. Callers must chunk. */
+export const ENRICHMENT_BATCH_LIMIT = 10;
+
+/** Default enrichment passes triggered when the caller doesn't specify. */
+export const DEFAULT_ENRICHMENT_TYPES: string[] = [
+    'transcript',
+    'embedding',
+    'news',
+];
+
+export const triggerBatchEnrichment = (
+    contentIds: string[],
+    types: string[] = DEFAULT_ENRICHMENT_TYPES
+) =>
     unwrapCmsData(
         cmsClient.post<CmsEnvelope<TriggerResultItem[]>>('/admin/enrichment/trigger-batch', {
             content_ids: contentIds,

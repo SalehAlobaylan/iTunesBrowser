@@ -2,20 +2,30 @@
 
 import { use } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Archive, Eye, ThumbsUp, Share2 } from 'lucide-react';
+import {
+    ArrowLeft,
+    ExternalLink,
+    Eye,
+    ThumbsUp,
+    Share2,
+} from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useContentItem, useUpdateContentStatus } from '@/hooks/use-content';
+import { useContentItem } from '@/hooks/use-content';
 import {
     CONTENT_TYPE_LABELS,
     CONTENT_STATUS_LABELS,
     CONTENT_STATUS_VARIANTS,
 } from '@/types/platform/content';
-import type { ContentType, ContentStatus, NewsMetadata } from '@/types/platform/content';
+import type { NewsMetadata } from '@/types/platform/content';
+
+import { DetailActionsMenu } from '@/components/platform/content/detail/detail-actions-menu';
+import { FailedBanner } from '@/components/platform/content/detail/failed-banner';
+import { EnrichmentCard } from '@/components/platform/content/detail/enrichment-card';
 
 interface ContentDetailPageProps {
     params: Promise<{ id: string }>;
@@ -24,12 +34,6 @@ interface ContentDetailPageProps {
 export default function ContentDetailPage({ params }: ContentDetailPageProps) {
     const { id } = use(params);
     const { data: item, isLoading, error } = useContentItem(id);
-    const updateStatusMutation = useUpdateContentStatus();
-
-    const handleArchive = () => {
-        updateStatusMutation.mutate({ id, status: 'ARCHIVED' });
-    };
-
     const news = extractNewsMetadata(item?.metadata);
 
     if (isLoading) {
@@ -71,13 +75,15 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>
-                    <h1 className="text-3xl font-bold tracking-tight">Content Not Found</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">
+                        Content not found
+                    </h1>
                 </div>
                 <p className="text-muted-foreground">
                     The content item you are looking for does not exist.
                 </p>
                 <Button asChild>
-                    <Link href="/platform/content">Back to Content</Link>
+                    <Link href="/platform/content">Back to content</Link>
                 </Button>
             </div>
         );
@@ -86,89 +92,98 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+            <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3 min-w-0">
                     <Button variant="ghost" size="icon" asChild>
                         <Link href="/platform/content">
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-2xl font-bold tracking-tight line-clamp-1 max-w-xl">
-                                {item.title}
-                            </h1>
-                            <Badge variant={CONTENT_STATUS_VARIANTS[item.status as ContentStatus]}>
-                                {CONTENT_STATUS_LABELS[item.status as ContentStatus]}
-                            </Badge>
-                        </div>
-                        <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="min-w-0">
+                        <h1 className="line-clamp-2 max-w-3xl text-2xl font-bold tracking-tight">
+                            {item.title}
+                        </h1>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                             <Badge variant="outline">
-                                {CONTENT_TYPE_LABELS[item.type as ContentType]}
+                                {CONTENT_TYPE_LABELS[item.type]}
                             </Badge>
-                            {item.source_name && <span>• {item.source_name}</span>}
+                            <Badge variant={CONTENT_STATUS_VARIANTS[item.status]}>
+                                {CONTENT_STATUS_LABELS[item.status]}
+                            </Badge>
+                            {item.source_name && (
+                                <span className="text-muted-foreground">
+                                    • {item.source_name}
+                                </span>
+                            )}
+                            {item.published_at && (
+                                <span className="text-muted-foreground">
+                                    •{' '}
+                                    {formatDistanceToNow(new Date(item.published_at), {
+                                        addSuffix: true,
+                                    })}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-shrink-0 items-center gap-2">
                     {item.original_url && (
                         <Button variant="outline" asChild>
-                            <a href={item.original_url} target="_blank" rel="noopener noreferrer">
+                            <a
+                                href={item.original_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
                                 <ExternalLink className="mr-2 h-4 w-4" />
-                                View Original
+                                Open original
                             </a>
                         </Button>
                     )}
-                    {item.status !== 'ARCHIVED' && (
-                        <Button
-                            variant="outline"
-                            onClick={handleArchive}
-                            disabled={updateStatusMutation.isPending}
-                        >
-                            <Archive className="mr-2 h-4 w-4" />
-                            Archive
-                        </Button>
-                    )}
+                    <DetailActionsMenu item={item} />
                 </div>
             </div>
 
+            {/* FAILED retry banner */}
+            <FailedBanner item={item} />
+
             <div className="grid gap-6 lg:grid-cols-3">
-                {/* Main content */}
-                <div className="lg:col-span-2 space-y-6">
+                {/* Main column */}
+                <div className="space-y-6 lg:col-span-2">
                     {/* Media Preview */}
                     {(item.media_url || item.thumbnail_url) && (
                         <Card>
                             <CardHeader>
-                                <CardTitle>Media Preview</CardTitle>
+                                <CardTitle>Media preview</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 {item.type === 'VIDEO' && item.media_url ? (
-                                    <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+                                    <div className="aspect-video overflow-hidden rounded-lg bg-muted">
                                         <video
                                             src={item.media_url}
                                             poster={item.thumbnail_url}
                                             controls
-                                            className="w-full h-full object-contain"
+                                            className="h-full w-full object-contain"
                                         />
                                     </div>
                                 ) : item.thumbnail_url ? (
-                                    <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+                                    <div className="aspect-video overflow-hidden rounded-lg bg-muted">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
                                             src={item.thumbnail_url}
                                             alt={item.title}
-                                            className="w-full h-full object-cover"
+                                            className="h-full w-full object-cover"
                                         />
                                     </div>
                                 ) : item.media_url ? (
-                                    <div className="p-4 bg-muted rounded-lg">
+                                    <div className="rounded-lg bg-muted p-4">
                                         <a
                                             href={item.media_url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="text-primary hover:underline flex items-center gap-2"
+                                            className="flex items-center gap-2 text-primary hover:underline"
                                         >
                                             <ExternalLink className="h-4 w-4" />
-                                            View Media
+                                            View media
                                         </a>
                                     </div>
                                 ) : null}
@@ -176,16 +191,18 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                         </Card>
                     )}
 
-                    {/* Content Body */}
+                    {/* Body */}
                     {(item.body_text || item.excerpt) && (
                         <Card>
                             <CardHeader>
                                 <CardTitle>Content</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                <div className="prose prose-sm max-w-none dark:prose-invert">
                                     {item.excerpt && (
-                                        <p className="text-muted-foreground italic">{item.excerpt}</p>
+                                        <p className="italic text-muted-foreground">
+                                            {item.excerpt}
+                                        </p>
                                     )}
                                     {item.body_text && (
                                         <p className="whitespace-pre-wrap">{item.body_text}</p>
@@ -195,7 +212,7 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                         </Card>
                     )}
 
-                    {/* Tags */}
+                    {/* Topics */}
                     {item.topic_tags && item.topic_tags.length > 0 && (
                         <Card>
                             <CardHeader>
@@ -212,6 +229,9 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                             </CardContent>
                         </Card>
                     )}
+
+                    {/* Enrichment */}
+                    {news && <EnrichmentCard news={news} />}
                 </div>
 
                 {/* Sidebar */}
@@ -223,33 +243,21 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                         </CardHeader>
                         <CardContent>
                             <div className="grid grid-cols-3 gap-4 text-center">
-                                <div>
-                                    <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-                                        <Eye className="h-4 w-4" />
-                                    </div>
-                                    <div className="text-2xl font-bold">
-                                        {item.view_count.toLocaleString()}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">Views</div>
-                                </div>
-                                <div>
-                                    <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-                                        <ThumbsUp className="h-4 w-4" />
-                                    </div>
-                                    <div className="text-2xl font-bold">
-                                        {item.like_count.toLocaleString()}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">Likes</div>
-                                </div>
-                                <div>
-                                    <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
-                                        <Share2 className="h-4 w-4" />
-                                    </div>
-                                    <div className="text-2xl font-bold">
-                                        {item.share_count.toLocaleString()}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">Shares</div>
-                                </div>
+                                <Stat
+                                    icon={<Eye className="h-4 w-4" />}
+                                    label="Views"
+                                    value={item.view_count.toLocaleString()}
+                                />
+                                <Stat
+                                    icon={<ThumbsUp className="h-4 w-4" />}
+                                    label="Likes"
+                                    value={item.like_count.toLocaleString()}
+                                />
+                                <Stat
+                                    icon={<Share2 className="h-4 w-4" />}
+                                    label="Shares"
+                                    value={item.share_count.toLocaleString()}
+                                />
                             </div>
                         </CardContent>
                     </Card>
@@ -262,133 +270,42 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                         <CardContent>
                             <dl className="space-y-3 text-sm">
                                 {item.author && (
-                                    <div>
-                                        <dt className="text-muted-foreground">Author</dt>
-                                        <dd className="font-medium">{item.author}</dd>
-                                    </div>
+                                    <Row label="Author" value={item.author} />
                                 )}
                                 {item.source_name && (
-                                    <div>
-                                        <dt className="text-muted-foreground">Source</dt>
-                                        <dd className="font-medium">{item.source_name}</dd>
-                                    </div>
+                                    <Row label="Source" value={item.source_name} />
                                 )}
                                 {item.published_at && (
-                                    <div>
-                                        <dt className="text-muted-foreground">Published</dt>
-                                        <dd className="font-medium">
-                                            {format(new Date(item.published_at), 'PPP')}
-                                        </dd>
-                                    </div>
+                                    <Row
+                                        label="Published"
+                                        value={format(new Date(item.published_at), 'PPP')}
+                                    />
                                 )}
-                                {item.duration_sec && (
-                                    <div>
-                                        <dt className="text-muted-foreground">Duration</dt>
-                                        <dd className="font-medium">
-                                            {Math.floor(item.duration_sec / 60)}:{String(item.duration_sec % 60).padStart(2, '0')}
-                                        </dd>
-                                    </div>
+                                {typeof item.duration_sec === 'number' && (
+                                    <Row
+                                        label="Duration"
+                                        value={`${Math.floor(item.duration_sec / 60)}:${String(
+                                            item.duration_sec % 60
+                                        ).padStart(2, '0')}`}
+                                    />
                                 )}
-                                <div>
-                                    <dt className="text-muted-foreground">Created</dt>
-                                    <dd className="font-medium">
-                                        {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt className="text-muted-foreground">Updated</dt>
-                                    <dd className="font-medium">
-                                        {formatDistanceToNow(new Date(item.updated_at), { addSuffix: true })}
-                                    </dd>
-                                </div>
+                                <Row
+                                    label="Created"
+                                    value={formatDistanceToNow(
+                                        new Date(item.created_at),
+                                        { addSuffix: true }
+                                    )}
+                                />
+                                <Row
+                                    label="Updated"
+                                    value={formatDistanceToNow(
+                                        new Date(item.updated_at),
+                                        { addSuffix: true }
+                                    )}
+                                />
                             </dl>
                         </CardContent>
                     </Card>
-
-                    {/* News Classification */}
-                    {news && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>News Classification</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div className="text-sm text-muted-foreground">Likely News</div>
-                                    <Badge variant={news.likelyNews ? 'success' : 'secondary'}>
-                                        {news.likelyNews ? 'Yes' : 'No'}
-                                    </Badge>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                    <div>
-                                        <div className="text-muted-foreground">Score</div>
-                                        <div className="font-medium">{news.score}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-muted-foreground">Confidence</div>
-                                        <div className="font-medium capitalize">{news.confidence}</div>
-                                    </div>
-                                </div>
-
-                                {news.categoryHints && news.categoryHints.length > 0 && (
-                                    <div>
-                                        <div className="mb-2 text-sm text-muted-foreground">Category Hints</div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {news.categoryHints.map((category) => (
-                                                <Badge key={category} variant="outline">
-                                                    {category}
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {news.matchedKeywords && news.matchedKeywords.length > 0 && (
-                                    <div>
-                                        <div className="mb-2 text-sm text-muted-foreground">Matched Keywords</div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {news.matchedKeywords.map((keyword) => (
-                                                <Badge key={keyword} variant="secondary">
-                                                    {keyword}
-                                                </Badge>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {news.signals && (
-                                    <div className="space-y-2 text-sm">
-                                        <div className="text-muted-foreground">Signals</div>
-                                        <dl className="space-y-1">
-                                            <div className="flex justify-between gap-3">
-                                                <dt className="text-muted-foreground">Breaking Prefix</dt>
-                                                <dd className="font-medium">{formatBoolean(news.signals.hasBreakingPrefix)}</dd>
-                                            </div>
-                                            <div className="flex justify-between gap-3">
-                                                <dt className="text-muted-foreground">Verified Source</dt>
-                                                <dd className="font-medium">{formatBoolean(news.signals.verifiedSource)}</dd>
-                                            </div>
-                                            <div className="flex justify-between gap-3">
-                                                <dt className="text-muted-foreground">Source Looks News</dt>
-                                                <dd className="font-medium">{formatBoolean(news.signals.sourceLooksNews)}</dd>
-                                            </div>
-                                            <div className="flex justify-between gap-3">
-                                                <dt className="text-muted-foreground">Has Attribution</dt>
-                                                <dd className="font-medium">{formatBoolean(news.signals.hasAttribution)}</dd>
-                                            </div>
-                                            <div className="flex justify-between gap-3">
-                                                <dt className="text-muted-foreground">Recency (hours)</dt>
-                                                <dd className="font-medium">
-                                                    {typeof news.signals.recencyHours === 'number'
-                                                        ? news.signals.recencyHours
-                                                        : 'N/A'}
-                                                </dd>
-                                            </div>
-                                        </dl>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
 
                     {/* URLs */}
                     {(item.original_url || item.media_url || item.thumbnail_url) && (
@@ -399,37 +316,16 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                             <CardContent>
                                 <div className="space-y-2 text-sm">
                                     {item.original_url && (
-                                        <a
-                                            href={item.original_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-2 text-primary hover:underline truncate"
-                                        >
-                                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                                            Original URL
-                                        </a>
+                                        <UrlLink label="Original URL" href={item.original_url} />
                                     )}
                                     {item.media_url && (
-                                        <a
-                                            href={item.media_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-2 text-primary hover:underline truncate"
-                                        >
-                                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                                            Media URL
-                                        </a>
+                                        <UrlLink label="Media URL" href={item.media_url} />
                                     )}
                                     {item.thumbnail_url && (
-                                        <a
+                                        <UrlLink
+                                            label="Thumbnail URL"
                                             href={item.thumbnail_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-2 text-primary hover:underline truncate"
-                                        >
-                                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                                            Thumbnail URL
-                                        </a>
+                                        />
                                     )}
                                 </div>
                             </CardContent>
@@ -441,27 +337,62 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
     );
 }
 
-function extractNewsMetadata(metadata?: Record<string, unknown>): NewsMetadata | null {
-    if (!metadata || typeof metadata !== 'object') {
-        return null;
-    }
+function Stat({
+    icon,
+    label,
+    value,
+}: {
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+}) {
+    return (
+        <div>
+            <div className="mb-1 flex items-center justify-center gap-1 text-muted-foreground">
+                {icon}
+            </div>
+            <div className="text-2xl font-bold">{value}</div>
+            <div className="text-xs text-muted-foreground">{label}</div>
+        </div>
+    );
+}
 
+function Row({ label, value }: { label: string; value: string }) {
+    return (
+        <div>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="font-medium">{value}</dd>
+        </div>
+    );
+}
+
+function UrlLink({ label, href }: { label: string; href: string }) {
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 truncate text-primary hover:underline"
+        >
+            <ExternalLink className="h-3 w-3 flex-shrink-0" />
+            {label}
+        </a>
+    );
+}
+
+function extractNewsMetadata(metadata?: Record<string, unknown>): NewsMetadata | null {
+    if (!metadata || typeof metadata !== 'object') return null;
     const news = metadata['news'];
-    if (!news || typeof news !== 'object') {
-        return null;
-    }
+    if (!news || typeof news !== 'object') return null;
 
     const candidate = news as Record<string, unknown>;
     const likelyNews = candidate['likelyNews'];
     const score = candidate['score'];
     const confidence = candidate['confidence'];
 
-    if (typeof likelyNews !== 'boolean' || typeof score !== 'number') {
+    if (typeof likelyNews !== 'boolean' || typeof score !== 'number') return null;
+    if (confidence !== 'low' && confidence !== 'medium' && confidence !== 'high')
         return null;
-    }
-    if (confidence !== 'low' && confidence !== 'medium' && confidence !== 'high') {
-        return null;
-    }
 
     return {
         version: typeof candidate['version'] === 'string' ? candidate['version'] : undefined,
@@ -469,19 +400,18 @@ function extractNewsMetadata(metadata?: Record<string, unknown>): NewsMetadata |
         score,
         confidence,
         categoryHints: Array.isArray(candidate['categoryHints'])
-            ? candidate['categoryHints'].filter((item): item is string => typeof item === 'string')
+            ? candidate['categoryHints'].filter(
+                  (i): i is string => typeof i === 'string'
+              )
             : [],
         matchedKeywords: Array.isArray(candidate['matchedKeywords'])
-            ? candidate['matchedKeywords'].filter((item): item is string => typeof item === 'string')
+            ? candidate['matchedKeywords'].filter(
+                  (i): i is string => typeof i === 'string'
+              )
             : [],
-        signals: typeof candidate['signals'] === 'object' && candidate['signals'] !== null
-            ? candidate['signals'] as NewsMetadata['signals']
-            : undefined,
+        signals:
+            typeof candidate['signals'] === 'object' && candidate['signals'] !== null
+                ? (candidate['signals'] as NewsMetadata['signals'])
+                : undefined,
     };
-}
-
-function formatBoolean(value?: boolean): string {
-    if (value === true) return 'Yes';
-    if (value === false) return 'No';
-    return 'N/A';
 }

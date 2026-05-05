@@ -1,6 +1,7 @@
 import { cmsClient } from '@/lib/api/client';
 import type {
     ContentItem,
+    ContentStatus,
     ListContentParams,
     ListContentResponse,
     UpdateContentStatusRequest,
@@ -37,6 +38,8 @@ export interface BulkDeleteRequest {
     status?: string;
     source_name?: string;
     created_before?: string;
+    /** Optional list of public_ids. When present, the other filters are ignored. */
+    ids?: string[];
     dry_run?: boolean;
 }
 
@@ -60,4 +63,46 @@ export async function bulkDeleteContent(data: BulkDeleteRequest): Promise<BulkDe
 export async function listSourceNames(): Promise<string[]> {
     const res = await cmsClient.get<{ source_names: string[] }>('/admin/content/source-names');
     return res.source_names ?? [];
+}
+
+/**
+ * Per-status totals across the full tenant (not page-scoped).
+ * GET /admin/content/status-counts
+ */
+export type StatusCounts = Record<ContentStatus, number>;
+
+export async function getStatusCounts(): Promise<StatusCounts> {
+    return cmsClient.get<StatusCounts>('/admin/content/status-counts');
+}
+
+/**
+ * Delete content items by an explicit list of UUIDs.
+ * Convenience wrapper around the extended bulk-delete endpoint.
+ */
+export async function deleteContentByIds(ids: string[]): Promise<BulkDeleteResponse> {
+    return bulkDeleteContent({ ids, dry_run: false });
+}
+
+export interface BulkSetStatusRequest {
+    from_status: ContentStatus;
+    to_status: ContentStatus;
+    source_name?: string;
+    /** Server caps at 500. */
+    limit?: number;
+}
+
+export interface BulkSetStatusResponse {
+    updated_count: number;
+    message: string;
+}
+
+/**
+ * Move all items matching `from_status` (and optional source) to `to_status`.
+ * Used by the Tools menu — distinct from per-id PATCH used by row selection.
+ * POST /admin/content/bulk-status
+ */
+export async function bulkSetContentStatus(
+    data: BulkSetStatusRequest
+): Promise<BulkSetStatusResponse> {
+    return cmsClient.post<BulkSetStatusResponse>('/admin/content/bulk-status', data);
 }

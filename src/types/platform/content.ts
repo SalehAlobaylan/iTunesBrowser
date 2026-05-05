@@ -54,6 +54,7 @@ export interface ListContentParams {
     status?: ContentStatus;
     type?: ContentType;
     source_id?: string;
+    source_name?: string;
     date_from?: string;
     date_to?: string;
 }

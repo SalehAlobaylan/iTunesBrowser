@@ -26,14 +26,23 @@ export const sourceKeys = {
 };
 
 /**
- * Hook to fetch paginated list of sources
+ * Hook to fetch paginated list of sources.
+ *
+ * When `options.paused` is true the auto-refresh interval is suspended —
+ * use this while a bulk action is running so a refetch doesn't race with selection state.
  */
-export function useSources(params: ListSourcesParams = {}) {
+export function useSources(
+  params: ListSourcesParams = {},
+  options: { paused?: boolean } = {}
+) {
+  const { paused = false } = options;
   return useQuery({
     queryKey: sourceKeys.list(params),
     queryFn: () => listSources(params),
     staleTime: CACHE_CONFIG.lists.staleTime,
     gcTime: CACHE_CONFIG.lists.gcTime,
+    refetchInterval: paused ? false : 30_000,
+    refetchIntervalInBackground: false,
   });
 }
 
