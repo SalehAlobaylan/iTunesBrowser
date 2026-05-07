@@ -6,6 +6,8 @@ import {
     Brain,
     Sparkles,
     Shield,
+    HardDrive,
+    Sliders,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -32,6 +34,8 @@ export const navigation: NavigationSection[] = [
         items: [
             { name: 'Sources', href: '/platform/sources', icon: Rss },
             { name: 'Content', href: '/platform/content', icon: FileText },
+            { name: 'Storage', href: '/platform/storage', icon: HardDrive },
+            { name: 'Quality', href: '/platform/quality', icon: Sliders },
             { name: 'Pipeline', href: '/platform/pipeline', icon: Activity },
             { name: 'Intelligence', href: '/platform/intelligence', icon: Brain },
             { name: 'Enrichment', href: '/platform/enrichment', icon: Sparkles },
@@ -52,6 +56,7 @@ export const ROUTES = {
     PLATFORM: {
         SOURCES: '/platform/sources',
         CONTENT: '/platform/content',
+        STORAGE: '/platform/storage',
         PIPELINE: '/platform/pipeline',
         INTELLIGENCE: '/platform/intelligence',
         ENRICHMENT: '/platform/enrichment',

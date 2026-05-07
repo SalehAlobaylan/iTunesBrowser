@@ -11,17 +11,17 @@ interface ConnectYoutubeProps {
 export function ConnectYoutube({ value, onChange }: ConnectYoutubeProps) {
     return (
         <div className="space-y-2">
-            <Label htmlFor="yt_url">Channel URL or @handle</Label>
+            <Label htmlFor="yt_url">Channel, playlist, or hashtag URL</Label>
             <Input
                 id="yt_url"
                 type="text"
-                placeholder="https://www.youtube.com/@LexClips"
+                placeholder="https://www.youtube.com/playlist?list=..."
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-                Paste a full channel URL (<code>/@handle</code>, <code>/channel/UC…</code>, or
-                <code> /c/Name</code>). Aggregation resolves the canonical channel ID.
+                Accepts channel URLs (<code>/@handle</code>, <code>/channel/UC…</code>, <code>/c/Name</code>),
+                playlist URLs, or hashtag URLs. Aggregation resolves the right mode.
             </p>
         </div>
     );
