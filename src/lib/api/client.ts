@@ -130,22 +130,36 @@ function createApiClient(axiosInstance: AxiosInstance): ApiClient {
 
 // Environment variables for base URLs.
 // Dev fallback only — production builds must set both env vars explicitly so a
-// missing config doesn't silently point at a developer's laptop.
+// missing config doesn't silently point at a developer's laptop. Falls back
+// to a placeholder string (not '') so axios doesn't normalize requests to the
+// current page origin at runtime if the env is genuinely missing; the
+// placeholder URL is obviously bogus and will fail fast on first call.
+//
+// The previous version threw at module load, which broke `next build`'s
+// static-page prerender step in container orchestrators that inject env at
+// runtime only. We log a warning instead and let calls fail with a real
+// network error at request time.
 const isDev = process.env.NODE_ENV === 'development';
-const CMS_BASE_URL =
-    process.env.NEXT_PUBLIC_CMS_BASE_URL || (isDev ? 'http://localhost:8080' : '');
-const IAM_BASE_URL =
-    process.env.NEXT_PUBLIC_IAM_BASE_URL || (isDev ? 'http://localhost:4003' : '');
+const PLACEHOLDER_URL = 'http://cms-base-url-not-configured.invalid';
 
-if (!CMS_BASE_URL) {
-    throw new Error(
-        'CMS base URL is not configured: set NEXT_PUBLIC_CMS_BASE_URL'
-    );
-}
-if (!IAM_BASE_URL) {
-    throw new Error(
-        'IAM base URL is not configured: set NEXT_PUBLIC_IAM_BASE_URL'
-    );
+const CMS_BASE_URL =
+    process.env.NEXT_PUBLIC_CMS_BASE_URL ||
+    (isDev ? 'http://localhost:8080' : PLACEHOLDER_URL);
+const IAM_BASE_URL =
+    process.env.NEXT_PUBLIC_IAM_BASE_URL ||
+    (isDev ? 'http://localhost:4003' : PLACEHOLDER_URL);
+
+if (typeof window === 'undefined' && !isDev) {
+    if (CMS_BASE_URL === PLACEHOLDER_URL) {
+        console.warn(
+            '[platform-console] NEXT_PUBLIC_CMS_BASE_URL is not set; CMS calls will fail at runtime.'
+        );
+    }
+    if (IAM_BASE_URL === PLACEHOLDER_URL) {
+        console.warn(
+            '[platform-console] NEXT_PUBLIC_IAM_BASE_URL is not set; IAM calls will fail at runtime.'
+        );
+    }
 }
 
 // Create axios instances
