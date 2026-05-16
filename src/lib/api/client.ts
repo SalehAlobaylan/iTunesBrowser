@@ -3,17 +3,16 @@ import axios, {
     AxiosInstance,
     AxiosRequestConfig,
     AxiosResponse,
+    InternalAxiosRequestConfig,
 } from 'axios';
-import { getAuthTokenForService, clearAuthState } from '@/lib/stores/auth';
+import { clearAuthState } from '@/lib/stores/auth';
 
-// API Error type
 export interface ApiError {
     message: string;
     status: number;
     code?: string;
 }
 
-// ApiClient interface as defined in the refactoring plan
 export interface ApiClient {
     get<T>(url: string, params?: object): Promise<T>;
     post<T>(url: string, data?: object): Promise<T>;
@@ -22,14 +21,9 @@ export interface ApiClient {
     delete<T>(url: string): Promise<T>;
 }
 
-type AuthService = 'cms' | 'iam';
-
-// Error handler function type for custom error handling
 type ErrorHandler = (error: ApiError) => void;
 
-// Default error handlers
 let on401Handler: ErrorHandler = () => {
-    // Clear auth state and redirect to login
     clearAuthState();
     if (typeof window !== 'undefined') {
         window.location.href = '/login';
@@ -37,11 +31,9 @@ let on401Handler: ErrorHandler = () => {
 };
 
 let on403Handler: ErrorHandler = (error) => {
-    // Permission denied - will be overridden by AuthProvider to show toast
     console.error('Permission denied:', error.message);
 };
 
-// Set custom error handlers
 export function setErrorHandlers(handlers: {
     on401?: ErrorHandler;
     on403?: ErrorHandler;
@@ -50,40 +42,58 @@ export function setErrorHandlers(handlers: {
     if (handlers.on403) on403Handler = handlers.on403;
 }
 
-// Create an axios instance with interceptors
-function createAxiosInstance(baseURL: string, service: AuthService): AxiosInstance {
+// Single in-flight refresh promise shared across all parallel 401-ed requests
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function attemptRefresh(): Promise<boolean> {
+    if (!refreshInFlight) {
+        refreshInFlight = fetch('/api/auth/refresh', { method: 'POST' })
+            .then((res) => res.ok)
+            .catch(() => false)
+            .finally(() => {
+                // small delay so concurrent requests that started while refresh
+                // was pending see the resolved value before nulling
+                setTimeout(() => {
+                    refreshInFlight = null;
+                }, 0);
+            });
+    }
+    return refreshInFlight;
+}
+
+function createAxiosInstance(baseURL: string): AxiosInstance {
     const instance = axios.create({
         baseURL,
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        withCredentials: true,
     });
 
-    // Request interceptor - inject JWT token
-    instance.interceptors.request.use(
-        (config) => {
-            const token = getAuthTokenForService(service);
-            if (token) {
-                config.headers.Authorization = `Bearer ${token}`;
-            }
-            return config;
-        },
-        (error) => {
-            return Promise.reject(error);
-        }
-    );
-
-    // Response interceptor - handle errors
     instance.interceptors.response.use(
         (response: AxiosResponse) => response,
-        (error: AxiosError<{ message?: string }>) => {
+        async (error: AxiosError<{ message?: string }>) => {
+            const originalRequest = error.config as
+                | (InternalAxiosRequestConfig & { _retried?: boolean })
+                | undefined;
+
+            if (
+                error.response?.status === 401 &&
+                originalRequest &&
+                !originalRequest._retried &&
+                !originalRequest.url?.includes('/api/auth/')
+            ) {
+                originalRequest._retried = true;
+                const refreshed = await attemptRefresh();
+                if (refreshed) {
+                    return instance(originalRequest);
+                }
+            }
+
             const apiError: ApiError = {
                 message: error.response?.data?.message || error.message || 'An error occurred',
                 status: error.response?.status || 500,
                 code: error.code,
             };
 
-            // Handle specific status codes
             if (apiError.status === 401) {
                 on401Handler(apiError);
             } else if (apiError.status === 403) {
@@ -97,7 +107,6 @@ function createAxiosInstance(baseURL: string, service: AuthService): AxiosInstan
     return instance;
 }
 
-// Create an API client from an axios instance
 function createApiClient(axiosInstance: AxiosInstance): ApiClient {
     return {
         async get<T>(url: string, params?: object): Promise<T> {
@@ -128,49 +137,12 @@ function createApiClient(axiosInstance: AxiosInstance): ApiClient {
     };
 }
 
-// Environment variables for base URLs.
-// Dev fallback only — production builds must set both env vars explicitly so a
-// missing config doesn't silently point at a developer's laptop. Falls back
-// to a placeholder string (not '') so axios doesn't normalize requests to the
-// current page origin at runtime if the env is genuinely missing; the
-// placeholder URL is obviously bogus and will fail fast on first call.
-//
-// The previous version threw at module load, which broke `next build`'s
-// static-page prerender step in container orchestrators that inject env at
-// runtime only. We log a warning instead and let calls fail with a real
-// network error at request time.
-const isDev = process.env.NODE_ENV === 'development';
-const PLACEHOLDER_URL = 'http://cms-base-url-not-configured.invalid';
+const cmsAxios = createAxiosInstance('/api/cms');
+const iamAxios = createAxiosInstance('/api/iam');
 
-const CMS_BASE_URL =
-    process.env.NEXT_PUBLIC_CMS_BASE_URL ||
-    (isDev ? 'http://localhost:8080' : PLACEHOLDER_URL);
-const IAM_BASE_URL =
-    process.env.NEXT_PUBLIC_IAM_BASE_URL ||
-    (isDev ? 'http://localhost:4003' : PLACEHOLDER_URL);
-
-if (typeof window === 'undefined' && !isDev) {
-    if (CMS_BASE_URL === PLACEHOLDER_URL) {
-        console.warn(
-            '[platform-console] NEXT_PUBLIC_CMS_BASE_URL is not set; CMS calls will fail at runtime.'
-        );
-    }
-    if (IAM_BASE_URL === PLACEHOLDER_URL) {
-        console.warn(
-            '[platform-console] NEXT_PUBLIC_IAM_BASE_URL is not set; IAM calls will fail at runtime.'
-        );
-    }
-}
-
-// Create axios instances
-const cmsAxios = createAxiosInstance(CMS_BASE_URL, 'cms');
-const iamAxios = createAxiosInstance(IAM_BASE_URL, 'iam');
-
-// Export pre-configured API clients
 export const cmsClient: ApiClient = createApiClient(cmsAxios);
 export const iamClient: ApiClient = createApiClient(iamAxios);
 
-// Export a function to create custom clients if needed
-export function createClient(baseURL: string, service: AuthService = 'cms'): ApiClient {
-    return createApiClient(createAxiosInstance(baseURL, service));
+export function createClient(baseURL: string): ApiClient {
+    return createApiClient(createAxiosInstance(baseURL));
 }
