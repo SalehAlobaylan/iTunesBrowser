@@ -47,6 +47,10 @@ function normalizeIamApiError(error: unknown): never {
         };
     }
 
+    if (error && typeof error === 'object' && 'message' in error) {
+        throw error;
+    }
+
     throw {
         message: 'IAM request failed',
         status: 500,
