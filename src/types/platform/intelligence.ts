@@ -18,6 +18,7 @@ export interface RankingConfig {
     trending_threshold_multiplier: number;
     recirculation_enabled: boolean;
     recirculation_max_age_days: number;
+    show_watched_when_unseen_exhausted: boolean;
     engagement_normalization: 'log' | 'linear';
     mode: RankingMode;
     is_active: boolean;

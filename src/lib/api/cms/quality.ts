@@ -1,17 +1,14 @@
 import { cmsClient } from '@/lib/api/client';
 import type {
     ProbeResult,
-    QualityCandidatesParams,
-    QualityCandidatesResponse,
-    QualityHistoryResponse,
     QualityProfile,
     QualityProfileInput,
-    QualityRule,
-    QualityRuleInput,
-    QualityStats,
-    ReEncodeRequest,
-    ReEncodeResponse,
+    ResolveResult,
 } from '@/types/platform/quality';
+
+// Phase 7: Quality is now a pure ingest-configuration surface.
+// Removed wrappers: rules CRUD, candidates, re-encode trigger, history,
+// stats, queue-depth. Re-encoding is driven by Storage policies.
 
 // Profiles -------------------------------------------------------------------
 
@@ -31,42 +28,19 @@ export async function deleteQualityProfile(id: number): Promise<{ success: boole
     return cmsClient.delete<{ success: boolean }>(`/admin/quality/profiles/${id}`);
 }
 
-// Rules ----------------------------------------------------------------------
+// Resolve -------------------------------------------------------------------
 
-export async function listQualityRules(): Promise<{ data: QualityRule[] }> {
-    return cmsClient.get<{ data: QualityRule[] }>('/admin/quality/rules');
+/**
+ * Preview which profile wins for a (tenant, source_type) combination.
+ * Used by the "What would apply?" widget so admins can sanity-check their
+ * scoping before saving a profile or kicking off an ingest.
+ */
+export async function resolveQualityProfile(params: { tenant_id?: string; source_type?: string }): Promise<ResolveResult> {
+    return cmsClient.get<ResolveResult>('/admin/quality/profiles/resolve', params);
 }
 
-export async function createQualityRule(input: QualityRuleInput): Promise<QualityRule> {
-    return cmsClient.post<QualityRule>('/admin/quality/rules', input);
-}
-
-export async function updateQualityRule(id: number, input: QualityRuleInput): Promise<QualityRule> {
-    return cmsClient.put<QualityRule>(`/admin/quality/rules/${id}`, input);
-}
-
-export async function deleteQualityRule(id: number): Promise<{ success: boolean }> {
-    return cmsClient.delete<{ success: boolean }>(`/admin/quality/rules/${id}`);
-}
-
-// Candidates / re-encode / probe / history / stats ---------------------------
-
-export async function listQualityCandidates(params: QualityCandidatesParams): Promise<QualityCandidatesResponse> {
-    return cmsClient.get<QualityCandidatesResponse>('/admin/quality/candidates', params);
-}
-
-export async function triggerReEncode(req: ReEncodeRequest): Promise<ReEncodeResponse> {
-    return cmsClient.post<ReEncodeResponse>('/admin/quality/re-encode', req);
-}
+// Probe --------------------------------------------------------------------
 
 export async function probeContentItem(id: string): Promise<ProbeResult> {
-    return cmsClient.post<ProbeResult>(`/admin/quality/probe/${id}`);
-}
-
-export async function listQualityHistory(limit = 50): Promise<QualityHistoryResponse> {
-    return cmsClient.get<QualityHistoryResponse>('/admin/quality/history', { limit });
-}
-
-export async function getQualityStats(): Promise<QualityStats> {
-    return cmsClient.get<QualityStats>('/admin/quality/stats');
+    return cmsClient.post<ProbeResult>(`/admin/quality/probe-item/${id}`);
 }

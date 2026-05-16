@@ -20,6 +20,7 @@ import type {
 } from '@/types/platform/storage';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
+import { getStorageOperations } from '@/lib/api/cms/storage-ops';
 
 export const storageKeys = {
     all: ['storage'] as const,
@@ -31,7 +32,19 @@ export const storageKeys = {
         [...storageKeys.all, 'policy', scope] as const,
     overrides: () => [...storageKeys.all, 'overrides'] as const,
     sweepRuns: () => [...storageKeys.all, 'sweep-runs'] as const,
+    operations: (days: number) => [...storageKeys.all, 'operations', days] as const,
 };
+
+export function useStorageOperations(days = 30) {
+    return useQuery({
+        queryKey: storageKeys.operations(days),
+        queryFn: () => getStorageOperations(days),
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+        refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
+    });
+}
 
 export function useStorageStats(options: { paused?: boolean } = {}) {
     return useQuery({

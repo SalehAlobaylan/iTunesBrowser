@@ -1,36 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     createQualityProfile,
-    createQualityRule,
     deleteQualityProfile,
-    deleteQualityRule,
-    getQualityStats,
-    listQualityCandidates,
-    listQualityHistory,
     listQualityProfiles,
-    listQualityRules,
     probeContentItem,
-    triggerReEncode,
+    resolveQualityProfile,
     updateQualityProfile,
-    updateQualityRule,
 } from '@/lib/api/cms/quality';
 import type {
-    QualityCandidatesParams,
     QualityProfileInput,
-    QualityRuleInput,
-    ReEncodeRequest,
 } from '@/types/platform/quality';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
 
+// Phase 7: Quality hooks collapsed to ingest configuration. The rules /
+// candidates / re-encode / history / stats / queue-depth hooks were
+// removed — re-encoding is now driven by Storage policies.
+
 export const qualityKeys = {
     all: ['quality'] as const,
     profiles: (scope: string) => [...qualityKeys.all, 'profiles', scope] as const,
-    rules: () => [...qualityKeys.all, 'rules'] as const,
-    candidates: (p: QualityCandidatesParams) => [...qualityKeys.all, 'candidates', p] as const,
-    history: () => [...qualityKeys.all, 'history'] as const,
-    stats: () => [...qualityKeys.all, 'stats'] as const,
-    probe: (id: string) => [...qualityKeys.all, 'probe', id] as const,
+    resolve: (tenantId: string, sourceType: string) =>
+        [...qualityKeys.all, 'resolve', tenantId, sourceType] as const,
 };
 
 export function useQualityProfiles(scope: 'all' | 'global' | 'tenant' = 'all') {
@@ -42,44 +33,25 @@ export function useQualityProfiles(scope: 'all' | 'global' | 'tenant' = 'all') {
     });
 }
 
-export function useQualityRules() {
+/**
+ * Preview which profile would apply for a (tenant, source_type) combination.
+ * Enabled only when at least one of the two scopes is selected so the widget
+ * doesn't fire on every input keystroke.
+ */
+export function useResolveQualityProfile(
+    tenantId: string,
+    sourceType: string,
+    opts: { enabled?: boolean } = {}
+) {
     return useQuery({
-        queryKey: qualityKeys.rules(),
-        queryFn: listQualityRules,
-        staleTime: CACHE_CONFIG.lists.staleTime,
-        gcTime: CACHE_CONFIG.lists.gcTime,
-    });
-}
-
-export function useQualityCandidates(params: QualityCandidatesParams, opts: { enabled?: boolean } = {}) {
-    return useQuery({
-        queryKey: qualityKeys.candidates(params),
-        queryFn: () => listQualityCandidates(params),
-        enabled: (opts.enabled ?? true) && (params.rule_id !== undefined || params.profile_id !== undefined),
-        staleTime: CACHE_CONFIG.lists.staleTime,
-        gcTime: CACHE_CONFIG.lists.gcTime,
-    });
-}
-
-export function useQualityHistory() {
-    return useQuery({
-        queryKey: qualityKeys.history(),
-        queryFn: () => listQualityHistory(50),
-        staleTime: CACHE_CONFIG.lists.staleTime,
-        gcTime: CACHE_CONFIG.lists.gcTime,
-        refetchInterval: 30_000,
-        refetchIntervalInBackground: false,
-    });
-}
-
-export function useQualityStats() {
-    return useQuery({
-        queryKey: qualityKeys.stats(),
-        queryFn: getQualityStats,
-        staleTime: CACHE_CONFIG.lists.staleTime,
-        gcTime: CACHE_CONFIG.lists.gcTime,
-        refetchInterval: 60_000,
-        refetchIntervalInBackground: false,
+        queryKey: qualityKeys.resolve(tenantId, sourceType),
+        queryFn: () => resolveQualityProfile({
+            tenant_id: tenantId || undefined,
+            source_type: sourceType || undefined,
+        }),
+        enabled: opts.enabled ?? true,
+        staleTime: 10_000,
+        gcTime: CACHE_CONFIG.details.gcTime,
     });
 }
 
@@ -121,60 +93,6 @@ export function useDeleteQualityProfile() {
     });
 }
 
-export function useCreateQualityRule() {
-    const qc = useQueryClient();
-    return useMutation({
-        mutationFn: (input: QualityRuleInput) => createQualityRule(input),
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: qualityKeys.all });
-            toast({ title: 'Rule created', variant: 'success' });
-        },
-        onError: (err: Error) => toast({ title: 'Create failed', description: err.message, variant: 'destructive' }),
-    });
-}
-
-export function useUpdateQualityRule() {
-    const qc = useQueryClient();
-    return useMutation({
-        mutationFn: (vars: { id: number; input: QualityRuleInput }) => updateQualityRule(vars.id, vars.input),
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: qualityKeys.all });
-            toast({ title: 'Rule updated', variant: 'success' });
-        },
-        onError: (err: Error) => toast({ title: 'Update failed', description: err.message, variant: 'destructive' }),
-    });
-}
-
-export function useDeleteQualityRule() {
-    const qc = useQueryClient();
-    return useMutation({
-        mutationFn: (id: number) => deleteQualityRule(id),
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: qualityKeys.all });
-            toast({ title: 'Rule deleted', variant: 'success' });
-        },
-        onError: (err: Error) => toast({ title: 'Delete failed', description: err.message, variant: 'destructive' }),
-    });
-}
-
-export function useTriggerReEncode() {
-    const qc = useQueryClient();
-    return useMutation({
-        mutationFn: (req: ReEncodeRequest) => triggerReEncode(req),
-        onSuccess: (resp, vars) => {
-            if (!vars.dry_run) {
-                qc.invalidateQueries({ queryKey: qualityKeys.all });
-            }
-            toast({
-                title: vars.dry_run ? 'Dry run complete' : 'Re-encode enqueued',
-                description: `${resp.enqueued} item(s), ~${formatSavingsBytes(resp.estimated_freed_bytes)} estimated savings.`,
-                variant: 'success',
-            });
-        },
-        onError: (err: Error) => toast({ title: 'Re-encode failed', description: err.message, variant: 'destructive' }),
-    });
-}
-
 export function useProbeItem() {
     return useMutation({
         mutationFn: (id: string) => probeContentItem(id),
@@ -182,7 +100,7 @@ export function useProbeItem() {
     });
 }
 
-// Helper — same pattern as formatBytes in use-storage but inlined to avoid the dep
+// Helper kept for callers that import `formatSavingsBytes` from this module.
 export function formatSavingsBytes(bytes: number): string {
     if (!bytes || bytes <= 0) return '0 B';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];

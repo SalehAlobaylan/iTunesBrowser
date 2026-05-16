@@ -5,17 +5,14 @@ import {
     Sliders,
     Plus,
     Trash2,
-    Wrench,
     Loader2,
-    PlayCircle,
-    Snowflake,
-    TrendingDown,
-    Gauge,
-    History,
     AlertTriangle,
-    Zap,
+    Search,
+    Sparkles,
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import {
+    Card, CardContent, CardHeader, CardTitle, CardDescription,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,48 +20,56 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import {
-    formatSavingsBytes,
     useCreateQualityProfile,
-    useCreateQualityRule,
     useDeleteQualityProfile,
-    useDeleteQualityRule,
     useProbeItem,
-    useQualityCandidates,
-    useQualityHistory,
     useQualityProfiles,
-    useQualityRules,
-    useQualityStats,
-    useTriggerReEncode,
+    useResolveQualityProfile,
     useUpdateQualityProfile,
-    useUpdateQualityRule,
+    formatSavingsBytes,
 } from '@/hooks/use-quality';
 import type {
+    IngestSourceType,
+    OutputContainer,
     ProbeResult,
     QualityProfile,
     QualityProfileInput,
-    QualityRule,
-    QualityRuleInput,
 } from '@/types/platform/quality';
+import {
+    CUSTOM_PRESET_KEY,
+    CUSTOM_PRESET_META,
+    getPreset,
+    type IngestPreset,
+} from '@/lib/constants/ingest-presets';
+import { PresetPicker } from '@/components/platform/quality/preset-picker';
+import { ChevronDown, RotateCcw } from 'lucide-react';
+
+const SOURCE_TYPES: IngestSourceType[] = ['RSS', 'WEBSITE', 'TELEGRAM', 'PODCAST', 'YOUTUBE', 'UPLOAD', 'MANUAL'];
+const OUTPUT_CONTAINERS: OutputContainer[] = ['mp4', 'webm', 'mov'];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function QualityPage() {
-    const stats = useQualityStats();
+    const profiles = useQualityProfiles();
+    const profilesList = profiles.data?.data ?? [];
+
+    const counts = useMemo(() => {
+        let global = 0, tenant = 0, source = 0, both = 0;
+        for (const p of profilesList) {
+            const hasTenant = !!p.tenant_id;
+            const hasSource = !!p.source_type;
+            if (!hasTenant && !hasSource) global++;
+            else if (hasTenant && hasSource) both++;
+            else if (hasTenant) tenant++;
+            else source++;
+        }
+        return { global, tenant, source, both, total: profilesList.length };
+    }, [profilesList]);
 
     return (
         <div className="space-y-6 p-6">
@@ -72,399 +77,114 @@ export default function QualityPage() {
                 <div className="flex items-center gap-3">
                     <Sliders className="h-7 w-7 text-primary" />
                     <div>
-                        <h1 className="text-2xl font-semibold">Quality Management</h1>
+                        <h1 className="text-2xl font-semibold">Ingest Configuration</h1>
                         <p className="text-sm text-muted-foreground">
-                            Re-encode content to shrink storage and egress without deleting it.
+                            How the Aggregation pipeline encodes new content. One profile per
+                            (tenant, source) combination; the most-specific match wins.
                         </p>
                     </div>
                 </div>
+                <Badge variant="secondary">
+                    {counts.total} profile{counts.total === 1 ? '' : 's'} · {counts.global} global · {counts.tenant + counts.source + counts.both} scoped
+                </Badge>
             </header>
 
-            {/* Stats overview */}
-            <StatsOverview />
-
-            <Tabs defaultValue="candidates" className="w-full">
-                <TabsList>
-                    <TabsTrigger value="candidates">Candidates</TabsTrigger>
-                    <TabsTrigger value="profiles">Profiles</TabsTrigger>
-                    <TabsTrigger value="rules">Rules</TabsTrigger>
-                    <TabsTrigger value="probe">Probe</TabsTrigger>
-                    <TabsTrigger value="history">
-                        History ({stats.data ? stats.data.total_reencoded : 0})
-                    </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="candidates" className="mt-4">
-                    <CandidatesTab />
-                </TabsContent>
-                <TabsContent value="profiles" className="mt-4">
-                    <ProfilesTab />
-                </TabsContent>
-                <TabsContent value="rules" className="mt-4">
-                    <RulesTab />
-                </TabsContent>
-                <TabsContent value="probe" className="mt-4">
-                    <ProbeTab />
-                </TabsContent>
-                <TabsContent value="history" className="mt-4">
-                    <HistoryTab />
-                </TabsContent>
-            </Tabs>
+            <ProfilesSection />
+            <ResolvePreviewCard />
+            <ProbeToolCard />
         </div>
     );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stats Overview
+// Resolve preview — "what would apply for (tenant, source)?"
 // ─────────────────────────────────────────────────────────────────────────────
 
-function StatsOverview() {
-    const { data, isLoading } = useQualityStats();
-    if (isLoading || !data) {
-        return (
-            <Card>
-                <CardContent className="p-6">
-                    <Skeleton className="h-24 w-full" />
-                </CardContent>
-            </Card>
-        );
-    }
-    return (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <StatCard
-                icon={<TrendingDown className="h-5 w-5 text-emerald-400" />}
-                label="Total bytes saved"
-                value={formatSavingsBytes(data.total_bytes_saved)}
-                hint={`${data.total_reencoded} item(s) re-encoded`}
-            />
-            <StatCard
-                icon={<Zap className="h-5 w-5 text-yellow-400" />}
-                label="Estimated egress saved"
-                value={formatSavingsBytes(data.estimated_egress_saved_bytes)}
-                hint="savings × view_count, lifetime"
-            />
-            <StatCard
-                icon={<Gauge className="h-5 w-5 text-blue-400" />}
-                label="Items at a profile"
-                value={data.items_at_non_default_profile.toLocaleString()}
-                hint={
-                    data.last_reencode_at
-                        ? `Last re-encode: ${new Date(data.last_reencode_at).toLocaleString()}`
-                        : 'No re-encodes yet'
-                }
-            />
-        </div>
-    );
-}
-
-function StatCard({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint?: string }) {
-    return (
-        <Card>
-            <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                    <div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-                        <p className="mt-1 text-2xl font-semibold">{value}</p>
-                        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
-                    </div>
-                    {icon}
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Candidates tab
-// ─────────────────────────────────────────────────────────────────────────────
-
-function CandidatesTab() {
-    const profiles = useQualityProfiles();
-    const rules = useQualityRules();
-    const triggerReEncode = useTriggerReEncode();
-
-    const [profileId, setProfileId] = useState<number | undefined>();
-    const [ruleId, setRuleId] = useState<number | undefined>();
-    const [minAge, setMinAge] = useState<string>('');
-    const [maxViews, setMaxViews] = useState<string>('');
-    const [selected, setSelected] = useState<Set<string>>(new Set());
-    const [confirmOpen, setConfirmOpen] = useState(false);
-
-    const params = useMemo(
-        () => ({
-            rule_id: ruleId,
-            profile_id: ruleId === undefined ? profileId : undefined,
-            min_age_days: minAge ? parseInt(minAge, 10) : undefined,
-            max_view_count: maxViews ? parseInt(maxViews, 10) : undefined,
-            limit: 200,
-        }),
-        [ruleId, profileId, minAge, maxViews]
-    );
-
-    const candidates = useQualityCandidates(params, {
-        enabled: ruleId !== undefined || profileId !== undefined,
-    });
-
-    const items = useMemo(() => candidates.data?.data ?? [], [candidates.data]);
-    const allSelected = items.length > 0 && selected.size === items.length;
-    const selectedSavings = useMemo(
-        () =>
-            items
-                .filter((i) => selected.has(i.id))
-                .reduce((s, i) => s + i.projected_savings_bytes, 0),
-        [items, selected]
-    );
-
-    function toggleAll() {
-        if (allSelected) setSelected(new Set());
-        else setSelected(new Set(items.map((i) => i.id)));
-    }
-
-    function toggleOne(id: string) {
-        setSelected((prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
-    }
-
-    function handleDryRun() {
-        triggerReEncode.mutate({
-            ids: Array.from(selected),
-            profile_id: profileId,
-            rule_id: ruleId,
-            dry_run: true,
-        });
-    }
-
-    function handleSubmit() {
-        triggerReEncode.mutate(
-            {
-                ids: Array.from(selected),
-                profile_id: profileId,
-                rule_id: ruleId,
-                dry_run: false,
-            },
-            {
-                onSuccess: () => {
-                    setSelected(new Set());
-                    setConfirmOpen(false);
-                    candidates.refetch();
-                },
-            }
-        );
-    }
-
-    const targetSelected = ruleId !== undefined || profileId !== undefined;
+function ResolvePreviewCard() {
+    const [tenantId, setTenantId] = useState('');
+    const [sourceType, setSourceType] = useState('');
+    const enabled = tenantId.trim().length > 0 || sourceType.trim().length > 0;
+    const resolve = useResolveQualityProfile(tenantId.trim(), sourceType.trim(), { enabled });
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Re-encode candidates</CardTitle>
+                <CardTitle className="text-base">Resolution preview</CardTitle>
                 <CardDescription>
-                    Pick a target profile (or a saved rule) to see which items would shrink and by
-                    how much. Then dry-run, or queue the re-encode.
+                    Pick a (tenant, source) and see which profile the ingest pipeline would use.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div>
-                        <Label>Target rule</Label>
-                        <select
-                            className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
-                            value={ruleId ?? ''}
-                            onChange={(e) =>
-                                setRuleId(e.target.value ? parseInt(e.target.value, 10) : undefined)
-                            }
-                        >
-                            <option value="">— none —</option>
-                            {(rules.data?.data ?? []).map((r) => (
-                                <option key={r.id} value={r.id}>
-                                    {r.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <Label>or Target profile</Label>
-                        <select
-                            className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
-                            value={profileId ?? ''}
-                            onChange={(e) => {
-                                setProfileId(e.target.value ? parseInt(e.target.value, 10) : undefined);
-                                setRuleId(undefined);
-                            }}
-                            disabled={ruleId !== undefined}
-                        >
-                            <option value="">— none —</option>
-                            {(profiles.data?.data ?? []).map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <Label>Min age (days)</Label>
+                        <Label>Tenant ID</Label>
                         <Input
-                            type="number"
-                            min="0"
-                            value={minAge}
-                            onChange={(e) => setMinAge(e.target.value)}
+                            placeholder="(blank = any tenant)"
+                            value={tenantId}
+                            onChange={(e) => setTenantId(e.target.value)}
                         />
                     </div>
                     <div>
-                        <Label>Max view count</Label>
-                        <Input
-                            type="number"
-                            min="0"
-                            value={maxViews}
-                            onChange={(e) => setMaxViews(e.target.value)}
-                        />
+                        <Label>Source type</Label>
+                        <select
+                            className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                            value={sourceType}
+                            onChange={(e) => setSourceType(e.target.value)}
+                        >
+                            <option value="">(any source)</option>
+                            {SOURCE_TYPES.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                            ))}
+                        </select>
                     </div>
                 </div>
 
-                {targetSelected && candidates.data && (
-                    <div className="flex flex-wrap items-center gap-3 rounded border border-border bg-muted/30 p-3 text-sm">
-                        <span className="font-medium">
-                            {candidates.data.total} candidate(s)
-                        </span>
-                        <span className="text-muted-foreground">
-                            Total projected savings:{' '}
-                            <strong className="text-emerald-400">
-                                {formatSavingsBytes(candidates.data.total_savings_bytes)}
-                            </strong>
-                        </span>
-                        <span className="ml-auto flex gap-2">
-                            <Button
-                                variant="outline"
-                                onClick={handleDryRun}
-                                disabled={selected.size === 0 || triggerReEncode.isPending}
-                            >
-                                Dry run ({selected.size})
-                            </Button>
-                            <Button
-                                onClick={() => setConfirmOpen(true)}
-                                disabled={selected.size === 0 || triggerReEncode.isPending}
-                            >
-                                <PlayCircle className="mr-2 h-4 w-4" />
-                                Re-encode ({formatSavingsBytes(selectedSavings)})
-                            </Button>
-                        </span>
+                {!enabled ? (
+                    <p className="text-xs text-muted-foreground">Enter a tenant or pick a source to see the match.</p>
+                ) : resolve.isLoading ? (
+                    <Skeleton className="h-16 w-full" />
+                ) : resolve.data?.profile ? (
+                    <div className="rounded border border-emerald-500/40 bg-emerald-500/5 p-3 text-sm">
+                        <p className="font-medium">
+                            Winning profile: <span className="text-emerald-300">{resolve.data.profile.name}</span>
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                            Matched on <code className="rounded bg-muted px-1">{resolve.data.matched_on}</code>
+                            {' · '}
+                            {resolve.data.profile.video_codec.toUpperCase()}{' '}
+                            {resolve.data.profile.max_height > 0 ? `${resolve.data.profile.max_height}p` : 'no cap'}{' · '}
+                            {resolve.data.profile.target_bitrate_kbps > 0
+                                ? `${resolve.data.profile.target_bitrate_kbps}kbps`
+                                : `CRF ${resolve.data.profile.crf}`}
+                            {' · '}
+                            {resolve.data.profile.audio_codec.toUpperCase()} {resolve.data.profile.audio_bitrate_kbps}k
+                            {' · '}out: {resolve.data.profile.output_container}
+                        </p>
                     </div>
-                )}
-
-                {!targetSelected ? (
-                    <div className="flex items-center gap-2 rounded border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-                        <Wrench className="h-4 w-4" />
-                        Pick a rule or profile above to load candidates.
-                    </div>
-                ) : candidates.isLoading ? (
-                    <Skeleton className="h-48 w-full" />
                 ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-8">
-                                    <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
-                                </TableHead>
-                                <TableHead>Title</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead className="text-right">Views</TableHead>
-                                <TableHead className="text-right">Current</TableHead>
-                                <TableHead className="text-right">Bitrate</TableHead>
-                                <TableHead className="text-right">Projected</TableHead>
-                                <TableHead className="text-right">Savings</TableHead>
-                                <TableHead>Tier</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {items.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={9} className="text-center text-muted-foreground">
-                                        No candidates match this target.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                items.map((c) => (
-                                    <TableRow key={c.id}>
-                                        <TableCell>
-                                            <Checkbox
-                                                checked={selected.has(c.id)}
-                                                onCheckedChange={() => toggleOne(c.id)}
-                                            />
-                                        </TableCell>
-                                        <TableCell className="max-w-xs truncate" title={c.title}>
-                                            {c.title || c.id}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline">{c.type}</Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">{c.view_count}</TableCell>
-                                        <TableCell className="text-right">
-                                            {formatSavingsBytes(c.file_size_bytes)}
-                                        </TableCell>
-                                        <TableCell className="text-right text-xs text-muted-foreground">
-                                            {c.current_bitrate_kbps ? `${c.current_bitrate_kbps} kbps` : '—'}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            {formatSavingsBytes(c.projected_size_bytes)}
-                                        </TableCell>
-                                        <TableCell className="text-right text-emerald-400">
-                                            -{formatSavingsBytes(c.projected_savings_bytes)}
-                                        </TableCell>
-                                        <TableCell className="text-xs">
-                                            {c.storage_tier === 'cold' ? (
-                                                <Badge variant="secondary">
-                                                    <Snowflake className="mr-1 h-3 w-3" /> cold
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline">primary</Badge>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
+                    <div className="flex items-start gap-2 rounded border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
+                        <div>
+                            <p className="font-medium">No matching profile</p>
+                            <p className="text-xs text-muted-foreground">
+                                Aggregation will fall back to its built-in default recipe. Create a
+                                global profile (no tenant, no source) to set a baseline.
+                            </p>
+                        </div>
+                    </div>
                 )}
             </CardContent>
-
-            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Confirm re-encode</DialogTitle>
-                        <DialogDescription>
-                            About to enqueue {selected.size} re-encode job(s). Estimated savings:{' '}
-                            <strong>{formatSavingsBytes(selectedSavings)}</strong>. The current
-                            URLs stay live until the new versioned key uploads, then they swap
-                            atomically. Old versions are deleted after a 5-minute grace period.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleSubmit} disabled={triggerReEncode.isPending}>
-                            {triggerReEncode.isPending && (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            Re-encode
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </Card>
     );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Profiles tab
+// Profiles section — table + create/edit form
 // ─────────────────────────────────────────────────────────────────────────────
 
 const EMPTY_PROFILE: QualityProfileInput = {
     scope: 'global',
+    source_type: null,
     name: '',
     description: '',
     video_codec: 'h264',
@@ -474,11 +194,16 @@ const EMPTY_PROFILE: QualityProfileInput = {
     preset: 'fast',
     audio_codec: 'aac',
     audio_bitrate_kbps: 128,
-    is_default: false,
+    output_container: 'mp4',
+    thumbnail_offset_seconds: 2,
+    thumbnail_max_height: 360,
+    allowed_input_mime_types: [],
+    max_input_size_bytes: null,
+    max_input_duration_sec: null,
     is_active: true,
 };
 
-function ProfilesTab() {
+function ProfilesSection() {
     const { data, isLoading } = useQualityProfiles();
     const create = useCreateQualityProfile();
     const update = useUpdateQualityProfile();
@@ -494,10 +219,10 @@ function ProfilesTab() {
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
-                        <CardTitle>Quality profiles</CardTitle>
+                        <CardTitle>Profiles</CardTitle>
                         <CardDescription>
-                            Named encode recipes. The profile flagged <strong>default</strong> is
-                            applied at first ingest.
+                            One row per (tenant, source) scope. The platform picks the most-specific
+                            match for each ingest job.
                         </CardDescription>
                     </div>
                     <Button onClick={() => { setEditing(null); setShowForm(true); }}>
@@ -510,44 +235,84 @@ function ProfilesTab() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Name</TableHead>
-                                <TableHead>Codec</TableHead>
-                                <TableHead className="text-right">Max H</TableHead>
-                                <TableHead className="text-right">Bitrate / CRF</TableHead>
-                                <TableHead className="text-right">Audio</TableHead>
-                                <TableHead>Flags</TableHead>
+                                <TableHead>From</TableHead>
+                                <TableHead>Scope</TableHead>
+                                <TableHead>Video</TableHead>
+                                <TableHead>Audio</TableHead>
+                                <TableHead>Output</TableHead>
+                                <TableHead>Limits</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {data.data.map((p) => (
+                            {data.data.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={8} className="text-center text-muted-foreground">
+                                        No profiles yet. Create at least one global profile (no tenant, no source)
+                                        so Aggregation has a default to fall back on.
+                                    </TableCell>
+                                </TableRow>
+                            ) : data.data.map((p) => {
+                                const preset = getPreset(p.preset_key);
+                                const PresetIcon = preset?.icon;
+                                return (
                                 <TableRow key={p.id}>
                                     <TableCell>
                                         <div className="font-medium">{p.name}</div>
                                         <div className="text-xs text-muted-foreground">{p.description}</div>
                                     </TableCell>
-                                    <TableCell><Badge variant="outline">{p.video_codec}</Badge></TableCell>
-                                    <TableCell className="text-right">{p.max_height || '—'}</TableCell>
-                                    <TableCell className="text-right">
-                                        {p.target_bitrate_kbps > 0
-                                            ? `${p.target_bitrate_kbps} kbps`
-                                            : `CRF ${p.crf}`}
-                                    </TableCell>
-                                    <TableCell className="text-right text-xs">
-                                        {p.audio_codec} / {p.audio_bitrate_kbps}k
+                                    <TableCell className="text-xs">
+                                        {preset ? (
+                                            <span
+                                                className="inline-flex items-center gap-1 rounded border border-border bg-muted/40 px-1.5 py-0.5"
+                                                title={preset.tagline}
+                                            >
+                                                {PresetIcon && <PresetIcon className={`h-3 w-3 ${preset.accentColor}`} />}
+                                                {preset.displayName}
+                                            </span>
+                                        ) : (
+                                            <span className="text-muted-foreground">Custom</span>
+                                        )}
                                     </TableCell>
                                     <TableCell className="space-x-1">
-                                        {p.is_default && <Badge variant="success">default</Badge>}
-                                        {!p.is_active && <Badge variant="secondary">inactive</Badge>}
+                                        {p.tenant_id ? (
+                                            <Badge variant="outline" title={p.tenant_id}>tenant</Badge>
+                                        ) : (
+                                            <Badge variant="secondary">global</Badge>
+                                        )}
+                                        {p.source_type && (
+                                            <Badge variant="outline">{p.source_type}</Badge>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        <Badge variant="outline">{p.video_codec}</Badge>{' '}
+                                        {p.max_height > 0 ? `${p.max_height}p` : 'no cap'}{' · '}
+                                        {p.target_bitrate_kbps > 0
+                                            ? `${p.target_bitrate_kbps}kbps`
+                                            : `CRF ${p.crf}`}
+                                    </TableCell>
+                                    <TableCell className="text-xs">
+                                        {p.audio_codec} / {p.audio_bitrate_kbps}k
+                                    </TableCell>
+                                    <TableCell><Badge variant="outline">{p.output_container}</Badge></TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">
+                                        {p.max_input_size_bytes
+                                            ? `≤${formatSavingsBytes(p.max_input_size_bytes)}`
+                                            : '—'}
+                                        {p.max_input_duration_sec
+                                            ? `, ≤${p.max_input_duration_sec}s`
+                                            : ''}
                                     </TableCell>
                                     <TableCell className="space-x-2 text-right">
-                                        <Button size="sm" variant="outline" onClick={() => { setEditing(p); setShowForm(true); }}>
+                                        <Button size="sm" variant="outline"
+                                            onClick={() => { setEditing(p); setShowForm(true); }}>
                                             Edit
                                         </Button>
                                         <Button
                                             size="sm"
                                             variant="destructive"
                                             onClick={() => {
-                                                if (confirm(`Delete profile "${p.name}"? Rules referencing it must be detached first.`)) {
+                                                if (confirm(`Delete profile "${p.name}"?`)) {
                                                     remove.mutate(p.id);
                                                 }
                                             }}
@@ -557,7 +322,8 @@ function ProfilesTab() {
                                         </Button>
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                                );
+                            })}
                         </TableBody>
                     </Table>
                 </CardContent>
@@ -570,7 +336,9 @@ function ProfilesTab() {
                     saving={create.isPending || update.isPending}
                     onSave={(input) => {
                         if (editing) {
-                            update.mutate({ id: editing.id, input }, { onSuccess: () => { setShowForm(false); setEditing(null); } });
+                            update.mutate({ id: editing.id, input }, {
+                                onSuccess: () => { setShowForm(false); setEditing(null); },
+                            });
                         } else {
                             create.mutate(input, { onSuccess: () => setShowForm(false) });
                         }
@@ -592,31 +360,108 @@ function ProfileForm({
     onCancel: () => void;
     saving: boolean;
 }) {
+    const isEdit = 'id' in initial && Boolean((initial as QualityProfile).id);
+    const initialScope: 'global' | 'tenant' = isEdit
+        ? ((initial as QualityProfile).tenant_id ? 'tenant' : 'global')
+        : ((initial as QualityProfileInput).scope ?? 'global');
+
+    // -----------------------------------------------------------------
+    // Wizard step state (Phase 8). Creates start at 'pick'; edits skip
+    // straight to 'configure' with values pre-loaded from the row.
+    // -----------------------------------------------------------------
+    type Step = 'pick' | 'configure';
+    const [step, setStep] = useState<Step>(isEdit ? 'configure' : 'pick');
+
+    // Track which preset spawned the current form values. Empty string = custom.
+    const [presetKey, setPresetKey] = useState<string>(initial.preset_key ?? '');
+    const lineagePreset = getPreset(presetKey);
+
+    const [scope, setScope] = useState<'global' | 'tenant'>(initialScope);
+    const [sourceType, setSourceType] = useState<string>(initial.source_type ?? '');
     const [name, setName] = useState(initial.name);
     const [description, setDescription] = useState(initial.description);
+
+    // Video
     const [videoCodec, setVideoCodec] = useState(initial.video_codec);
     const [maxHeight, setMaxHeight] = useState(String(initial.max_height));
     const [bitrate, setBitrate] = useState(String(initial.target_bitrate_kbps));
     const [crf, setCrf] = useState(String(initial.crf));
     const [preset, setPreset] = useState(initial.preset);
+
+    // Audio
     const [audioCodec, setAudioCodec] = useState(initial.audio_codec);
     const [audioBitrate, setAudioBitrate] = useState(String(initial.audio_bitrate_kbps));
-    const [isDefault, setIsDefault] = useState(initial.is_default ?? false);
+
+    // Format
+    const [outputContainer, setOutputContainer] = useState<OutputContainer>(initial.output_container ?? 'mp4');
+
+    // Thumbnail
+    const [thumbOffset, setThumbOffset] = useState(String(initial.thumbnail_offset_seconds ?? 2));
+    const [thumbMaxH, setThumbMaxH] = useState(String(initial.thumbnail_max_height ?? 360));
+
+    // Input limits
+    const [mimeTypes, setMimeTypes] = useState((initial.allowed_input_mime_types ?? []).join(', '));
+    const [maxSizeMB, setMaxSizeMB] = useState(
+        initial.max_input_size_bytes != null
+            ? String(Math.round(initial.max_input_size_bytes / (1024 * 1024)))
+            : ''
+    );
+    const [maxDurationSec, setMaxDurationSec] = useState(
+        initial.max_input_duration_sec != null ? String(initial.max_input_duration_sec) : ''
+    );
+
+    // -----------------------------------------------------------------
+    // Helpers — apply a preset's values into form state.
+    // Pulled out so both "pick a preset" and "reset to preset defaults"
+    // use the same code path.
+    // -----------------------------------------------------------------
+    function applyPresetValues(p: QualityProfileInput) {
+        setScope(p.scope ?? 'global');
+        setSourceType(p.source_type ?? '');
+        // intentionally NOT touching `name` / `description` — those are
+        // operator inputs and survive preset changes (you don't want to
+        // wipe the name when you click "Reset to preset defaults").
+        setVideoCodec(p.video_codec);
+        setMaxHeight(String(p.max_height));
+        setBitrate(String(p.target_bitrate_kbps));
+        setCrf(String(p.crf));
+        setPreset(p.preset);
+        setAudioCodec(p.audio_codec);
+        setAudioBitrate(String(p.audio_bitrate_kbps));
+        setOutputContainer(p.output_container);
+        setThumbOffset(String(p.thumbnail_offset_seconds));
+        setThumbMaxH(String(p.thumbnail_max_height));
+        setMimeTypes((p.allowed_input_mime_types ?? []).join(', '));
+        setMaxSizeMB(p.max_input_size_bytes != null ? String(Math.round(p.max_input_size_bytes / (1024 * 1024))) : '');
+        setMaxDurationSec(p.max_input_duration_sec != null ? String(p.max_input_duration_sec) : '');
+    }
+
+    function handlePresetSelect(p: IngestPreset | 'custom') {
+        if (p === 'custom') {
+            setPresetKey(CUSTOM_PRESET_KEY);
+            // For Custom, don't auto-fill — leave the form at its defaults.
+        } else {
+            setPresetKey(p.key);
+            applyPresetValues(p.profile);
+        }
+        setStep('configure');
+    }
+
+    function resetToPresetDefaults() {
+        if (!lineagePreset) return;
+        applyPresetValues(lineagePreset.profile);
+    }
+
     const [isActive, setIsActive] = useState(initial.is_active ?? true);
 
     const useBitrateMode = parseInt(bitrate, 10) > 0;
-
     const ffmpegPreview = useMemo(() => {
         const opts = [
             `-c:v ${videoCodec === 'h265' ? 'libx265' : videoCodec === 'av1' ? 'libaom-av1' : 'libx264'}`,
             `-preset ${preset}`,
         ];
         if (videoCodec === 'h264') opts.push('-profile:v baseline', '-level 3.0');
-        if (useBitrateMode) {
-            opts.push(`-b:v ${bitrate}k`);
-        } else {
-            opts.push(`-crf ${crf}`);
-        }
+        opts.push(useBitrateMode ? `-b:v ${bitrate}k` : `-crf ${crf}`);
         if (parseInt(maxHeight, 10) > 0) {
             opts.push(`-vf scale=-2:'min(${maxHeight},ih)'`);
         }
@@ -626,8 +471,16 @@ function ProfileForm({
     }, [videoCodec, preset, useBitrateMode, bitrate, crf, maxHeight, audioCodec, audioBitrate]);
 
     function submit() {
+        const allowed = mimeTypes
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .filter(Boolean);
+        const maxSize = maxSizeMB ? parseInt(maxSizeMB, 10) * 1024 * 1024 : null;
+        const maxDur = maxDurationSec ? parseInt(maxDurationSec, 10) : null;
+
         onSave({
-            scope: 'global',
+            scope,
+            source_type: (sourceType || null) as IngestSourceType | null,
             name,
             description,
             video_codec: videoCodec,
@@ -637,146 +490,340 @@ function ProfileForm({
             preset,
             audio_codec: audioCodec,
             audio_bitrate_kbps: parseInt(audioBitrate, 10) || 128,
-            is_default: isDefault,
+            output_container: outputContainer,
+            thumbnail_offset_seconds: parseInt(thumbOffset, 10) || 2,
+            thumbnail_max_height: parseInt(thumbMaxH, 10) || 360,
+            allowed_input_mime_types: allowed,
+            max_input_size_bytes: maxSize,
+            max_input_duration_sec: maxDur,
+            preset_key: presetKey,
             is_active: isActive,
         });
     }
 
+    // -----------------------------------------------------------------
+    // Step 1 — preset picker. New profiles only; edits skip this.
+    // -----------------------------------------------------------------
+    if (step === 'pick') {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>New ingest profile</CardTitle>
+                    <CardDescription>
+                        Pick a preset to get sensible defaults. You can tweak any field later, or pick
+                        <strong> Custom</strong> to start from a blank form.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <PresetPicker selectedKey={presetKey || null} onSelect={handlePresetSelect} />
+                    <div className="flex justify-end">
+                        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // Step 2 — configure. The technical sections are collapsed behind a
+    // disclosure when a preset spawned the form (most operators never open
+    // it); the disclosure starts OPEN for Custom because the operator
+    // explicitly wanted full control.
+    // -----------------------------------------------------------------
+    const isCustom = presetKey === CUSTOM_PRESET_KEY || !presetKey;
+    const presetMeta = lineagePreset ?? (isCustom ? CUSTOM_PRESET_META : null);
+
     return (
         <Card>
             <CardHeader>
-                <CardTitle>{('id' in initial && initial.id) ? `Edit profile: ${initial.name}` : 'New profile'}</CardTitle>
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <CardTitle>{isEdit ? `Edit: ${initial.name}` : 'New ingest profile'}</CardTitle>
+                        <CardDescription>
+                            {isEdit
+                                ? 'Tweak the name, scope, or advanced encode settings. The preset lineage is preserved.'
+                                : 'Give the profile a name and scope. Advanced settings are pre-filled from the preset.'}
+                        </CardDescription>
+                    </div>
+                    {!isEdit && (
+                        <Button variant="ghost" size="sm" onClick={() => setStep('pick')}>
+                            ← Change preset
+                        </Button>
+                    )}
+                </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div>
-                        <Label>Name</Label>
-                        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="mobile-720p" />
+            <CardContent className="space-y-6">
+                {/* Preset lineage card — explains what the user picked + Reset button */}
+                {presetMeta && (
+                    <div className="flex items-start gap-3 rounded border border-border bg-muted/30 p-3">
+                        {(() => { const Icon = presetMeta.icon; return <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${presetMeta.accentColor}`} />; })()}
+                        <div className="flex-1">
+                            <p className="text-sm font-medium">
+                                From: {presetMeta.displayName}
+                                {!isEdit && (
+                                    <span className="ml-2 rounded bg-cyan-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-cyan-300">
+                                        applied
+                                    </span>
+                                )}
+                            </p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                {presetMeta.tagline}
+                            </p>
+                        </div>
+                        {lineagePreset && (
+                            <Button variant="outline" size="sm" onClick={resetToPresetDefaults}>
+                                <RotateCcw className="mr-1.5 h-3 w-3" />
+                                Reset to defaults
+                            </Button>
+                        )}
                     </div>
-                    <div>
-                        <Label>Description</Label>
-                        <Input
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="What this profile is for"
-                        />
-                    </div>
-                </div>
+                )}
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                    <div>
-                        <Label>Video codec</Label>
-                        <select
-                            className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
-                            value={videoCodec}
-                            onChange={(e) => setVideoCodec(e.target.value as 'h264' | 'h265' | 'av1')}
-                        >
-                            <option value="h264">H.264 (baseline)</option>
-                            <option value="h265">H.265 (HEVC)</option>
-                            <option value="av1">AV1</option>
-                        </select>
+                {/* Scope — required, always visible */}
+                <Section title="Scope" hint="Which jobs this profile applies to. Most-specific match wins at resolution time.">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <div>
+                            <Label>Tenant scope</Label>
+                            <select
+                                className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                                value={scope}
+                                onChange={(e) => setScope(e.target.value as 'global' | 'tenant')}
+                                disabled={isEdit}
+                            >
+                                <option value="global">Global (any tenant)</option>
+                                <option value="tenant">This tenant only</option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label>Source type</Label>
+                            <select
+                                className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                                value={sourceType}
+                                onChange={(e) => setSourceType(e.target.value)}
+                            >
+                                <option value="">Any source</option>
+                                {SOURCE_TYPES.map((s) => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex items-end pb-2">
+                            <label className="flex items-center gap-2 text-sm">
+                                <Checkbox checked={isActive} onCheckedChange={(v) => setIsActive(v === true)} />
+                                Active
+                            </label>
+                        </div>
                     </div>
-                    <div>
-                        <Label>Max height (px)</Label>
-                        <select
-                            className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
-                            value={maxHeight}
-                            onChange={(e) => setMaxHeight(e.target.value)}
-                        >
-                            <option value="0">no cap</option>
-                            <option value="2160">2160 (4K)</option>
-                            <option value="1080">1080</option>
-                            <option value="720">720</option>
-                            <option value="480">480</option>
-                            <option value="360">360</option>
-                        </select>
-                    </div>
-                    <div>
-                        <Label>Preset</Label>
-                        <select
-                            className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
-                            value={preset}
-                            onChange={(e) => setPreset(e.target.value)}
-                        >
-                            <option value="ultrafast">ultrafast</option>
-                            <option value="superfast">superfast</option>
-                            <option value="veryfast">veryfast</option>
-                            <option value="faster">faster</option>
-                            <option value="fast">fast</option>
-                            <option value="medium">medium</option>
-                            <option value="slow">slow</option>
-                        </select>
-                    </div>
-                    <div>
-                        <Label>Audio codec</Label>
-                        <select
-                            className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
-                            value={audioCodec}
-                            onChange={(e) => setAudioCodec(e.target.value as 'aac' | 'opus')}
-                        >
-                            <option value="aac">AAC</option>
-                            <option value="opus">Opus</option>
-                        </select>
-                    </div>
-                </div>
+                </Section>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                    <div>
-                        <Label>Target bitrate (kbps)</Label>
-                        <Input
-                            type="number"
-                            value={bitrate}
-                            onChange={(e) => setBitrate(e.target.value)}
-                            placeholder="0 = use CRF"
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            Set &gt; 0 for predictable file sizes; leave 0 for CRF mode.
-                        </p>
+                {/* Identity */}
+                <Section title="Identity">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                            <Label>Name</Label>
+                            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="global-mobile-720p" />
+                        </div>
+                        <div>
+                            <Label>Description</Label>
+                            <Input
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                placeholder="What this profile is for"
+                            />
+                        </div>
                     </div>
-                    <div>
-                        <Label>CRF (0-51)</Label>
-                        <Input
-                            type="number"
-                            min="0"
-                            max="51"
-                            value={crf}
-                            onChange={(e) => setCrf(e.target.value)}
-                            disabled={useBitrateMode}
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            18 = visually lossless, 28 = aggressive.
-                        </p>
-                    </div>
-                    <div>
-                        <Label>Audio bitrate (kbps)</Label>
-                        <Input
-                            type="number"
-                            value={audioBitrate}
-                            onChange={(e) => setAudioBitrate(e.target.value)}
-                        />
-                    </div>
-                </div>
+                </Section>
 
-                <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={isDefault} onCheckedChange={(v) => setIsDefault(v === true)} />
-                        Default at ingest
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                        <Checkbox checked={isActive} onCheckedChange={(v) => setIsActive(v === true)} />
-                        Active
-                    </label>
-                </div>
+                {/* Advanced encode settings — collapsed by default for preset-spawned
+                    forms; open by default for Custom. Operators who need to tweak
+                    individual fields expand this; everyone else ignores it. */}
+                <details className="rounded border border-border" open={isCustom}>
+                    <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm font-medium hover:bg-muted/30">
+                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform" />
+                        Advanced settings
+                        <span className="text-xs font-normal text-muted-foreground">
+                            (codec, resolution, bitrate / CRF, audio, container, thumbnail, input limits)
+                        </span>
+                    </summary>
+                    <div className="space-y-6 p-3 pt-0">
+                {/* Video */}
+                <Section title="Video">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                        <div>
+                            <Label>Codec</Label>
+                            <select
+                                className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                                value={videoCodec}
+                                onChange={(e) => setVideoCodec(e.target.value as typeof videoCodec)}
+                            >
+                                <option value="h264">H.264 (baseline)</option>
+                                <option value="h265">H.265 (HEVC)</option>
+                                <option value="av1">AV1</option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label>Max height (px)</Label>
+                            <select
+                                className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                                value={maxHeight}
+                                onChange={(e) => setMaxHeight(e.target.value)}
+                            >
+                                <option value="0">no cap</option>
+                                <option value="2160">2160 (4K)</option>
+                                <option value="1080">1080</option>
+                                <option value="720">720</option>
+                                <option value="480">480</option>
+                                <option value="360">360</option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label>Preset</Label>
+                            <select
+                                className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                                value={preset}
+                                onChange={(e) => setPreset(e.target.value)}
+                            >
+                                {['ultrafast','superfast','veryfast','faster','fast','medium','slow'].map((p) => (
+                                    <option key={p} value={p}>{p}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <Label>Target bitrate (kbps)</Label>
+                            <Input
+                                type="number"
+                                value={bitrate}
+                                onChange={(e) => setBitrate(e.target.value)}
+                                placeholder="0 = use CRF"
+                            />
+                        </div>
+                        <div>
+                            <Label>CRF (0-51)</Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                max="51"
+                                value={crf}
+                                onChange={(e) => setCrf(e.target.value)}
+                                disabled={useBitrateMode}
+                            />
+                        </div>
+                    </div>
+                </Section>
 
+                {/* Audio */}
+                <Section title="Audio">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                            <Label>Codec</Label>
+                            <select
+                                className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                                value={audioCodec}
+                                onChange={(e) => setAudioCodec(e.target.value as typeof audioCodec)}
+                            >
+                                <option value="aac">AAC</option>
+                                <option value="opus">Opus</option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label>Bitrate (kbps)</Label>
+                            <Input type="number" value={audioBitrate} onChange={(e) => setAudioBitrate(e.target.value)} />
+                        </div>
+                    </div>
+                </Section>
+
+                {/* Format */}
+                <Section title="Output format" hint="Container drives the file extension chosen by the worker. HLS / DASH are future work.">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <div>
+                            <Label>Container</Label>
+                            <select
+                                className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                                value={outputContainer}
+                                onChange={(e) => setOutputContainer(e.target.value as OutputContainer)}
+                            >
+                                {OUTPUT_CONTAINERS.map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                </Section>
+
+                {/* Thumbnail */}
+                <Section title="Thumbnail" hint="Frame extracted from the processed video and uploaded alongside it.">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div>
+                            <Label>Offset (seconds)</Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                value={thumbOffset}
+                                onChange={(e) => setThumbOffset(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <Label>Max height (px)</Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                value={thumbMaxH}
+                                onChange={(e) => setThumbMaxH(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                </Section>
+
+                {/* Input limits */}
+                <Section title="Input constraints" hint="Reject input early before any transcode work. Leave blank to accept anything.">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <div className="md:col-span-3">
+                            <Label>Allowed MIME types (comma-separated)</Label>
+                            <Input
+                                value={mimeTypes}
+                                onChange={(e) => setMimeTypes(e.target.value)}
+                                placeholder="video/mp4, audio/mpeg, audio/mp4"
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Empty list = accept any MIME type.
+                            </p>
+                        </div>
+                        <div>
+                            <Label>Max input size (MB)</Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                value={maxSizeMB}
+                                onChange={(e) => setMaxSizeMB(e.target.value)}
+                                placeholder="no limit"
+                            />
+                        </div>
+                        <div>
+                            <Label>Max input duration (sec)</Label>
+                            <Input
+                                type="number"
+                                min="0"
+                                value={maxDurationSec}
+                                onChange={(e) => setMaxDurationSec(e.target.value)}
+                                placeholder="no limit"
+                            />
+                        </div>
+                    </div>
+                </Section>
+
+                    </div>
+                </details>
+
+                {/* Preview — outside the disclosure because it's the value
+                    proposition for the whole form (operators need to see the
+                    actual ffmpeg command being built) */}
                 <div className="rounded border border-border bg-muted/30 p-3">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">FFmpeg preview</p>
                     <code className="mt-1 block text-xs text-emerald-300">{ffmpegPreview}</code>
                 </div>
 
                 <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={onCancel}>
-                        Cancel
-                    </Button>
+                    <Button variant="outline" onClick={onCancel}>Cancel</Button>
                     <Button onClick={submit} disabled={saving || !name.trim()}>
                         {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Save
@@ -787,348 +834,100 @@ function ProfileForm({
     );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Rules tab
-// ─────────────────────────────────────────────────────────────────────────────
-
-function RulesTab() {
-    const { data, isLoading } = useQualityRules();
-    const profiles = useQualityProfiles();
-    const create = useCreateQualityRule();
-    const update = useUpdateQualityRule();
-    const remove = useDeleteQualityRule();
-
-    const [editing, setEditing] = useState<QualityRule | null>(null);
-    const [showForm, setShowForm] = useState(false);
-
-    if (isLoading || !data) return <Skeleton className="h-32 w-full" />;
-
-    function profileName(id: number): string {
-        return profiles.data?.data.find((p) => p.id === id)?.name ?? `#${id}`;
-    }
-
+function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
     return (
-        <div className="space-y-4">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Quality rules</CardTitle>
-                        <CardDescription>
-                            Schedule re-encodes against age / view-count thresholds. Rules with
-                            lower priority run first.
-                        </CardDescription>
-                    </div>
-                    <Button onClick={() => { setEditing(null); setShowForm(true); }}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        New rule
-                    </Button>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Trigger</TableHead>
-                                <TableHead>Target</TableHead>
-                                <TableHead className="text-right">Interval</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {data.data.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="text-center text-muted-foreground">
-                                        No rules yet — click &ldquo;New rule&rdquo; to create one.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                data.data.map((r) => (
-                                    <TableRow key={r.id}>
-                                        <TableCell>
-                                            <div className="font-medium">{r.name}</div>
-                                            <div className="text-xs text-muted-foreground">
-                                                priority {r.priority}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-xs">
-                                            age &gt; {r.min_age_days}d
-                                            {r.max_view_count != null && `, views ≤ ${r.max_view_count}`}
-                                            {r.content_type && `, type=${r.content_type}`}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline">{profileName(r.target_profile_id)}</Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right text-xs">
-                                            {r.sweep_interval_minutes}m
-                                        </TableCell>
-                                        <TableCell>
-                                            {r.enabled ? (
-                                                <Badge variant="success">enabled</Badge>
-                                            ) : (
-                                                <Badge variant="secondary">off</Badge>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="space-x-2 text-right">
-                                            <Button size="sm" variant="outline" onClick={() => { setEditing(r); setShowForm(true); }}>
-                                                Edit
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="destructive"
-                                                onClick={() => {
-                                                    if (confirm(`Delete rule "${r.name}"?`)) {
-                                                        remove.mutate(r.id);
-                                                    }
-                                                }}
-                                                disabled={remove.isPending}
-                                            >
-                                                <Trash2 className="h-3 w-3" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-
-            {showForm && (
-                <RuleForm
-                    initial={editing}
-                    profiles={profiles.data?.data ?? []}
-                    onCancel={() => { setShowForm(false); setEditing(null); }}
-                    saving={create.isPending || update.isPending}
-                    onSave={(input) => {
-                        if (editing) {
-                            update.mutate({ id: editing.id, input }, { onSuccess: () => { setShowForm(false); setEditing(null); } });
-                        } else {
-                            create.mutate(input, { onSuccess: () => setShowForm(false) });
-                        }
-                    }}
-                />
-            )}
+        <div className="rounded border border-border p-3 space-y-3">
+            <div>
+                <p className="text-sm font-medium">{title}</p>
+                {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+            </div>
+            {children}
         </div>
     );
 }
 
-function RuleForm({
-    initial,
-    profiles,
-    onSave,
-    onCancel,
-    saving,
-}: {
-    initial: QualityRule | null;
-    profiles: QualityProfile[];
-    onSave: (input: QualityRuleInput) => void;
-    onCancel: () => void;
-    saving: boolean;
-}) {
-    const [name, setName] = useState(initial?.name ?? '');
-    const [enabled, setEnabled] = useState(initial?.enabled ?? false);
-    const [priority, setPriority] = useState(String(initial?.priority ?? 100));
-    const [minAgeDays, setMinAgeDays] = useState(String(initial?.min_age_days ?? 7));
-    const [maxViewCount, setMaxViewCount] = useState(
-        initial?.max_view_count != null ? String(initial.max_view_count) : ''
-    );
-    const [contentType, setContentType] = useState(initial?.content_type ?? '');
-    const [targetProfileId, setTargetProfileId] = useState(
-        String(initial?.target_profile_id ?? profiles[0]?.id ?? '')
-    );
-    const [sweepInterval, setSweepInterval] = useState(String(initial?.sweep_interval_minutes ?? 1440));
-
-    function submit() {
-        const input: QualityRuleInput = {
-            scope: 'global',
-            name,
-            enabled,
-            priority: parseInt(priority, 10) || 100,
-            min_age_days: parseInt(minAgeDays, 10) || 0,
-            max_view_count: maxViewCount ? parseInt(maxViewCount, 10) : null,
-            content_type: contentType || '',
-            target_profile_id: parseInt(targetProfileId, 10),
-            sweep_interval_minutes: parseInt(sweepInterval, 10) || 1440,
-        };
-        onSave(input);
-    }
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{initial ? `Edit rule: ${initial.name}` : 'New rule'}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                    <div className="md:col-span-2">
-                        <Label>Name</Label>
-                        <Input value={name} onChange={(e) => setName(e.target.value)} />
-                    </div>
-                    <label className="flex items-center gap-2 self-end pb-2 text-sm">
-                        <Checkbox checked={enabled} onCheckedChange={(v) => setEnabled(v === true)} />
-                        Enabled
-                    </label>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                    <div>
-                        <Label>Min age (days)</Label>
-                        <Input type="number" min="0" value={minAgeDays} onChange={(e) => setMinAgeDays(e.target.value)} />
-                    </div>
-                    <div>
-                        <Label>Max view count</Label>
-                        <Input
-                            type="number"
-                            min="0"
-                            value={maxViewCount}
-                            onChange={(e) => setMaxViewCount(e.target.value)}
-                            placeholder="any"
-                        />
-                    </div>
-                    <div>
-                        <Label>Content type</Label>
-                        <select
-                            className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
-                            value={contentType}
-                            onChange={(e) => setContentType(e.target.value)}
-                        >
-                            <option value="">any</option>
-                            <option value="VIDEO">VIDEO</option>
-                            <option value="PODCAST">PODCAST</option>
-                        </select>
-                    </div>
-                    <div>
-                        <Label>Priority</Label>
-                        <Input type="number" value={priority} onChange={(e) => setPriority(e.target.value)} />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div>
-                        <Label>Target profile</Label>
-                        <select
-                            className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
-                            value={targetProfileId}
-                            onChange={(e) => setTargetProfileId(e.target.value)}
-                        >
-                            {profiles.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div>
-                        <Label>Sweep interval (minutes)</Label>
-                        <Input
-                            type="number"
-                            min="5"
-                            value={sweepInterval}
-                            onChange={(e) => setSweepInterval(e.target.value)}
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">Default 1440 (daily).</p>
-                    </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={onCancel}>
-                        Cancel
-                    </Button>
-                    <Button onClick={submit} disabled={saving || !name.trim() || !targetProfileId}>
-                        {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Save
-                    </Button>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// Probe tab
+// Probe tool — diagnostic helper (collapsed by default)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ProbeTab() {
+function ProbeToolCard() {
     const probe = useProbeItem();
     const [id, setId] = useState('');
     const [result, setResult] = useState<ProbeResult | null>(null);
 
-    function run() {
-        if (!id.trim()) return;
-        probe.mutate(id.trim(), {
-            onSuccess: (r) => setResult(r),
-        });
-    }
-
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Probe a content item</CardTitle>
+                <CardTitle className="text-base">
+                    <Search className="mr-2 inline h-4 w-4 text-cyan-400" />
+                    Probe an item
+                </CardTitle>
                 <CardDescription>
-                    Live ffprobe of the primary artifact + projected sizes for every active profile.
+                    Diagnostic: ffprobe a specific content ID and see how each profile would shrink it.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex items-end gap-2">
-                    <div className="flex-1">
-                        <Label>Content ID (UUID)</Label>
-                        <Input value={id} onChange={(e) => setId(e.target.value)} placeholder="..." />
+            <CardContent>
+                <details>
+                    <summary className="cursor-pointer text-sm text-muted-foreground">Open probe tool</summary>
+                    <div className="mt-3 space-y-3">
+                        <div className="flex items-end gap-2">
+                            <div className="flex-1">
+                                <Label>Content ID (UUID)</Label>
+                                <Input value={id} onChange={(e) => setId(e.target.value)} placeholder="..." />
+                            </div>
+                            <Button
+                                onClick={() => id.trim() && probe.mutate(id.trim(), { onSuccess: setResult })}
+                                disabled={!id.trim() || probe.isPending}
+                            >
+                                {probe.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Probe
+                            </Button>
+                        </div>
+
+                        {result && (
+                            <>
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                                    <KV label="Duration" value={result.duration_sec ? `${result.duration_sec}s` : '—'} />
+                                    <KV label="Size" value={formatSavingsBytes(result.file_size_bytes)} />
+                                    <KV
+                                        label="Resolution"
+                                        value={result.width && result.height ? `${result.width}×${result.height}` : '—'}
+                                    />
+                                    <KV label="Bitrate" value={result.bitrate_kbps ? `${result.bitrate_kbps} kbps` : '—'} />
+                                    <KV label="Video codec" value={result.video_codec ?? '—'} />
+                                    <KV label="Audio codec" value={result.audio_codec ?? '—'} />
+                                    <KV label="Tier" value={result.storage_tier ?? 'primary'} />
+                                </div>
+                                <div>
+                                    <p className="mb-2 text-sm font-medium">
+                                        <Sparkles className="mr-1 inline h-4 w-4 text-emerald-400" />
+                                        Projected savings by profile
+                                    </p>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Profile</TableHead>
+                                                <TableHead className="text-right">New size</TableHead>
+                                                <TableHead className="text-right">Savings</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {result.projections.map((p) => (
+                                                <TableRow key={p.profile_id}>
+                                                    <TableCell><Badge variant="outline">{p.profile_name}</Badge></TableCell>
+                                                    <TableCell className="text-right">{formatSavingsBytes(p.projected_size_bytes)}</TableCell>
+                                                    <TableCell className="text-right text-emerald-400">
+                                                        -{formatSavingsBytes(p.projected_savings_bytes)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </>
+                        )}
                     </div>
-                    <Button onClick={run} disabled={!id.trim() || probe.isPending}>
-                        {probe.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Probe
-                    </Button>
-                </div>
-
-                {result && (
-                    <>
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                            <KV label="Duration" value={result.duration_sec ? `${result.duration_sec}s` : '—'} />
-                            <KV label="Size" value={formatSavingsBytes(result.file_size_bytes)} />
-                            <KV
-                                label="Resolution"
-                                value={result.width && result.height ? `${result.width}×${result.height}` : '—'}
-                            />
-                            <KV label="Bitrate" value={result.bitrate_kbps ? `${result.bitrate_kbps} kbps` : '—'} />
-                            <KV label="Video codec" value={result.video_codec ?? '—'} />
-                            <KV label="Audio codec" value={result.audio_codec ?? '—'} />
-                            <KV label="Tier" value={result.storage_tier ?? 'primary'} />
-                            <KV
-                                label="Current profile"
-                                value={result.current_quality_profile_id ? `#${result.current_quality_profile_id}` : '—'}
-                            />
-                        </div>
-
-                        <div>
-                            <p className="mb-2 text-sm font-medium">Per-profile projection</p>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Profile</TableHead>
-                                        <TableHead className="text-right">Projected size</TableHead>
-                                        <TableHead className="text-right">Savings</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {result.projections.map((p) => (
-                                        <TableRow key={p.profile_id}>
-                                            <TableCell>
-                                                <Badge variant="outline">{p.profile_name}</Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                {formatSavingsBytes(p.projected_size_bytes)}
-                                            </TableCell>
-                                            <TableCell className="text-right text-emerald-400">
-                                                -{formatSavingsBytes(p.projected_savings_bytes)}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </>
-                )}
+                </details>
             </CardContent>
         </Card>
     );
@@ -1140,94 +939,5 @@ function KV({ label, value }: { label: string; value: string }) {
             <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
             <p className="mt-1 text-sm font-medium">{value}</p>
         </div>
-    );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// History tab
-// ─────────────────────────────────────────────────────────────────────────────
-
-function HistoryTab() {
-    const { data, isLoading } = useQualityHistory();
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle>
-                    <History className="mr-2 inline h-4 w-4" />
-                    Re-encode history
-                </CardTitle>
-                <CardDescription>Every re-encode event — manual, rule-driven, or on-ingest.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isLoading || !data ? (
-                    <Skeleton className="h-32 w-full" />
-                ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>When</TableHead>
-                                <TableHead>Item</TableHead>
-                                <TableHead>Trigger</TableHead>
-                                <TableHead className="text-right">Original</TableHead>
-                                <TableHead className="text-right">New</TableHead>
-                                <TableHead className="text-right">Saved</TableHead>
-                                <TableHead className="text-right">Took</TableHead>
-                                <TableHead>Status</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {data.data.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={8} className="text-center text-muted-foreground">
-                                        No re-encodes yet.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                data.data.map((h) => {
-                                    const pct = h.original_size_bytes > 0 ? (h.savings_bytes / h.original_size_bytes) * 100 : 0;
-                                    return (
-                                        <TableRow key={h.id}>
-                                            <TableCell className="text-xs">
-                                                {new Date(h.created_at).toLocaleString()}
-                                            </TableCell>
-                                            <TableCell className="max-w-xs truncate text-xs" title={h.content_item_id}>
-                                                {h.content_item_id.slice(0, 8)}…
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant={h.trigger === 'manual' ? 'default' : 'secondary'}>
-                                                    {h.trigger}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right">{formatSavingsBytes(h.original_size_bytes)}</TableCell>
-                                            <TableCell className="text-right">{formatSavingsBytes(h.new_size_bytes)}</TableCell>
-                                            <TableCell className="text-right text-emerald-400">
-                                                -{formatSavingsBytes(h.savings_bytes)}{' '}
-                                                <span className="text-xs text-muted-foreground">
-                                                    ({pct.toFixed(0)}%)
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-right text-xs">
-                                                {(h.duration_ms / 1000).toFixed(1)}s
-                                            </TableCell>
-                                            <TableCell>
-                                                {h.error ? (
-                                                    <Badge variant="destructive" title={h.error}>
-                                                        <AlertTriangle className="mr-1 h-3 w-3" />
-                                                        error
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge variant="success">ok</Badge>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })
-                            )}
-                        </TableBody>
-                    </Table>
-                )}
-            </CardContent>
-        </Card>
     );
 }

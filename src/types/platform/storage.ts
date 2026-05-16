@@ -21,7 +21,7 @@ export interface SweepPreview {
     next_run_at?: string;
     candidates_count: number;
     bytes_to_free: number;
-    archive_action: 'delete' | 'move_to_cold';
+    archive_action: 'delete' | 'move_to_cold' | 're_encode';
     protected_count: number;
     protected_bytes: number;
 }
@@ -39,7 +39,17 @@ export interface StoragePolicy {
     preserve_thumbnails: boolean;
     protect_top_n_by_views: number;
     protect_top_n_window_days: number;
-    archive_action: 'delete' | 'move_to_cold';
+    archive_action: 'delete' | 'move_to_cold' | 're_encode';
+    /** When archive_action='re_encode', which QualityProfile to shrink down to.
+     *  null/undefined = auto-pick the per-item resolved ingest profile. */
+    re_encode_target_profile_id?: number | null;
+    // Operation budgets (Cloudflare R2 free-tier defaults).
+    class_a_free_budget: number;
+    class_b_free_budget: number;
+    class_a_warn_pct: number;
+    class_a_cap_pct: number;
+    class_b_warn_pct: number;
+    class_b_cap_pct: number;
     last_sweep_at?: string;
     updated_at: string;
     created_at: string;
@@ -62,7 +72,14 @@ export interface UpdatePolicyRequest {
     preserve_thumbnails?: boolean;
     protect_top_n_by_views?: number;
     protect_top_n_window_days?: number;
-    archive_action?: 'delete' | 'move_to_cold';
+    archive_action?: 'delete' | 'move_to_cold' | 're_encode';
+    re_encode_target_profile_id?: number;
+    class_a_free_budget?: number;
+    class_b_free_budget?: number;
+    class_a_warn_pct?: number;
+    class_a_cap_pct?: number;
+    class_b_warn_pct?: number;
+    class_b_cap_pct?: number;
 }
 
 export interface PolicyOverridesResponse {

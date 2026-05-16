@@ -47,6 +47,7 @@ export function AdvancedSettingsDialog({ config, onSave, isSaving }: AdvancedSet
     const [trendingMultiplier, setTrendingMultiplier] = useState(2.0);
     const [recircEnabled, setRecircEnabled] = useState(false);
     const [recircMaxAge, setRecircMaxAge] = useState(30);
+    const [showWatchedFallback, setShowWatchedFallback] = useState(true);
     const [engNorm, setEngNorm] = useState<'log' | 'linear'>('log');
     const [isActive, setIsActive] = useState(false);
 
@@ -62,6 +63,7 @@ export function AdvancedSettingsDialog({ config, onSave, isSaving }: AdvancedSet
             setTrendingMultiplier(config.trending_threshold_multiplier);
             setRecircEnabled(config.recirculation_enabled);
             setRecircMaxAge(config.recirculation_max_age_days);
+            setShowWatchedFallback(config.show_watched_when_unseen_exhausted ?? true);
             setEngNorm(config.engagement_normalization);
             setIsActive(config.is_active);
         }
@@ -75,6 +77,7 @@ export function AdvancedSettingsDialog({ config, onSave, isSaving }: AdvancedSet
             trending_threshold_multiplier: trendingMultiplier,
             recirculation_enabled: recircEnabled,
             recirculation_max_age_days: recircMaxAge,
+            show_watched_when_unseen_exhausted: showWatchedFallback,
             engagement_normalization: engNorm,
             mode: 'custom',
             is_active: isActive,
@@ -233,21 +236,40 @@ export function AdvancedSettingsDialog({ config, onSave, isSaving }: AdvancedSet
                         </Card>
                     </div>
 
-                    {/* Active toggle */}
-                    <Card>
-                        <CardContent className="flex items-center justify-between pt-6">
-                            <div>
-                                <p className="font-medium">Algorithm Active</p>
-                                <p className="text-sm text-muted-foreground">
-                                    {isActive ? 'Feeds use ranked ordering' : 'Feeds use chronological ordering'}
-                                </p>
-                            </div>
-                            <Checkbox
-                                checked={isActive}
-                                onCheckedChange={(v) => setIsActive(v as boolean)}
-                            />
-                        </CardContent>
-                    </Card>
+                    {/* Feed behavior toggles */}
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <Card>
+                            <CardContent className="flex items-center justify-between pt-6">
+                                <div>
+                                    <p className="font-medium">Show Watched When Unseen Runs Out</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {showWatchedFallback
+                                            ? 'For You recycles watched items instead of showing an empty feed'
+                                            : 'For You returns empty when every item has been watched'}
+                                    </p>
+                                </div>
+                                <Checkbox
+                                    checked={showWatchedFallback}
+                                    onCheckedChange={(v) => setShowWatchedFallback(v as boolean)}
+                                />
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardContent className="flex items-center justify-between pt-6">
+                                <div>
+                                    <p className="font-medium">Algorithm Active</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {isActive ? 'Feeds use ranked ordering' : 'Feeds use chronological ordering'}
+                                    </p>
+                                </div>
+                                <Checkbox
+                                    checked={isActive}
+                                    onCheckedChange={(v) => setIsActive(v as boolean)}
+                                />
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
 
                 <DialogFooter>
