@@ -26,10 +26,12 @@ export default function LoginPage() {
                 variant: 'success',
             });
             router.push('/');
-        } catch {
+        } catch (err) {
+            console.error('[quick-login] failed:', err);
+            const e = err as { message?: string; status?: number; code?: string };
             toast({
                 title: 'Quick login failed',
-                description: 'Could not sign in with default credentials.',
+                description: e?.message || 'Could not sign in with default credentials.',
                 variant: 'destructive',
             });
         }
