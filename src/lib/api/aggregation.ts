@@ -7,15 +7,17 @@ import type {
     TriggerAggregationJobResponse,
 } from '@/types/platform/aggregation';
 
+// Aggregation Service base URL must be provided via NEXT_PUBLIC_AGGREGATION_BASE_URL.
+// In development only, fall back to the conventional local port so developers can
+// run the stack with ./start.sh without setting env vars. Production builds must
+// set the env explicitly — assertAggregationConfigured() guards each call.
 const AGGREGATION_BASE_URL = process.env.NEXT_PUBLIC_AGGREGATION_BASE_URL;
-const DEV_FALLBACK_AGGREGATION_URL = 'http://localhost:5002';
+const DEV_FALLBACK_AGGREGATION_URL =
+    process.env.NODE_ENV === 'development' ? 'http://localhost:5002' : '';
 const RESOLVED_AGGREGATION_BASE_URL =
-    AGGREGATION_BASE_URL || (process.env.NODE_ENV === 'development' ? DEV_FALLBACK_AGGREGATION_URL : '');
+    AGGREGATION_BASE_URL || DEV_FALLBACK_AGGREGATION_URL;
 
-const aggregationClient = createClient(
-    RESOLVED_AGGREGATION_BASE_URL || DEV_FALLBACK_AGGREGATION_URL,
-    'iam'
-);
+const aggregationClient = createClient(RESOLVED_AGGREGATION_BASE_URL, 'iam');
 
 export function isAggregationConfigured(): boolean {
     return Boolean(RESOLVED_AGGREGATION_BASE_URL);

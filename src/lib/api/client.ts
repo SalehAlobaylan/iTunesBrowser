@@ -128,9 +128,25 @@ function createApiClient(axiosInstance: AxiosInstance): ApiClient {
     };
 }
 
-// Environment variables for base URLs
-const CMS_BASE_URL = process.env.NEXT_PUBLIC_CMS_BASE_URL || 'http://localhost:8080';
-const IAM_BASE_URL = process.env.NEXT_PUBLIC_IAM_BASE_URL || 'http://localhost:4003';
+// Environment variables for base URLs.
+// Dev fallback only — production builds must set both env vars explicitly so a
+// missing config doesn't silently point at a developer's laptop.
+const isDev = process.env.NODE_ENV === 'development';
+const CMS_BASE_URL =
+    process.env.NEXT_PUBLIC_CMS_BASE_URL || (isDev ? 'http://localhost:8080' : '');
+const IAM_BASE_URL =
+    process.env.NEXT_PUBLIC_IAM_BASE_URL || (isDev ? 'http://localhost:4003' : '');
+
+if (!CMS_BASE_URL) {
+    throw new Error(
+        'CMS base URL is not configured: set NEXT_PUBLIC_CMS_BASE_URL'
+    );
+}
+if (!IAM_BASE_URL) {
+    throw new Error(
+        'IAM base URL is not configured: set NEXT_PUBLIC_IAM_BASE_URL'
+    );
+}
 
 // Create axios instances
 const cmsAxios = createAxiosInstance(CMS_BASE_URL, 'cms');
