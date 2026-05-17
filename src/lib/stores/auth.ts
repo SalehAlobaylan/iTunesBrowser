@@ -130,3 +130,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
 export function clearAuthState(): void {
     useAuthStore.getState().clearAuth();
 }
+
+export function useIsAdmin(): boolean {
+    return useAuthStore((state) => state.user?.role?.toLowerCase() === 'admin');
+}

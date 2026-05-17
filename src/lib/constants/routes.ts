@@ -8,6 +8,7 @@ import {
     Shield,
     HardDrive,
     Sliders,
+    HeartPulse,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -27,6 +28,7 @@ export const navigation: NavigationSection[] = [
         title: 'Overview',
         items: [
             { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+            { name: 'System Health', href: '/platform/system-health', icon: HeartPulse },
         ],
     },
     {
@@ -60,6 +62,7 @@ export const ROUTES = {
         PIPELINE: '/platform/pipeline',
         INTELLIGENCE: '/platform/intelligence',
         ENRICHMENT: '/platform/enrichment',
+        SYSTEM_HEALTH: '/platform/system-health',
     },
     ADMIN: {
         USERS: '/admin/users',

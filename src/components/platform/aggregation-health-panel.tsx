@@ -39,6 +39,7 @@ import {
     useTriggerAggregationJob,
 } from '@/hooks/use-aggregation-monitoring';
 import type { AggregationTriggerSourceType } from '@/types/platform/aggregation';
+import { AggregationActionBar } from '@/components/platform/aggregation-action-bar';
 
 const SOURCE_TYPE_OPTIONS: AggregationTriggerSourceType[] = [
     'RSS',
@@ -228,6 +229,8 @@ export function AggregationHealthPanel() {
                         </Button>
                     ) : null}
                 </div>
+
+                <AggregationActionBar />
             </CardContent>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
