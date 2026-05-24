@@ -36,11 +36,33 @@ export interface MissingEnrichmentsParams {
     offset?: number;
 }
 
-export interface EnrichmentHealthResponse {
+/**
+ * Per-service health view. Same shape returned by both Media-Service and
+ * Enrichment-Service /ready endpoints, plus an `error` slot when CMS could
+ * not reach the service at all.
+ */
+export interface AIServiceHealth {
     status: string;
     error?: string;
     models?: Record<string, boolean>;
     dependencies?: Record<string, boolean>;
+}
+
+export interface EnrichmentHealthResponse {
+    /** Aggregate status across both AI services: "ok" only when both are ok. */
+    status: string;
+    /** Legacy fields surface the Enrichment-Service view (text embedder). */
+    error?: string;
+    models?: Record<string, boolean>;
+    dependencies?: Record<string, boolean>;
+    /**
+     * Per-service breakdown — added after the Media-Service split. Optional
+     * so older CMS builds (single Enrichment-Service) still parse cleanly.
+     */
+    services?: {
+        media?: AIServiceHealth;
+        enrichment?: AIServiceHealth;
+    };
 }
 
 export interface TriggerEnrichmentRequest {

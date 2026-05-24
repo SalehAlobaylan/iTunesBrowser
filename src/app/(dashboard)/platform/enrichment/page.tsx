@@ -74,8 +74,21 @@ export default function EnrichmentPage() {
     const batchMutation = useTriggerBatchEnrichment();
 
     const isServiceUp = health?.status === 'ok';
-    const whisperLoaded = health?.models?.whisper ?? false;
-    const embedderLoaded = health?.models?.embedder ?? false;
+
+    // Per-service breakdown — populated by CMS after the Media-Service split.
+    // Fall back to the legacy flat `models` map so the page still renders if
+    // CMS hasn't been upgraded yet.
+    const mediaService = health?.services?.media;
+    const enrichmentService = health?.services?.enrichment;
+    const hasPerServiceHealth = Boolean(mediaService || enrichmentService);
+
+    const mediaModels = mediaService?.models ?? {
+        whisper: health?.models?.whisper ?? false,
+        clip: health?.models?.clip ?? false,
+    };
+    const enrichmentModels = enrichmentService?.models ?? {
+        embedder: health?.models?.embedder ?? false,
+    };
 
     const transcriptPct = stats ? pct(stats.with_transcript, stats.total_media) : 0;
     const embeddingPct = stats ? pct(stats.with_embedding, stats.total_ready) : 0;
@@ -241,34 +254,78 @@ export default function EnrichmentPage() {
                     </CardContent>
                 </Card>
 
-                {/* Service Status */}
+                {/* Service Status — per-service after the Media split */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Service Status</CardTitle>
+                        <CardTitle className="text-sm font-medium">AI Services</CardTitle>
                         <Activity className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         {healthLoading ? (
                             <Skeleton className="h-8 w-16" />
                         ) : (
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between text-sm">
-                                    <span>Whisper</span>
-                                    {whisperLoaded ? (
-                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                    ) : (
-                                        <XCircle className="h-4 w-4 text-red-500" />
+                            <div className="space-y-3 text-sm">
+                                {/* Media-Service */}
+                                <div>
+                                    <div className="flex items-center justify-between font-medium mb-1">
+                                        <span>Media</span>
+                                        {mediaService?.status === 'unreachable' ? (
+                                            <XCircle className="h-4 w-4 text-red-500" />
+                                        ) : Object.values(mediaModels).every(Boolean) ? (
+                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                        ) : (
+                                            <XCircle className="h-4 w-4 text-orange-500" />
+                                        )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {Object.entries(mediaModels).map(([name, loaded]) => (
+                                            <Badge
+                                                key={name}
+                                                variant={loaded ? 'default' : 'outline'}
+                                                className="text-[10px] px-1.5 py-0"
+                                            >
+                                                {name}{loaded ? ' ✓' : ' ✗'}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                    {mediaService?.error && (
+                                        <p className="text-[11px] text-destructive mt-1 truncate">
+                                            {mediaService.error}
+                                        </p>
                                     )}
                                 </div>
-                                <div className="flex items-center justify-between text-sm">
-                                    <span>Embedder</span>
-                                    {embedderLoaded ? (
-                                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                    ) : (
-                                        <XCircle className="h-4 w-4 text-red-500" />
+
+                                {/* Enrichment-Service */}
+                                <div>
+                                    <div className="flex items-center justify-between font-medium mb-1">
+                                        <span>Enrichment</span>
+                                        {enrichmentService?.status === 'unreachable' ? (
+                                            <XCircle className="h-4 w-4 text-red-500" />
+                                        ) : Object.values(enrichmentModels).every(Boolean) ? (
+                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                                        ) : (
+                                            <XCircle className="h-4 w-4 text-orange-500" />
+                                        )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {Object.entries(enrichmentModels).map(([name, loaded]) => (
+                                            <Badge
+                                                key={name}
+                                                variant={loaded ? 'default' : 'outline'}
+                                                className="text-[10px] px-1.5 py-0"
+                                            >
+                                                {name}{loaded ? ' ✓' : ' ✗'}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                    {enrichmentService?.error && (
+                                        <p className="text-[11px] text-destructive mt-1 truncate">
+                                            {enrichmentService.error}
+                                        </p>
                                     )}
                                 </div>
-                                {health?.error && (
+
+                                {!hasPerServiceHealth && health?.error && (
                                     <p className="text-xs text-destructive mt-1 truncate">
                                         {health.error}
                                     </p>
