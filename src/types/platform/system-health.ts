@@ -1,6 +1,6 @@
 export type ServiceStatus = 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
 
-export type ServiceName = 'cms' | 'iam' | 'aggregation' | 'enrichment' | 'platform';
+export type ServiceName = 'cms' | 'iam' | 'aggregation' | 'enrichment' | 'media' | 'platform';
 
 export interface DependencyHealth {
     name: string;
@@ -23,6 +23,21 @@ export interface ModelLoad {
     detail?: string;
 }
 
+/**
+ * Async-transcription worker health for Media-Service. The worker is a separate
+ * deployment with no HTTP port; the Media API observes it through the shared
+ * arq queue (Redis db=2) and reports it via /health/queue.
+ */
+export interface WorkerHealth {
+    configured: boolean;
+    alive: boolean;
+    queued: number;
+    ongoing: number;
+    complete: number;
+    failed: number;
+    retried: number;
+}
+
 export interface ServiceHealth {
     name: ServiceName;
     displayName: string;
@@ -34,6 +49,7 @@ export interface ServiceHealth {
     deps: DependencyHealth[];
     queues?: QueueDepth[];
     models?: ModelLoad[];
+    worker?: WorkerHealth;
     rawError?: string;
     raw?: unknown;
 }

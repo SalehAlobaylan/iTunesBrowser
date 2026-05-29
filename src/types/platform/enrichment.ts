@@ -6,6 +6,12 @@ export interface EnrichmentStats {
     missing_transcript: number;
     with_embedding: number;
     missing_embedding: number;
+    // Sparse (BGE-M3 lexical) vectors — populated for long-form alongside dense.
+    with_sparse: number;
+    missing_sparse: number;
+    // CLIP image embeddings — for items that have a thumbnail.
+    with_image_embedding: number;
+    missing_image_embedding: number;
     total_ready: number;
 }
 

@@ -10,6 +10,7 @@ import type {
     ServiceStatus,
     SystemHealthSnapshot,
     SystemIssue,
+    WorkerHealth,
 } from '@/types/platform/system-health';
 
 export const dynamic = 'force-dynamic';
@@ -24,6 +25,7 @@ const ENV_KEYS = [
     'IAM_BASE_URL',
     'AGGREGATION_BASE_URL',
     'ENRICHMENT_BASE_URL',
+    'MEDIA_BASE_URL',
     'PLATFORM_BASE_URL',
 ] as const;
 
@@ -97,6 +99,45 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function statusFromBool(b: boolean): ServiceStatus {
     return b ? 'healthy' : 'unhealthy';
+}
+
+// Build the model-load list from a /ready body. Prefers the richer
+// `models_detail` (role in `type`, model id in `name`, optional `dimensions`)
+// so the dashboard can show "BAAI/bge-m3 · 1024d" instead of a bare boolean;
+// falls back to the legacy `models` bool map for older service builds.
+function mapModels(readyBody: Record<string, unknown> | null): ModelLoad[] {
+    if (!readyBody) return [];
+
+    const detail = Array.isArray(readyBody.models_detail)
+        ? (readyBody.models_detail as unknown[])
+        : null;
+    if (detail && detail.length > 0) {
+        return detail
+            .map((d) => asRecord(d))
+            .filter((d): d is Record<string, unknown> => d !== null)
+            .map((d) => {
+                const role =
+                    typeof d.type === 'string' && d.type ? d.type : String(d.name ?? 'model');
+                const name = typeof d.name === 'string' ? d.name : '';
+                const dims = typeof d.dimensions === 'number' ? d.dimensions : null;
+                const detailStr = name ? `${name}${dims ? ` · ${dims}d` : ''}` : undefined;
+                return { name: role, loaded: d.loaded === true, detail: detailStr };
+            });
+    }
+
+    const modelsObj = asRecord(readyBody.models);
+    const models: ModelLoad[] = [];
+    if (modelsObj) {
+        for (const [name, value] of Object.entries(modelsObj)) {
+            const loaded =
+                value === true ||
+                (typeof value === 'object' &&
+                    value !== null &&
+                    (value as Record<string, unknown>).loaded === true);
+            models.push({ name, loaded });
+        }
+    }
+    return models;
 }
 
 async function checkCms(baseUrl: string | undefined): Promise<ServiceHealth> {
@@ -208,18 +249,7 @@ async function checkEnrichment(baseUrl: string | undefined): Promise<ServiceHeal
             : undefined;
 
     const readyBody = asRecord(ready.body);
-    const modelsObj = readyBody ? asRecord(readyBody.models) : null;
-    const models: ModelLoad[] = [];
-    if (modelsObj) {
-        for (const [name, value] of Object.entries(modelsObj)) {
-            const loaded =
-                value === true ||
-                (typeof value === 'object' &&
-                    value !== null &&
-                    (value as Record<string, unknown>).loaded === true);
-            models.push({ name, loaded });
-        }
-    }
+    const models = mapModels(readyBody);
 
     const depsObj = readyBody ? asRecord(readyBody.dependencies) : null;
     const deps: DependencyHealth[] = [];
@@ -252,6 +282,98 @@ async function checkEnrichment(baseUrl: string | undefined): Promise<ServiceHeal
         models,
         rawError: health.error || ready.error,
         raw: { health: health.body, ready: ready.body },
+    };
+}
+
+async function checkMedia(baseUrl: string | undefined): Promise<ServiceHealth> {
+    const display = { name: 'media' as ServiceName, displayName: 'Media' };
+    if (!baseUrl) return missing(display, 'MEDIA_BASE_URL');
+    const healthUrl = joinUrl(baseUrl, '/health');
+    const readyUrl = joinUrl(baseUrl, '/ready');
+    const queueUrl = joinUrl(baseUrl, '/health/queue');
+    const [health, ready, queue] = await Promise.all([
+        probe(healthUrl),
+        probe(readyUrl),
+        probe(queueUrl),
+    ]);
+
+    const healthBody = asRecord(health.body);
+    const version =
+        healthBody && typeof healthBody.version === 'string'
+            ? (healthBody.version as string)
+            : undefined;
+
+    const readyBody = asRecord(ready.body);
+    const models = mapModels(readyBody);
+
+    const deps: DependencyHealth[] = [];
+    const depsObj = readyBody ? asRecord(readyBody.dependencies) : null;
+    if (depsObj) {
+        for (const [name, value] of Object.entries(depsObj)) {
+            const ok = value === true || value === 'ok' || value === 'reachable';
+            deps.push({
+                name,
+                status: statusFromBool(ok),
+                detail: typeof value === 'string' ? value : undefined,
+            });
+        }
+    }
+
+    // arq async-transcription worker — a separate deploy with no HTTP port. The
+    // Media API observes it through the shared Redis queue (db=2) and reports
+    // worker-alive + queue depth + throughput via /health/queue.
+    const queueBody = asRecord(queue.body);
+    let worker: WorkerHealth | undefined;
+    if (queueBody && 'configured' in queueBody) {
+        const num = (v: unknown): number => (typeof v === 'number' ? v : 0);
+        const configured = queueBody.configured === true;
+        const alive = queueBody.worker_alive === true;
+        const queued = num(queueBody.queued);
+        worker = {
+            configured,
+            alive,
+            queued,
+            ongoing: num(queueBody.jobs_ongoing),
+            complete: num(queueBody.jobs_complete),
+            failed: num(queueBody.jobs_failed),
+            retried: num(queueBody.jobs_retried),
+        };
+        // Idle with no worker (e.g. API-only deploy) is informational, not a
+        // failure — only flag unhealthy when jobs are waiting but no worker is
+        // consuming them.
+        const workerStatus: ServiceStatus = !configured
+            ? 'unknown'
+            : alive
+              ? 'healthy'
+              : queued > 0
+                ? 'unhealthy'
+                : 'unknown';
+        deps.push({
+            name: 'arq-worker',
+            status: workerStatus,
+            detail: configured ? `${alive ? 'alive' : 'down'} · ${queued} queued` : 'not configured',
+        });
+    }
+
+    const reachable = health.ok || ready.ok;
+    let status: ServiceStatus;
+    if (!reachable) status = 'unhealthy';
+    else if (models.some((m) => !m.loaded) || deps.some((d) => d.status === 'unhealthy'))
+        status = 'degraded';
+    else status = 'healthy';
+
+    return {
+        ...display,
+        endpointUrl: baseUrl,
+        status,
+        latencyMs: health.latencyMs ?? ready.latencyMs,
+        httpStatus: health.httpStatus ?? ready.httpStatus,
+        version,
+        deps,
+        models,
+        worker,
+        rawError: health.error || ready.error,
+        raw: { health: health.body, ready: ready.body, queue: queue.body },
     };
 }
 
@@ -347,6 +469,22 @@ function collectIssues(
                 });
             }
         }
+        if (svc.worker) {
+            if (svc.worker.configured && !svc.worker.alive && svc.worker.queued > 0) {
+                issues.push({
+                    severity: 'critical',
+                    service: svc.name,
+                    message: `Async worker is down with ${svc.worker.queued} job(s) queued`,
+                });
+            }
+            if (svc.worker.failed > 0) {
+                issues.push({
+                    severity: 'warning',
+                    service: svc.name,
+                    message: `Async worker has ${svc.worker.failed} failed job(s)`,
+                });
+            }
+        }
     }
 
     const versions = services
@@ -369,6 +507,7 @@ export async function GET(): Promise<NextResponse<SystemHealthSnapshot>> {
         IAM_BASE_URL: process.env.IAM_BASE_URL,
         AGGREGATION_BASE_URL: process.env.AGGREGATION_BASE_URL,
         ENRICHMENT_BASE_URL: process.env.ENRICHMENT_BASE_URL,
+        MEDIA_BASE_URL: process.env.MEDIA_BASE_URL,
         PLATFORM_BASE_URL: process.env.PLATFORM_BASE_URL,
     };
 
@@ -377,13 +516,14 @@ export async function GET(): Promise<NextResponse<SystemHealthSnapshot>> {
         checkIam(env.IAM_BASE_URL),
         checkAggregation(env.AGGREGATION_BASE_URL),
         checkEnrichment(env.ENRICHMENT_BASE_URL),
+        checkMedia(env.MEDIA_BASE_URL),
         checkPlatform(env.PLATFORM_BASE_URL),
     ]);
 
     const services: ServiceHealth[] = settled.map((s, i) => {
         if (s.status === 'fulfilled') return s.value;
         const fallbackName: ServiceName = (
-            ['cms', 'iam', 'aggregation', 'enrichment', 'platform'] as ServiceName[]
+            ['cms', 'iam', 'aggregation', 'enrichment', 'media', 'platform'] as ServiceName[]
         )[i];
         return {
             name: fallbackName,

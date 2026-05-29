@@ -9,46 +9,72 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import type { ServiceHealth } from '@/types/platform/system-health';
+import type { ServiceHealth, ServiceName } from '@/types/platform/system-health';
+
+// Services that load ML models and report them via /ready. Enrichment owns the
+// text embedder + reranker; Media owns Whisper + CLIP. Both surface here so the
+// panel reflects the full AI stack, not just Enrichment.
+const MODEL_SERVICES: ServiceName[] = ['enrichment', 'media'];
 
 export function ModelLoadPanel({ services }: { services: ServiceHealth[] }) {
-    const enrichment = services.find((s) => s.name === 'enrichment');
-    const models = enrichment?.models ?? [];
+    const aiServices = MODEL_SERVICES.map((name) =>
+        services.find((s) => s.name === name)
+    ).filter((s): s is ServiceHealth => Boolean(s));
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
                     <Sparkles className="h-5 w-5" />
-                    Enrichment Models
+                    AI Models
                 </CardTitle>
                 <CardDescription>
-                    Loaded state reported by Enrichment /ready.
+                    Loaded state reported by each AI service&apos;s /ready.
                 </CardDescription>
             </CardHeader>
-            <CardContent>
-                {!enrichment || enrichment.status === 'unknown' ? (
-                    <p className="text-sm text-muted-foreground">
-                        Enrichment service not configured.
-                    </p>
-                ) : models.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                        No model status reported.
-                    </p>
+            <CardContent className="space-y-4">
+                {aiServices.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No AI services configured.</p>
                 ) : (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                        {models.map((m) => (
-                            <div
-                                key={m.name}
-                                className="flex items-center justify-between rounded-md border p-3"
-                            >
-                                <span className="text-sm font-medium capitalize">{m.name}</span>
-                                <Badge variant={m.loaded ? 'success' : 'warning'}>
-                                    {m.loaded ? 'loaded' : 'not loaded'}
-                                </Badge>
-                            </div>
-                        ))}
-                    </div>
+                    aiServices.map((svc) => (
+                        <div key={svc.name} className="space-y-2">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                {svc.displayName}
+                            </p>
+                            {svc.status === 'unknown' ? (
+                                <p className="text-sm text-muted-foreground">
+                                    {svc.displayName} not configured.
+                                </p>
+                            ) : !svc.models || svc.models.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">
+                                    No model status reported.
+                                </p>
+                            ) : (
+                                <div className="grid gap-2 sm:grid-cols-2">
+                                    {svc.models.map((m) => (
+                                        <div
+                                            key={m.name}
+                                            className="flex items-center justify-between gap-2 rounded-md border p-3"
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-medium capitalize">
+                                                    {m.name}
+                                                </p>
+                                                {m.detail ? (
+                                                    <p className="truncate text-xs text-muted-foreground">
+                                                        {m.detail}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                            <Badge variant={m.loaded ? 'success' : 'warning'}>
+                                                {m.loaded ? 'loaded' : 'not loaded'}
+                                            </Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ))
                 )}
             </CardContent>
         </Card>

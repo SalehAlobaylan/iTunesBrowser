@@ -7,6 +7,9 @@ import { OverallStatusHeader } from '@/components/platform/system-health/overall
 import { ServiceCard } from '@/components/platform/system-health/service-card';
 import { DependencyGrid } from '@/components/platform/system-health/dependency-grid';
 import { ModelLoadPanel } from '@/components/platform/system-health/model-load-panel';
+import { MediaWorkerPanel } from '@/components/platform/system-health/media-worker-panel';
+import { AiMetricsPanel } from '@/components/platform/system-health/ai-metrics-panel';
+import { LlmStackPanel } from '@/components/platform/system-health/llm-stack-panel';
 import { EnvAuditPanel } from '@/components/platform/system-health/env-audit-panel';
 import { IssuesPanel } from '@/components/platform/system-health/issues-panel';
 import { useSystemHealth } from '@/hooks/use-system-health';
@@ -59,6 +62,12 @@ export default function SystemHealthPage() {
                     <DependencyGrid services={data.services} />
 
                     <AggregationHealthPanel />
+
+                    <MediaWorkerPanel services={data.services} />
+
+                    <AiMetricsPanel />
+
+                    <LlmStackPanel />
 
                     <ModelLoadPanel services={data.services} />
 
