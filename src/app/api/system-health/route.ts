@@ -503,12 +503,15 @@ function collectIssues(
 
 export async function GET(): Promise<NextResponse<SystemHealthSnapshot>> {
     const env: Record<(typeof ENV_KEYS)[number], string | undefined> = {
-        CMS_BASE_URL: process.env.CMS_BASE_URL,
-        IAM_BASE_URL: process.env.IAM_BASE_URL,
-        AGGREGATION_BASE_URL: process.env.AGGREGATION_BASE_URL,
-        ENRICHMENT_BASE_URL: process.env.ENRICHMENT_BASE_URL,
-        MEDIA_BASE_URL: process.env.MEDIA_BASE_URL,
-        PLATFORM_BASE_URL: process.env.PLATFORM_BASE_URL,
+        // Trim — a stray trailing space in a *_BASE_URL env (easy to leave in a
+        // hand-edited .env) otherwise yields URLs like "http://host:5050 /health"
+        // that fetch() can't parse.
+        CMS_BASE_URL: process.env.CMS_BASE_URL?.trim(),
+        IAM_BASE_URL: process.env.IAM_BASE_URL?.trim(),
+        AGGREGATION_BASE_URL: process.env.AGGREGATION_BASE_URL?.trim(),
+        ENRICHMENT_BASE_URL: process.env.ENRICHMENT_BASE_URL?.trim(),
+        MEDIA_BASE_URL: process.env.MEDIA_BASE_URL?.trim(),
+        PLATFORM_BASE_URL: process.env.PLATFORM_BASE_URL?.trim(),
     };
 
     const settled = await Promise.allSettled([

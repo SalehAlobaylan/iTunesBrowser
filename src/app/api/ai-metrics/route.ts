@@ -172,7 +172,8 @@ async function scrape(
     baseUrl: string | undefined
 ): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
     if (!baseUrl) return { ok: false, error: 'base URL not configured' };
-    const url = `${baseUrl.replace(/\/$/, '')}/metrics`;
+    // Trim — a stray space in a *_BASE_URL env would make this URL unparseable.
+    const url = `${baseUrl.trim().replace(/\/$/, '')}/metrics`;
     try {
         const resp = await fetch(url, {
             cache: 'no-store',

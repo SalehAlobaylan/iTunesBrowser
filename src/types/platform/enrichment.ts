@@ -23,9 +23,15 @@ export interface MissingEnrichmentItem {
     status: string;
     has_transcript: boolean;
     has_embedding: boolean;
+    has_sparse: boolean;
+    has_image_embedding: boolean;
     media_url: string;
+    thumbnail_url: string;
     created_at: string;
 }
+
+/** Artifact a "missing" panel manages + triggers. */
+export type EnrichmentArtifact = 'transcript' | 'embedding' | 'sparse' | 'image';
 
 export interface MissingEnrichmentsResponse {
     items: MissingEnrichmentItem[];

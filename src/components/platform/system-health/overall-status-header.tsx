@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { StatusBadge } from './status-badge';
+import { CopyDiagnostics } from './copy-diagnostics';
 import type { SystemHealthSnapshot } from '@/types/platform/system-health';
 
 interface Props {
@@ -35,12 +36,15 @@ export function OverallStatusHeader({ snapshot, isFetching, onRefresh }: Props) 
                         </p>
                     </div>
                 </div>
-                <Button variant="outline" onClick={onRefresh} disabled={isFetching}>
-                    <RefreshCw
-                        className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`}
-                    />
-                    Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                    <CopyDiagnostics snapshot={snapshot} />
+                    <Button variant="outline" onClick={onRefresh} disabled={isFetching}>
+                        <RefreshCw
+                            className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`}
+                        />
+                        Refresh
+                    </Button>
+                </div>
             </CardContent>
         </Card>
     );
