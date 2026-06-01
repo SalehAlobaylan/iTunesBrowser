@@ -53,3 +53,117 @@ export interface BulkStatusResult {
 
 /** Modes for the "rotate out older than N days" control. */
 export type RotateMode = 'archive' | 'delete';
+
+// ─── Topic-centric management ───────────────────────────────
+
+/** A selected topic for drill-in (id is a topic UUID, or 'none' for unclassified). */
+export interface TopicSelection {
+    id: string;
+    label: string;
+}
+
+/** A first-class topic (LLM-labeled) with live per-status counts. */
+export interface TopicSummary {
+    id: string;
+    label: string;
+    total: number;
+    ready: number;
+    pending: number;
+    archived: number;
+    avg_views: number;
+}
+
+/** Per-status counts for the synthetic "Uncategorized" bucket. */
+export interface TopicStatusCounts {
+    total: number;
+    ready: number;
+    pending: number;
+    archived: number;
+}
+
+export interface TopicsListResponse {
+    data: TopicSummary[];
+    uncategorized: TopicStatusCounts;
+    total: number;
+    page: number;
+    limit: number;
+    total_pages: number;
+}
+
+export interface ListTopicsParams {
+    search?: string;
+    page?: number;
+    limit?: number;
+    type?: string;
+}
+
+/**
+ * Filters for the board's content list (GET /admin/content). `topic_id` is a
+ * topic UUID, or the sentinel "none" for unclassified, or undefined for All.
+ */
+export interface TopicContentParams {
+    topic_id?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: ContentStatus;
+    type?: string;
+    source_name?: string;
+    created_before?: string;
+}
+
+/** A bulk action's selection: either explicit ids OR the active filter set. */
+export interface BulkSelection {
+    ids?: string[];
+    status?: string;
+    type?: string;
+    topic?: string;
+    topic_id?: string;
+    source_name?: string;
+    created_before?: string;
+}
+
+/** Body for POST /admin/content/bulk-topic (move/assign). */
+export interface BulkTopicBody extends BulkSelection {
+    target_topic_id?: string; // empty / "null" => uncategorize
+    dry_run?: boolean;
+}
+
+export interface MergeTopicsBody {
+    source_ids: string[];
+    target_id: string;
+}
+
+export interface ReclassifyResult {
+    processed: number;
+    remaining: number;
+}
+
+/** Result of a full re-cluster pass (POST /admin/topics/recluster). */
+export interface ReclusterResult {
+    clusters: number;
+    articles: number;
+    message: string;
+}
+
+/** Result of one topic-naming batch (POST /admin/topics/label-batch). */
+export interface LabelBatchResult {
+    processed: number;
+    remaining: number;
+}
+
+/** Body for POST /admin/content/bulk-status (filter- or id-based). */
+export interface BulkStatusBody extends BulkSelection {
+    from_status?: ContentStatus;
+    to_status: ContentStatus;
+    limit?: number;
+    dry_run?: boolean;
+}
+
+/** Body for POST /admin/content/bulk-tags. */
+export interface BulkTagsBody extends BulkSelection {
+    add_tags?: string[];
+    remove_tags?: string[];
+    set_tags?: string[];
+    dry_run?: boolean;
+}

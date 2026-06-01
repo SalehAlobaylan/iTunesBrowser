@@ -1,104 +1,240 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { Search, Newspaper } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Newspaper } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import {
+    useTopicContent,
+    useSetNewsStatus,
+    useDeleteNewsByIds,
+    useBulkStatus,
+    useBulkDeleteNews,
+    useSetFeatured,
+} from '@/hooks/use-news';
+import { useBulkSetFlags } from '@/hooks/use-intelligence';
+import { bulkSetStatus, bulkDeleteNews } from '@/lib/api/cms/news';
 import { NewsCard } from '@/components/platform/news/news-card';
-import type { NewsItem, NewsView } from '@/types/platform/news';
+import { NewsBulkBar, type BulkScope } from '@/components/platform/news/news-bulk-bar';
+import {
+    BulkConfirmDialog,
+    type BulkConfirmConfig,
+} from '@/components/platform/news/bulk-confirm-dialog';
+import type { ContentStatus } from '@/types/platform/content';
+import type { BulkSelection, NewsItem } from '@/types/platform/news';
+
+const STEP = 12;
+
+const TRANSITION: Record<ContentStatus, { label: string; to: ContentStatus } | null> = {
+    PENDING: { label: 'Publish', to: 'READY' },
+    READY: { label: 'Archive', to: 'ARCHIVED' },
+    ARCHIVED: { label: 'Restore', to: 'READY' },
+    PROCESSING: null,
+    FAILED: null,
+};
 
 interface NewsColumnProps {
+    /** topic UUID, or 'all', or 'none' (unclassified). */
+    topicId: string;
+    status: ContentStatus;
     title: string;
-    view: NewsView;
-    accentClass?: string;
-    total: number;
-    items: NewsItem[];
-    isLoading: boolean;
-    isError: boolean;
-    hasMore: boolean;
-    onLoadMore: () => void;
+    accent: string;
     search: string;
-    onSearch: (v: string) => void;
-    showSearch?: boolean;
-    headerAction?: ReactNode;
-    emptyHint: string;
-    featuredIds?: Set<string>;
-    busy?: boolean;
-    onPublish?: (id: string) => void;
-    onArchive?: (id: string) => void;
-    onRestore?: (id: string) => void;
-    onToggleFeature?: (id: string, on: boolean) => void;
-    onDelete?: (id: string) => void;
+    featuredIds: Set<string>;
+    onMove: (selection: BulkSelection, count: number) => void;
 }
 
 export function NewsColumn({
+    topicId,
+    status,
     title,
-    view,
-    accentClass = 'bg-muted-foreground',
-    total,
-    items,
-    isLoading,
-    isError,
-    hasMore,
-    onLoadMore,
+    accent,
     search,
-    onSearch,
-    showSearch = false,
-    headerAction,
-    emptyHint,
     featuredIds,
-    busy,
-    onPublish,
-    onArchive,
-    onRestore,
-    onToggleFeature,
-    onDelete,
+    onMove,
 }: NewsColumnProps) {
+    const [limit, setLimit] = useState(STEP);
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [scope, setScope] = useState<BulkScope>('page');
+    const [confirm, setConfirm] = useState<BulkConfirmConfig | null>(null);
+
+    const setStatus = useSetNewsStatus();
+    const deleteByIds = useDeleteNewsByIds();
+    const bulkStatus = useBulkStatus();
+    const bulkDelete = useBulkDeleteNews();
+    const setFeatured = useSetFeatured();
+    const bulkFlags = useBulkSetFlags();
+
+    const busy =
+        setStatus.isPending ||
+        deleteByIds.isPending ||
+        bulkStatus.isPending ||
+        bulkDelete.isPending ||
+        setFeatured.isPending ||
+        bulkFlags.isPending;
+
+    const topicParam = topicId === 'all' ? undefined : topicId;
+
+    const { data, isLoading, error } = useTopicContent(
+        { topic_id: topicParam, status, search: search || undefined, page: 1, limit },
+        { paused: busy }
+    );
+
+    const items: NewsItem[] = useMemo(() => data?.data ?? [], [data]);
+    const matchingTotal = data?.total ?? 0;
+    const hasMore = items.length < matchingTotal;
+    const canSelectAll = search.trim() === '';
+
+    useEffect(() => {
+        setSelected(new Set());
+        setScope('page');
+        setLimit(STEP);
+    }, [topicId, search]);
+
+    const transition = TRANSITION[status];
+
+    const clear = () => {
+        setSelected(new Set());
+        setScope('page');
+    };
+    const toggle = (id: string) =>
+        setSelected((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            setScope('page');
+            return next;
+        });
+
+    const selectionForMove = (): { sel: BulkSelection; count: number } =>
+        scope === 'all'
+            ? { sel: { topic_id: topicParam, status, type: 'ARTICLE' }, count: matchingTotal }
+            : { sel: { ids: [...selected] }, count: selected.size };
+
+    // ── Row actions ──
+    const onPublish = (id: string) => setStatus.mutate({ ids: [id], toStatus: 'READY' });
+    const onArchive = (id: string) => setStatus.mutate({ ids: [id], toStatus: 'ARCHIVED' });
+    const onRestore = (id: string) => setStatus.mutate({ ids: [id], toStatus: 'READY' });
+    const onToggleFeature = (id: string, on: boolean) => setFeatured.mutate({ id, on });
+    const onRowDelete = (id: string) =>
+        setConfirm({
+            title: 'Delete article',
+            actionLabel: 'Delete',
+            noun: 'article',
+            destructive: true,
+            preview: () => Promise.resolve(1),
+            commit: () => deleteByIds.mutateAsync([id]),
+        });
+
+    // ── Bulk actions ──
+    const onPrimary = () => {
+        if (!transition) return;
+        if (scope === 'all') {
+            setConfirm({
+                title: `${transition.label} all in "${title}"`,
+                actionLabel: transition.label,
+                noun: 'article',
+                preview: () =>
+                    bulkSetStatus({
+                        from_status: status,
+                        to_status: transition.to,
+                        topic_id: topicParam,
+                        type: 'ARTICLE',
+                        dry_run: true,
+                    }).then((r) => r.updated_count),
+                commit: () =>
+                    bulkStatus
+                        .mutateAsync({
+                            from_status: status,
+                            to_status: transition.to,
+                            topic_id: topicParam,
+                            type: 'ARTICLE',
+                        })
+                        .then(clear),
+            });
+        } else {
+            setStatus.mutate({ ids: [...selected], toStatus: transition.to }, { onSuccess: clear });
+        }
+    };
+
+    const onBulkDelete = () => {
+        if (scope === 'all') {
+            setConfirm({
+                title: `Delete all in "${title}"`,
+                actionLabel: 'Delete',
+                noun: 'article',
+                destructive: true,
+                preview: () =>
+                    bulkDeleteNews({ topic_id: topicParam, status, dry_run: true }).then(
+                        (r) => r.deleted_count
+                    ),
+                commit: () => bulkDelete.mutateAsync({ topic_id: topicParam, status }).then(clear),
+            });
+        } else {
+            const ids = [...selected];
+            setConfirm({
+                title: `Delete ${ids.length} article${ids.length === 1 ? '' : 's'}`,
+                actionLabel: 'Delete',
+                noun: 'article',
+                destructive: true,
+                preview: () => Promise.resolve(ids.length),
+                commit: () => deleteByIds.mutateAsync(ids).then(clear),
+            });
+        }
+    };
+
+    const onFeatureSelected = () => {
+        const ids = [...selected];
+        if (!ids.length) return;
+        bulkFlags.mutate({ content_ids: ids, pin_to_top: true }, { onSuccess: clear });
+    };
+
+    const onBulkMove = () => {
+        const { sel, count } = selectionForMove();
+        onMove(sel, count);
+    };
+
     return (
-        <div className="flex min-h-[24rem] flex-col rounded-lg border bg-muted/30">
-            {/* Header */}
-            <div className="flex items-center gap-2 border-b px-3 py-2.5">
-                <span className={cn('h-2 w-2 rounded-full', accentClass)} />
-                <h2 className="text-sm font-semibold">{title}</h2>
+        <div className="flex min-h-[20rem] flex-col rounded-lg border bg-muted/30">
+            <div className="flex items-center gap-2 border-b px-3 py-2">
+                <span className={cn('h-2 w-2 rounded-full', accent)} />
+                <h3 className="text-sm font-semibold">{title}</h3>
                 <Badge variant="secondary" className="tabular-nums">
-                    {total}
+                    {matchingTotal}
                 </Badge>
-                <div className="ml-auto">{headerAction}</div>
             </div>
 
-            {/* Search */}
-            {showSearch && (
-                <div className="border-b p-2">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={search}
-                            onChange={(e) => onSearch(e.target.value)}
-                            placeholder="Search…"
-                            className="h-9 pl-9"
-                        />
-                    </div>
-                </div>
-            )}
+            <div className="flex-1 space-y-2 overflow-y-auto p-2 lg:max-h-[calc(100vh-16rem)]">
+                <NewsBulkBar
+                    scope={scope}
+                    pageCount={selected.size}
+                    matchingTotal={matchingTotal}
+                    canSelectAll={canSelectAll}
+                    busy={busy}
+                    onScope={setScope}
+                    onClear={clear}
+                    primaryLabel={transition?.label ?? null}
+                    onPrimary={onPrimary}
+                    onDelete={onBulkDelete}
+                    onFeature={scope === 'page' && status === 'READY' ? onFeatureSelected : undefined}
+                    onMove={onBulkMove}
+                />
 
-            {/* Cards */}
-            <div className="flex-1 space-y-2 overflow-y-auto p-2 lg:max-h-[calc(100vh-22rem)]">
-                {isError ? (
-                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-center text-sm text-destructive">
+                {error ? (
+                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-center text-sm text-destructive">
                         Failed to load.
                     </div>
                 ) : isLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton key={i} className="h-24 w-full rounded-lg" />
+                    Array.from({ length: 3 }).map((_, i) => (
+                        <Skeleton key={i} className="h-20 w-full rounded-lg" />
                     ))
                 ) : items.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center px-4 py-12 text-center text-sm text-muted-foreground">
-                        <Newspaper className="mb-2 h-6 w-6 opacity-40" />
-                        {emptyHint}
+                    <div className="flex flex-col items-center justify-center px-3 py-10 text-center text-xs text-muted-foreground">
+                        <Newspaper className="mb-1.5 h-5 w-5 opacity-40" />
+                        Nothing here.
                     </div>
                 ) : (
                     <>
@@ -106,29 +242,29 @@ export function NewsColumn({
                             <NewsCard
                                 key={item.id}
                                 item={item}
-                                view={view}
-                                featured={featuredIds?.has(item.id)}
+                                status={status}
+                                featured={featuredIds.has(item.id)}
+                                selected={selected.has(item.id)}
                                 busy={busy}
+                                onSelect={toggle}
                                 onPublish={onPublish}
                                 onArchive={onArchive}
                                 onRestore={onRestore}
                                 onToggleFeature={onToggleFeature}
-                                onDelete={onDelete}
+                                onMove={(id) => onMove({ ids: [id] }, 1)}
+                                onDelete={onRowDelete}
                             />
                         ))}
                         {hasMore && (
-                            <Button
-                                variant="ghost"
-                                className="w-full"
-                                onClick={onLoadMore}
-                                disabled={isLoading}
-                            >
+                            <Button variant="ghost" className="w-full" onClick={() => setLimit((l) => l + STEP)}>
                                 Load more
                             </Button>
                         )}
                     </>
                 )}
             </div>
+
+            <BulkConfirmDialog config={confirm} onClose={() => setConfirm(null)} />
         </div>
     );
 }

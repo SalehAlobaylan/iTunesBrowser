@@ -2,12 +2,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
     archiveNewsOlderThan,
+    assignTopic,
+    bulkDeleteNews,
+    bulkSetStatus,
     createNewsArticle,
     deleteNewsByIds,
     deleteNewsOlderThan,
+    deleteTopic,
     extractNewsUrl,
     listNewsLineup,
     listPendingArticles,
+    listTopicContent,
+    listTopics,
+    mergeTopics,
+    reclassifyTopics,
+    renameTopic,
     setNewsStatusByIds,
 } from '@/lib/api/cms/news';
 import { contentKeys } from '@/hooks/use-content';
@@ -18,7 +27,15 @@ import {
     deleteContentFlag,
 } from '@/lib/api/cms/intelligence';
 import type { ContentStatus } from '@/types/platform/content';
-import type { CreateNewsRequest, NewsLineupParams } from '@/types/platform/news';
+import type {
+    BulkStatusBody,
+    BulkTopicBody,
+    CreateNewsRequest,
+    ListTopicsParams,
+    MergeTopicsBody,
+    NewsLineupParams,
+    TopicContentParams,
+} from '@/types/platform/news';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
 
@@ -30,6 +47,12 @@ export const newsKeys = {
     queues: () => [...newsKeys.all, 'queue'] as const,
     queue: (params: { page?: number; limit?: number; search?: string }) =>
         [...newsKeys.queues(), params] as const,
+    topics: () => [...newsKeys.all, 'topics'] as const,
+    topicList: (params: ListTopicsParams) =>
+        [...newsKeys.topics(), params] as const,
+    topicContents: () => [...newsKeys.all, 'topic-content'] as const,
+    topicContent: (params: TopicContentParams) =>
+        [...newsKeys.topicContents(), params] as const,
 };
 
 /** Anything that mutates content invalidates both the News views and the
@@ -231,10 +254,10 @@ export function useFeaturedIds() {
 export function useSetFeatured() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: ({ id, on }: { id: string; on: boolean }) =>
-            on
-                ? upsertContentFlag(id, { pin_to_top: true })
-                : deleteContentFlag(id),
+        mutationFn: async ({ id, on }: { id: string; on: boolean }) => {
+            if (on) await upsertContentFlag(id, { pin_to_top: true });
+            else await deleteContentFlag(id);
+        },
         onSuccess: (_res, { on }) => {
             queryClient.invalidateQueries({ queryKey: intelligenceKeys.flags() });
             queryClient.invalidateQueries({ queryKey: newsKeys.all });
@@ -253,5 +276,157 @@ export function useSetFeatured() {
                 variant: 'destructive',
             });
         },
+    });
+}
+
+// ─── Topic-centric management ───────────────────────────────
+
+/** Aggregated topics with per-status counts (topics overview). */
+export function useTopics(params: ListTopicsParams = {}) {
+    return useQuery({
+        queryKey: newsKeys.topicList(params),
+        queryFn: () => listTopics(params),
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+    });
+}
+
+/** A single topic's content, filtered + paginated (topic detail). */
+export function useTopicContent(
+    params: TopicContentParams,
+    options: { paused?: boolean } = {}
+) {
+    const { paused = false } = options;
+    return useQuery({
+        queryKey: newsKeys.topicContent(params),
+        queryFn: () => listTopicContent(params),
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+        refetchInterval: paused ? false : 30_000,
+        refetchIntervalInBackground: false,
+    });
+}
+
+/** Bulk status change (publish/archive/restore) by ids or filter. */
+export function useBulkStatus() {
+    const invalidate = useInvalidateNews();
+    return useMutation({
+        mutationFn: (body: BulkStatusBody) => bulkSetStatus(body),
+        onSuccess: (res) => {
+            invalidate();
+            toast({
+                title: 'Updated',
+                description: res.message || `${res.updated_count} item(s) updated.`,
+                variant: 'success',
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: 'Bulk update failed',
+                description: error.message,
+                variant: 'destructive',
+            });
+        },
+    });
+}
+
+/** Bulk delete by ids or filter. */
+export function useBulkDeleteNews() {
+    const invalidate = useInvalidateNews();
+    return useMutation({
+        mutationFn: (body: Parameters<typeof bulkDeleteNews>[0]) =>
+            bulkDeleteNews(body),
+        onSuccess: (res) => {
+            invalidate();
+            toast({
+                title: 'Deleted',
+                description: res.message || `Deleted ${res.deleted_count} item(s).`,
+                variant: 'success',
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: 'Bulk delete failed',
+                description: error.message,
+                variant: 'destructive',
+            });
+        },
+    });
+}
+
+/** Move a selection (ids or filter) to a target topic, or uncategorize. */
+export function useAssignTopic() {
+    const invalidate = useInvalidateNews();
+    return useMutation({
+        mutationFn: (body: BulkTopicBody) => assignTopic(body),
+        onSuccess: (res) => {
+            invalidate();
+            toast({
+                title: 'Moved',
+                description: res.message || `${res.updated_count} item(s) moved.`,
+                variant: 'success',
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: 'Move failed',
+                description: error.message,
+                variant: 'destructive',
+            });
+        },
+    });
+}
+
+/** Rename a first-class topic. */
+export function useRenameTopic() {
+    const invalidate = useInvalidateNews();
+    return useMutation({
+        mutationFn: ({ id, label }: { id: string; label: string }) =>
+            renameTopic(id, label),
+        onSuccess: () => {
+            invalidate();
+            toast({ title: 'Topic renamed', variant: 'success' });
+        },
+        onError: (error: Error) =>
+            toast({ title: 'Rename failed', description: error.message, variant: 'destructive' }),
+    });
+}
+
+/** Merge source topics into a target. */
+export function useMergeTopics() {
+    const invalidate = useInvalidateNews();
+    return useMutation({
+        mutationFn: (body: MergeTopicsBody) => mergeTopics(body),
+        onSuccess: () => {
+            invalidate();
+            toast({ title: 'Topics merged', variant: 'success' });
+        },
+        onError: (error: Error) =>
+            toast({ title: 'Merge failed', description: error.message, variant: 'destructive' }),
+    });
+}
+
+/** Delete a topic (its content becomes uncategorized). */
+export function useDeleteTopic() {
+    const invalidate = useInvalidateNews();
+    return useMutation({
+        mutationFn: (id: string) => deleteTopic(id),
+        onSuccess: () => {
+            invalidate();
+            toast({ title: 'Topic deleted', variant: 'success' });
+        },
+        onError: (error: Error) =>
+            toast({ title: 'Delete failed', description: error.message, variant: 'destructive' }),
+    });
+}
+
+/** Backfill classification for unclassified articles (one batch). */
+export function useReclassify() {
+    const invalidate = useInvalidateNews();
+    return useMutation({
+        mutationFn: (limit?: number) => reclassifyTopics(limit),
+        onSuccess: () => invalidate(),
+        onError: (error: Error) =>
+            toast({ title: 'Reclassify failed', description: error.message, variant: 'destructive' }),
     });
 }

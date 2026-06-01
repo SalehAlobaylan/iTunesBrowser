@@ -9,10 +9,19 @@ import type {
     ListContentResponse,
 } from '@/types/platform/content';
 import type {
+    BulkStatusBody,
     BulkStatusResult,
+    BulkTopicBody,
     CreateNewsRequest,
     ExtractUrlResult,
+    LabelBatchResult,
+    ListTopicsParams,
+    MergeTopicsBody,
     NewsLineupParams,
+    ReclassifyResult,
+    ReclusterResult,
+    TopicContentParams,
+    TopicsListResponse,
 } from '@/types/platform/news';
 
 /** RFC3339 timestamp for `days` ago — used by age-based rotation. */
@@ -110,4 +119,102 @@ export async function deleteNewsOlderThan(
         created_before: daysAgoISO(days),
         dry_run: dryRun,
     });
+}
+
+// ─── Topic-centric management ───────────────────────────────
+
+/** Aggregated topic rows with per-status counts. GET /admin/content/topics */
+export async function listTopics(
+    params: ListTopicsParams = {}
+): Promise<TopicsListResponse> {
+    return cmsClient.get<TopicsListResponse>('/admin/content/topics', {
+        type: 'ARTICLE',
+        ...params,
+    });
+}
+
+/** A topic's content (by topic_id / "none" / all), filtered + paginated. */
+export async function listTopicContent(
+    params: TopicContentParams
+): Promise<ListContentResponse> {
+    return cmsClient.get<ListContentResponse>('/admin/content', {
+        type: 'ARTICLE',
+        ...params,
+    });
+}
+
+/**
+ * Bulk status change (publish / archive / restore). Pass `ids` for explicit
+ * rows, or a filter (topic_id/status/…) to act on the whole matching set in one
+ * uncapped call. `dry_run` returns the affected count.
+ * POST /admin/content/bulk-status
+ */
+export async function bulkSetStatus(
+    body: BulkStatusBody
+): Promise<BulkStatusResult> {
+    return cmsClient.post<BulkStatusResult>('/admin/content/bulk-status', body);
+}
+
+/**
+ * Bulk delete by explicit ids or filter (topic_id-scoped, uncapped).
+ * POST /admin/content/bulk-delete
+ */
+export async function bulkDeleteNews(body: {
+    ids?: string[];
+    status?: string;
+    type?: string;
+    topic?: string;
+    topic_id?: string;
+    source_name?: string;
+    created_before?: string;
+    dry_run?: boolean;
+}): Promise<BulkDeleteResponse> {
+    return bulkDeleteContent({ type: 'ARTICLE', ...body });
+}
+
+// ─── First-class topic management ───────────────────────────
+
+/** Rename a topic. PATCH /admin/topics/:id */
+export async function renameTopic(id: string, label: string): Promise<unknown> {
+    return cmsClient.patch('/admin/topics/' + id, { label });
+}
+
+/** Merge source topics into a target. POST /admin/topics/merge */
+export async function mergeTopics(body: MergeTopicsBody): Promise<unknown> {
+    return cmsClient.post('/admin/topics/merge', body);
+}
+
+/** Delete a topic (its content becomes uncategorized). DELETE /admin/topics/:id */
+export async function deleteTopic(id: string): Promise<unknown> {
+    return cmsClient.delete('/admin/topics/' + id);
+}
+
+/**
+ * Move a selection (ids or filter) to a target topic, or uncategorize
+ * (target_topic_id empty). POST /admin/content/bulk-topic
+ */
+export async function assignTopic(body: BulkTopicBody): Promise<BulkStatusResult> {
+    return cmsClient.post<BulkStatusResult>('/admin/content/bulk-topic', body);
+}
+
+/** Backfill classification for a batch of unclassified articles. */
+export async function reclassifyTopics(limit = 25): Promise<ReclassifyResult> {
+    return cmsClient.post<ReclassifyResult>('/admin/topics/reclassify', { limit });
+}
+
+/**
+ * Full re-cluster pass — rebuilds the whole taxonomy by k-means over all
+ * article embeddings. Fast (no LLM); naming follows via labelTopicsBatch.
+ * POST /admin/topics/recluster
+ */
+export async function reclusterTopics(k?: number): Promise<ReclusterResult> {
+    return cmsClient.post<ReclusterResult>(
+        '/admin/topics/recluster',
+        k && k > 0 ? { k } : {}
+    );
+}
+
+/** Name one batch of freshly-clustered topics via the LLM. */
+export async function labelTopicsBatch(limit = 8): Promise<LabelBatchResult> {
+    return cmsClient.post<LabelBatchResult>('/admin/topics/label-batch', { limit });
 }

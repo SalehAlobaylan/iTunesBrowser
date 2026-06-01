@@ -39,6 +39,8 @@ export interface BulkDeleteRequest {
     source_name?: string;
     /** Content type filter (e.g. ARTICLE) — keeps age-based deletes type-scoped. */
     type?: string;
+    /** Topic-tag membership filter (text[] ANY match). */
+    topic?: string;
     created_before?: string;
     /** Optional list of public_ids. When present, the other filters are ignored. */
     ids?: string[];
