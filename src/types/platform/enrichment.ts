@@ -33,6 +33,25 @@ export interface MissingEnrichmentItem {
 /** Artifact a "missing" panel manages + triggers. */
 export type EnrichmentArtifact = 'transcript' | 'embedding' | 'sparse' | 'image';
 
+/** Response from POST /admin/enrichment/trigger-all. */
+export interface TriggerAllResponse {
+    started: boolean;
+    total: number;
+}
+
+/** Live status of the single background bulk-enrichment run (GET /bulk-status). */
+export interface BulkEnrichStatus {
+    running: boolean;
+    total: number;
+    done: number;
+    failed: number;
+    types: string[];
+    content_type?: string;
+    last_error?: string;
+    started_at?: string;
+    finished_at?: string;
+}
+
 export interface MissingEnrichmentsResponse {
     items: MissingEnrichmentItem[];
     total: number;

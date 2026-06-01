@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import {
     FileText,
     Box,
@@ -10,11 +11,20 @@ import {
     Layers,
     Image as ImageIcon,
     Newspaper,
+    Loader2,
+    Zap,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useEnrichmentStats, useEnrichmentHealth } from '@/hooks/use-enrichment';
+import {
+    useEnrichmentStats,
+    useEnrichmentHealth,
+    useBulkEnrichStatus,
+    enrichmentKeys,
+} from '@/hooks/use-enrichment';
+import type { BulkEnrichStatus } from '@/types/platform/enrichment';
 import { MissingPanel } from './missing-panel';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -27,8 +37,22 @@ function pct(part: number, total: number): number {
 // ── Page ─────────────────────────────────────────────────────
 
 export default function EnrichmentPage() {
+    const queryClient = useQueryClient();
     const { data: stats, isLoading: statsLoading } = useEnrichmentStats();
     const { data: health, isLoading: healthLoading } = useEnrichmentHealth();
+    const { data: bulk } = useBulkEnrichStatus();
+
+    const bulkRunning = bulk?.running ?? false;
+
+    // When a bulk run finishes, refresh stats + missing lists + counts so the
+    // coverage numbers and per-artifact counts reflect the new state.
+    const prevRunning = useRef(false);
+    useEffect(() => {
+        if (prevRunning.current && !bulkRunning) {
+            queryClient.invalidateQueries({ queryKey: enrichmentKeys.all });
+        }
+        prevRunning.current = bulkRunning;
+    }, [bulkRunning, queryClient]);
 
     const isServiceUp = health?.status === 'ok';
 
@@ -317,6 +341,11 @@ export default function EnrichmentPage() {
                 </Card>
             </div>
 
+            {/* Live progress while a background bulk run is active */}
+            {bulk && (bulk.running || bulk.done > 0) && (
+                <BulkProgressBanner bulk={bulk} />
+            )}
+
             {/* Missing Enrichments — split by content domain */}
             <MissingPanel
                 title="Videos & Podcasts"
@@ -333,6 +362,7 @@ export default function EnrichmentPage() {
                     { value: 'image', label: 'Image', badgeVariant: 'secondary' },
                 ]}
                 isServiceUp={isServiceUp}
+                bulkRunning={bulkRunning}
             />
 
             <MissingPanel
@@ -346,7 +376,56 @@ export default function EnrichmentPage() {
                     { value: 'sparse', label: 'Sparse', badgeVariant: 'outline' },
                 ]}
                 isServiceUp={isServiceUp}
+                bulkRunning={bulkRunning}
             />
         </div>
+    );
+}
+
+// ── Bulk run progress banner ─────────────────────────────────
+
+function BulkProgressBanner({ bulk }: { bulk: BulkEnrichStatus }) {
+    const progress = bulk.total > 0 ? Math.round((bulk.done / bulk.total) * 100) : 0;
+    const finished = !bulk.running;
+
+    return (
+        <Card className={finished ? 'border-green-500/40' : 'border-primary/40'}>
+            <CardContent className="py-4">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 font-medium">
+                        {bulk.running ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        ) : (
+                            <Zap className="h-4 w-4 text-green-500" />
+                        )}
+                        {bulk.running ? 'Enriching' : 'Enrichment run complete'}
+                        <span className="text-muted-foreground font-normal">
+                            {bulk.types.join(', ')}
+                            {bulk.content_type ? ` · ${bulk.content_type}` : ''}
+                        </span>
+                    </div>
+                    <div className="text-sm tabular-nums">
+                        <span className="font-semibold">{bulk.done}</span>
+                        <span className="text-muted-foreground"> / {bulk.total}</span>
+                        {bulk.failed > 0 && (
+                            <span className="text-orange-500 ml-2">{bulk.failed} failed</span>
+                        )}
+                    </div>
+                </div>
+                <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                        className={`h-full rounded-full transition-all ${
+                            finished ? 'bg-green-500' : 'bg-primary'
+                        }`}
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+                {bulk.failed > 0 && bulk.last_error && (
+                    <p className="text-xs text-orange-500 mt-2 truncate">
+                        Last error: {bulk.last_error}
+                    </p>
+                )}
+            </CardContent>
+        </Card>
     );
 }

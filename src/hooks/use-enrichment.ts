@@ -5,6 +5,8 @@ import {
     getEnrichmentHealth,
     triggerEnrichment,
     triggerBatchEnrichment,
+    triggerAllEnrichment,
+    getBulkEnrichStatus,
 } from '@/lib/api/cms/enrichment';
 import type { MissingEnrichmentsParams } from '@/types/platform/enrichment';
 import { toast } from '@/components/ui/toast';
@@ -19,6 +21,9 @@ export const enrichmentKeys = {
     missing: () => [...enrichmentKeys.all, 'missing'] as const,
     missingList: (params: MissingEnrichmentsParams) =>
         [...enrichmentKeys.missing(), params] as const,
+    missingCount: (missing: string, type: string) =>
+        [...enrichmentKeys.missing(), 'count', missing, type] as const,
+    bulkStatus: () => [...enrichmentKeys.all, 'bulk-status'] as const,
 };
 
 // ── Hooks ───────────────────────────────────────────────────
@@ -104,6 +109,69 @@ export function useTriggerBatchEnrichment() {
         onError: (error: Error) => {
             toast({
                 title: 'Batch enrichment failed',
+                description: error.message,
+                variant: 'destructive',
+            });
+        },
+    });
+}
+
+/**
+ * Count of items missing a single artifact, scoped to a content-type filter.
+ * Reuses the missing endpoint with limit=1 and reads `.total` — cheap COUNT.
+ */
+export function useMissingCount(missing: string, type: string, enabled = true) {
+    return useQuery({
+        queryKey: enrichmentKeys.missingCount(missing, type),
+        queryFn: () =>
+            getMissingEnrichments({ missing, type, status: 'READY', limit: 1, offset: 0 }),
+        select: (data) => data.total,
+        enabled,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+    });
+}
+
+/**
+ * Live status of the background bulk-enrichment run. Polls every 2s while a
+ * run is active, idle otherwise.
+ */
+export function useBulkEnrichStatus() {
+    return useQuery({
+        queryKey: enrichmentKeys.bulkStatus(),
+        queryFn: getBulkEnrichStatus,
+        refetchInterval: (query) => (query.state.data?.running ? 2000 : false),
+        staleTime: 0,
+        gcTime: 60 * 1000,
+    });
+}
+
+export function useTriggerAllEnrichment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ types, type, max }: { types: string[]; type?: string; max?: number }) =>
+            triggerAllEnrichment(types, type, max),
+        onSuccess: (data) => {
+            // Start polling the run + reflect that work has begun.
+            queryClient.invalidateQueries({ queryKey: enrichmentKeys.bulkStatus() });
+            if (data.started) {
+                toast({
+                    title: 'Bulk enrichment started',
+                    description: `Enriching ${data.total} item${data.total === 1 ? '' : 's'} in the background`,
+                    variant: 'success',
+                });
+            } else {
+                toast({
+                    title: 'Nothing to enrich',
+                    description: 'No items are missing this artifact',
+                    variant: 'default',
+                });
+            }
+        },
+        onError: (error: Error) => {
+            toast({
+                title: 'Failed to start bulk enrichment',
                 description: error.message,
                 variant: 'destructive',
             });

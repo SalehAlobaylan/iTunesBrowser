@@ -2,6 +2,7 @@ import {
     LayoutDashboard,
     Rss,
     FileText,
+    Newspaper,
     Activity,
     Brain,
     Sparkles,
@@ -36,6 +37,7 @@ export const navigation: NavigationSection[] = [
         items: [
             { name: 'Sources', href: '/platform/sources', icon: Rss },
             { name: 'Content', href: '/platform/content', icon: FileText },
+            { name: 'News', href: '/platform/news', icon: Newspaper },
             { name: 'Storage', href: '/platform/storage', icon: HardDrive },
             { name: 'Quality', href: '/platform/quality', icon: Sliders },
             { name: 'Pipeline', href: '/platform/pipeline', icon: Activity },
@@ -58,6 +60,7 @@ export const ROUTES = {
     PLATFORM: {
         SOURCES: '/platform/sources',
         CONTENT: '/platform/content',
+        NEWS: '/platform/news',
         STORAGE: '/platform/storage',
         PIPELINE: '/platform/pipeline',
         INTELLIGENCE: '/platform/intelligence',

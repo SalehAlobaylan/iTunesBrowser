@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { Sparkles, Loader2, Video, Podcast, FileText } from 'lucide-react';
+import { Sparkles, Loader2, Video, Podcast, FileText, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,8 +15,9 @@ import {
 } from '@/components/ui/table';
 import {
     useMissingEnrichments,
+    useMissingCount,
     useTriggerEnrichment,
-    useTriggerBatchEnrichment,
+    useTriggerAllEnrichment,
 } from '@/hooks/use-enrichment';
 import type {
     MissingEnrichmentsParams,
@@ -56,6 +57,54 @@ function formatDate(iso: string): string {
     });
 }
 
+const limit = 20;
+
+// ── "Enrich all" button (owns its own live count) ───────────
+
+interface EnrichAllButtonProps {
+    label: string;
+    /** `missing` query value used to count matching items (artifact or comma-list). */
+    missingKey: string;
+    /** Artifact types to trigger. */
+    triggerTypes: string[];
+    /** Content-type scope (e.g. "VIDEO,PODCAST"). */
+    type: string;
+    disabled: boolean;
+    primary?: boolean;
+    onTrigger: (types: string[]) => void;
+}
+
+function EnrichAllButton({
+    label,
+    missingKey,
+    triggerTypes,
+    type,
+    disabled,
+    primary,
+    onTrigger,
+}: EnrichAllButtonProps) {
+    const { data: count = 0, isLoading } = useMissingCount(missingKey, type);
+
+    const cls = primary
+        ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+        : 'bg-primary/10 text-primary hover:bg-primary/20';
+
+    return (
+        <button
+            onClick={() => onTrigger(triggerTypes)}
+            disabled={disabled || count === 0}
+            className={`inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium rounded-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${cls}`}
+            title={count === 0 ? `No items missing ${label}` : `Enrich all ${count} missing ${label}`}
+        >
+            <Zap className="h-4 w-4" />
+            <span>Enrich all {label}</span>
+            <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-background/30 text-xs font-semibold">
+                {isLoading ? '…' : count}
+            </span>
+        </button>
+    );
+}
+
 // ── Props ────────────────────────────────────────────────────
 
 interface MissingPanelProps {
@@ -64,14 +113,14 @@ interface MissingPanelProps {
     icon: ReactNode;
     /** Content types this panel scopes to, comma-joined for the CMS `type` query. */
     typeQuery: string;
-    /** Type dropdown options (value passed to CMS `type`; '' would mean the panel default). */
+    /** Type dropdown options (''=panel default, i.e. the full typeQuery set). */
     typeOptions: { value: string; label: string }[];
-    /** Artifacts this panel manages — drives filter dropdown, badges, and triggers. */
+    /** Artifacts this panel manages — drives buttons, filters, badges, triggers. */
     artifacts: ArtifactSpec[];
     isServiceUp: boolean;
+    /** A background bulk run is active anywhere → disable all triggers. */
+    bulkRunning: boolean;
 }
-
-const limit = 20;
 
 export function MissingPanel({
     title,
@@ -81,28 +130,28 @@ export function MissingPanel({
     typeOptions,
     artifacts,
     isServiceUp,
+    bulkRunning,
 }: MissingPanelProps) {
-    // Default missing filter = every artifact this panel manages (comma-joined).
     const allArtifacts = artifacts.map((a) => a.value).join(',');
-    const [missingFilter, setMissingFilter] = useState<string>(allArtifacts);
-    const [typeFilter, setTypeFilter] = useState<string>('');
+    const [artifactFilter, setArtifactFilter] = useState<string>(''); // ''=all
+    const [typeFilter, setTypeFilter] = useState<string>(''); // ''=panel default
     const [offset, setOffset] = useState(0);
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
     const triggerMutation = useTriggerEnrichment();
-    const batchMutation = useTriggerBatchEnrichment();
+    const triggerAllMutation = useTriggerAllEnrichment();
+
+    const effectiveType = typeFilter || typeQuery;
+    const listMissing = artifactFilter || allArtifacts;
 
     const params: MissingEnrichmentsParams = useMemo(
         () => ({
-            missing: missingFilter || allArtifacts,
-            // A specific type override narrows the panel scope; otherwise the
-            // panel's full type set (e.g. VIDEO,PODCAST).
-            type: typeFilter || typeQuery,
+            missing: listMissing,
+            type: effectiveType,
             status: 'READY',
             limit,
             offset,
         }),
-        [missingFilter, typeFilter, offset, allArtifacts, typeQuery]
+        [listMissing, effectiveType, offset]
     );
 
     const { data: missing, isLoading } = useMissingEnrichments(params);
@@ -112,50 +161,17 @@ export function MissingPanel({
     const hasNext = offset + limit < total;
     const hasPrev = offset > 0;
 
-    // The artifacts currently in scope (single filter vs. "any").
-    const activeArtifacts: EnrichmentArtifact[] = useMemo(() => {
-        const picked = missingFilter
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean) as EnrichmentArtifact[];
-        return picked.length > 0 ? picked : artifacts.map((a) => a.value);
-    }, [missingFilter, artifacts]);
-
-    // ── Selection helpers ────────────────────────────────────
-
-    function toggleSelect(id: string) {
-        setSelectedIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            return next;
-        });
-    }
-
-    function toggleSelectAll() {
-        if (items.length > 0 && selectedIds.size === items.length) {
-            setSelectedIds(new Set());
-        } else {
-            setSelectedIds(new Set(items.map((i) => i.id)));
-        }
-    }
+    const triggersDisabled = !isServiceUp || bulkRunning;
 
     function resetView() {
         setOffset(0);
-        setSelectedIds(new Set());
     }
 
-    // For batch: trigger every artifact currently in scope for the panel.
-    function handleBatchEnrich() {
-        const ids = Array.from(selectedIds).slice(0, 10);
-        batchMutation.mutate(
-            { ids, types: activeArtifacts },
-            { onSuccess: () => setSelectedIds(new Set()) }
-        );
+    function handleEnrichAll(types: string[]) {
+        triggerAllMutation.mutate({ types, type: effectiveType });
     }
 
-    // For a single row: trigger only the artifacts actually missing on it
-    // (intersected with this panel's managed artifacts).
+    // Per-row: trigger only the artifacts actually missing on that row.
     function handleSingleEnrich(item: MissingEnrichmentItem) {
         const types = artifacts
             .map((a) => a.value)
@@ -177,8 +193,8 @@ export function MissingPanel({
 
     return (
         <Card>
-            <CardHeader>
-                <div className="flex items-center justify-between">
+            <CardHeader className="gap-4">
+                <div className="flex items-start justify-between gap-4">
                     <div>
                         <CardTitle className="flex items-center gap-2">
                             {icon}
@@ -186,39 +202,6 @@ export function MissingPanel({
                         </CardTitle>
                         <p className="text-sm text-muted-foreground mt-1">{description}</p>
                     </div>
-                    {selectedIds.size > 0 && (
-                        <button
-                            onClick={handleBatchEnrich}
-                            disabled={batchMutation.isPending || !isServiceUp}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                        >
-                            {batchMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <Sparkles className="h-4 w-4" />
-                            )}
-                            Enrich Selected ({Math.min(selectedIds.size, 10)})
-                        </button>
-                    )}
-                </div>
-
-                {/* Filters */}
-                <div className="flex gap-3 mt-4">
-                    <select
-                        value={missingFilter}
-                        onChange={(e) => {
-                            setMissingFilter(e.target.value);
-                            resetView();
-                        }}
-                        className="px-3 py-2 text-sm border rounded-md bg-background"
-                    >
-                        <option value={allArtifacts}>All Missing</option>
-                        {artifacts.map((a) => (
-                            <option key={a.value} value={a.value}>
-                                Missing {a.label}
-                            </option>
-                        ))}
-                    </select>
                     {typeOptions.length > 1 && (
                         <select
                             value={typeFilter}
@@ -226,7 +209,7 @@ export function MissingPanel({
                                 setTypeFilter(e.target.value);
                                 resetView();
                             }}
-                            className="px-3 py-2 text-sm border rounded-md bg-background"
+                            className="shrink-0 px-3 py-2 text-sm border rounded-md bg-background"
                         >
                             {typeOptions.map((t) => (
                                 <option key={t.value || 'all'} value={t.value}>
@@ -236,23 +219,64 @@ export function MissingPanel({
                         </select>
                     )}
                 </div>
+
+                {/* Bulk actions — one per artifact + a combined "everything" */}
+                <div className="flex flex-wrap items-center gap-2">
+                    {artifacts.map((a) => (
+                        <EnrichAllButton
+                            key={a.value}
+                            label={a.label}
+                            missingKey={a.value}
+                            triggerTypes={[a.value]}
+                            type={effectiveType}
+                            disabled={triggersDisabled}
+                            onTrigger={handleEnrichAll}
+                        />
+                    ))}
+                    {artifacts.length > 1 && (
+                        <EnrichAllButton
+                            label="Missing"
+                            missingKey={allArtifacts}
+                            triggerTypes={artifacts.map((a) => a.value)}
+                            type={effectiveType}
+                            disabled={triggersDisabled}
+                            primary
+                            onTrigger={handleEnrichAll}
+                        />
+                    )}
+                </div>
+
+                {/* Table filter chips */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground mr-1">Show:</span>
+                    <FilterChip
+                        active={artifactFilter === ''}
+                        onClick={() => {
+                            setArtifactFilter('');
+                            resetView();
+                        }}
+                    >
+                        All ({total})
+                    </FilterChip>
+                    {artifacts.map((a) => (
+                        <FilterChip
+                            key={a.value}
+                            active={artifactFilter === a.value}
+                            onClick={() => {
+                                setArtifactFilter(a.value);
+                                resetView();
+                            }}
+                        >
+                            {a.label}
+                        </FilterChip>
+                    ))}
+                </div>
             </CardHeader>
             <CardContent>
                 <div className="rounded-md border">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-10">
-                                    <input
-                                        type="checkbox"
-                                        checked={
-                                            items.length > 0 &&
-                                            selectedIds.size === items.length
-                                        }
-                                        onChange={toggleSelectAll}
-                                        className="rounded"
-                                    />
-                                </TableHead>
                                 <TableHead>Title</TableHead>
                                 <TableHead className="w-24">Type</TableHead>
                                 <TableHead className="w-32">Source</TableHead>
@@ -265,7 +289,7 @@ export function MissingPanel({
                             {isLoading ? (
                                 Array.from({ length: 4 }).map((_, i) => (
                                     <TableRow key={i}>
-                                        <TableCell colSpan={7}>
+                                        <TableCell colSpan={6}>
                                             <Skeleton className="h-8 w-full" />
                                         </TableCell>
                                     </TableRow>
@@ -273,7 +297,7 @@ export function MissingPanel({
                             ) : items.length === 0 ? (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={7}
+                                        colSpan={6}
                                         className="text-center py-8 text-muted-foreground"
                                     >
                                         <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -283,15 +307,7 @@ export function MissingPanel({
                             ) : (
                                 items.map((item) => (
                                     <TableRow key={item.id}>
-                                        <TableCell>
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedIds.has(item.id)}
-                                                onChange={() => toggleSelect(item.id)}
-                                                className="rounded"
-                                            />
-                                        </TableCell>
-                                        <TableCell className="max-w-[200px] truncate font-medium">
+                                        <TableCell className="max-w-[220px] truncate font-medium">
                                             {item.title || 'Untitled'}
                                         </TableCell>
                                         <TableCell>
@@ -322,10 +338,8 @@ export function MissingPanel({
                                         <TableCell className="text-right">
                                             <button
                                                 onClick={() => handleSingleEnrich(item)}
-                                                disabled={
-                                                    triggerMutation.isPending || !isServiceUp
-                                                }
-                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary rounded hover:bg-primary/20 disabled:opacity-50 transition-colors"
+                                                disabled={triggersDisabled}
+                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary rounded hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                                             >
                                                 {triggerMutation.isPending ? (
                                                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -368,5 +382,30 @@ export function MissingPanel({
                 )}
             </CardContent>
         </Card>
+    );
+}
+
+// ── Small filter chip ───────────────────────────────────────
+
+function FilterChip({
+    active,
+    onClick,
+    children,
+}: {
+    active: boolean;
+    onClick: () => void;
+    children: ReactNode;
+}) {
+    return (
+        <button
+            onClick={onClick}
+            className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                active
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-background hover:bg-muted border-border text-muted-foreground'
+            }`}
+        >
+            {children}
+        </button>
     );
 }

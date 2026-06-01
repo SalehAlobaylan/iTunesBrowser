@@ -6,6 +6,8 @@ import type {
     EnrichmentHealthResponse,
     TriggerEnrichmentResponse,
     TriggerResultItem,
+    TriggerAllResponse,
+    BulkEnrichStatus,
 } from '@/types/platform/enrichment';
 
 interface CmsEnvelope<T> {
@@ -65,6 +67,27 @@ export const triggerBatchEnrichment = (
             content_ids: contentIds,
             types,
         })
+    );
+
+// ── Trigger All Missing (background run) ────────────────────
+
+/**
+ * Kick off a background run that enriches every READY item missing one of
+ * `types`, scoped to `type` (a comma-separated content-type filter, e.g.
+ * "VIDEO,PODCAST"). Returns immediately; poll getBulkEnrichStatus for progress.
+ */
+export const triggerAllEnrichment = (types: string[], type?: string, max?: number) =>
+    unwrapCmsData(
+        cmsClient.post<CmsEnvelope<TriggerAllResponse>>('/admin/enrichment/trigger-all', {
+            types,
+            type,
+            max,
+        })
+    );
+
+export const getBulkEnrichStatus = () =>
+    unwrapCmsData(
+        cmsClient.get<CmsEnvelope<BulkEnrichStatus>>('/admin/enrichment/bulk-status')
     );
 
 // ── Service Health ──────────────────────────────────────────
