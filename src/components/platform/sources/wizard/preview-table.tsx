@@ -24,6 +24,10 @@ function formatDate(value?: string): string {
 }
 
 export function PreviewTable({ items }: PreviewTableProps) {
+    // Defensive: a failed/error preview response (e.g. timeout) may omit `items`
+    // entirely. Guard against undefined so the wizard shows the empty state
+    // instead of crashing with "Cannot read properties of undefined (length)".
+    items = items ?? [];
     if (items.length === 0) {
         return (
             <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">

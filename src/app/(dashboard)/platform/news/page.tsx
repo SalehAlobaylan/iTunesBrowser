@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, ArrowLeft, Sparkles, Wand2, ChevronDown, Loader2 } from 'lucide-react';
+import { Plus, ArrowLeft, Sparkles, Wand2, ChevronDown, Loader2, Rss } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +16,7 @@ import { NewsBoard } from '@/components/platform/news/news-board';
 import { AddNewsSheet } from '@/components/platform/news/add-news-sheet';
 import { PullFreshButton } from '@/components/platform/news/run-source-dialog';
 import { RecclusterDialog } from '@/components/platform/news/recluster-dialog';
+import { FeedsManager } from '@/components/platform/news/feeds-manager';
 import { useReclassify } from '@/hooks/use-news';
 import type { TopicSelection } from '@/types/platform/news';
 
@@ -23,6 +24,7 @@ export default function NewsPage() {
     const [active, setActive] = useState<TopicSelection | null>(null);
     const [addOpen, setAddOpen] = useState(false);
     const [reclusterOpen, setReclusterOpen] = useState(false);
+    const [feedsOpen, setFeedsOpen] = useState(false);
     const [classifying, setClassifying] = useState(false);
 
     const reclassify = useReclassify();
@@ -78,6 +80,10 @@ export default function NewsPage() {
                 </div>
 
                 <div className="flex flex-shrink-0 items-center gap-2">
+                    <Button variant="outline" onClick={() => setFeedsOpen(true)}>
+                        <Rss className="mr-2 h-4 w-4" />
+                        Feeds
+                    </Button>
                     <PullFreshButton />
                     <Button onClick={() => setAddOpen(true)}>
                         <Plus className="mr-2 h-4 w-4" />
@@ -113,6 +119,7 @@ export default function NewsPage() {
 
             <AddNewsSheet open={addOpen} onClose={() => setAddOpen(false)} />
             <RecclusterDialog open={reclusterOpen} onClose={() => setReclusterOpen(false)} />
+            <FeedsManager open={feedsOpen} onClose={() => setFeedsOpen(false)} />
         </div>
     );
 }

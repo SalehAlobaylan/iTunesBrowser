@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, Download, Send } from 'lucide-react';
+import { Loader2, Download, Send, Rss } from 'lucide-react';
 
 import {
     Sheet,
@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { useCreateNews, useExtractNewsUrl } from '@/hooks/use-news';
+import { useCreateNews, useExtractNewsUrl, useImportFeed } from '@/hooks/use-news';
 
 interface AddNewsSheetProps {
     open: boolean;
@@ -50,6 +50,7 @@ export function AddNewsSheet({ open, onClose }: AddNewsSheetProps) {
 
     const createNews = useCreateNews();
     const extract = useExtractNewsUrl();
+    const importFeedMut = useImportFeed();
 
     const setField = (k: keyof ComposeForm, v: string) =>
         setForm((f) => ({ ...f, [k]: v }));
@@ -61,6 +62,12 @@ export function AddNewsSheet({ open, onClose }: AddNewsSheetProps) {
     };
 
     const canPublish = form.title.trim() !== '' && form.original_url.trim() !== '';
+
+    const handleImportFeed = () => {
+        const trimmed = url.trim();
+        if (!trimmed) return;
+        importFeedMut.mutate(trimmed, { onSuccess: resetAndClose });
+    };
 
     const handleFetch = () => {
         const trimmed = url.trim();
@@ -110,31 +117,47 @@ export function AddNewsSheet({ open, onClose }: AddNewsSheetProps) {
                 </SheetHeader>
 
                 <div className="flex-1 space-y-4 p-5">
-                    {/* URL autofill */}
-                    <div className="space-y-1.5 rounded-md border border-dashed bg-muted/30 p-3">
+                    {/* URL autofill / feed import */}
+                    <div className="space-y-2 rounded-md border border-dashed bg-muted/30 p-3">
                         <Label htmlFor="autofill-url" className="text-xs text-muted-foreground">
-                            Paste a link to autofill
+                            Paste an article link to autofill, or a feed URL to import all its items
                         </Label>
                         <div className="flex gap-2">
                             <Input
                                 id="autofill-url"
                                 value={url}
                                 onChange={(e) => setUrl(e.target.value)}
-                                placeholder="https://example.com/breaking-story"
+                                placeholder="https://example.com/article  or  …/feed.xml"
                                 onKeyDown={(e) => e.key === 'Enter' && handleFetch()}
                             />
                             <Button
                                 variant="outline"
                                 onClick={handleFetch}
                                 disabled={!url.trim() || extract.isPending}
+                                title="Autofill the form from one article"
                             >
                                 {extract.isPending ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
-                                    <Download className="h-4 w-4" />
+                                    <Download className="mr-2 h-4 w-4" />
                                 )}
+                                Autofill
                             </Button>
                         </div>
+                        <Button
+                            variant="secondary"
+                            className="w-full"
+                            onClick={handleImportFeed}
+                            disabled={!url.trim() || importFeedMut.isPending}
+                            title="Import every item from an RSS/Atom feed"
+                        >
+                            {importFeedMut.isPending ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Rss className="mr-2 h-4 w-4" />
+                            )}
+                            Import whole feed
+                        </Button>
                     </div>
 
                     {/* Compose form */}

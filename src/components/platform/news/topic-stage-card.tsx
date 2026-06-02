@@ -11,7 +11,11 @@ import {
     Trash2,
     Layers,
     Inbox,
+    Rss,
+    ExternalLink,
 } from 'lucide-react';
+
+import { toast } from '@/components/ui/toast';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,11 +43,22 @@ interface TopicStageCardProps {
     status: Stage;
     isUncategorized?: boolean;
     busy?: boolean;
+    /** Public RSS URL for this topic (omitted until the public base is known). */
+    rssUrl?: string;
     onManage: () => void;
     onPrimary: () => void;
     onRename?: () => void;
     onMerge?: () => void;
     onDeleteAll?: () => void;
+}
+
+async function copyFeedUrl(url: string) {
+    try {
+        await navigator.clipboard.writeText(url);
+        toast({ title: 'RSS URL copied', description: url, variant: 'success' });
+    } catch {
+        toast({ title: 'Copy failed', description: 'Clipboard access denied.', variant: 'destructive' });
+    }
 }
 
 export function TopicStageCard({
@@ -52,6 +67,7 @@ export function TopicStageCard({
     status,
     isUncategorized = false,
     busy = false,
+    rssUrl,
     onManage,
     onPrimary,
     onRename,
@@ -104,6 +120,20 @@ export function TopicStageCard({
                                 <ArrowRight className="mr-2 h-4 w-4" />
                                 Manage news
                             </DropdownMenuItem>
+                            {rssUrl && (
+                                <>
+                                    <DropdownMenuItem onClick={() => copyFeedUrl(rssUrl)}>
+                                        <Rss className="mr-2 h-4 w-4" />
+                                        Copy RSS feed
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem asChild>
+                                        <a href={rssUrl} target="_blank" rel="noreferrer">
+                                            <ExternalLink className="mr-2 h-4 w-4" />
+                                            Open feed
+                                        </a>
+                                    </DropdownMenuItem>
+                                </>
+                            )}
                             {!isUncategorized && onRename && (
                                 <DropdownMenuItem onClick={onRename}>
                                     <Pencil className="mr-2 h-4 w-4" />

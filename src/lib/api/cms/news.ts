@@ -14,6 +14,7 @@ import type {
     BulkTopicBody,
     CreateNewsRequest,
     ExtractUrlResult,
+    ImportFeedResult,
     LabelBatchResult,
     ListTopicsParams,
     MergeTopicsBody,
@@ -67,6 +68,11 @@ export async function createNewsArticle(
 /** Extract a single URL to prefill the compose form. POST /admin/content/extract-url */
 export async function extractNewsUrl(url: string): Promise<ExtractUrlResult> {
     return cmsClient.post<ExtractUrlResult>('/admin/content/extract-url', { url });
+}
+
+/** Import EVERY item from an RSS/Atom feed in one call. POST /admin/content/import-feed */
+export async function importFeed(url: string): Promise<ImportFeedResult> {
+    return cmsClient.post<ImportFeedResult>('/admin/content/import-feed', { url });
 }
 
 /**

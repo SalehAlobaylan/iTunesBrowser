@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTopics, useBulkStatus, useBulkDeleteNews } from '@/hooks/use-news';
+import { useFeeds } from '@/hooks/use-feeds';
 import { bulkSetStatus, bulkDeleteNews } from '@/lib/api/cms/news';
 import { TopicStageCard } from '@/components/platform/news/topic-stage-card';
 import { TopicEditDialog } from '@/components/platform/news/topic-edit-dialog';
@@ -45,6 +46,13 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
     const bulkStatus = useBulkStatus();
     const bulkDelete = useBulkDeleteNews();
     const busy = bulkStatus.isPending || bulkDelete.isPending;
+
+    const { data: feedsData } = useFeeds();
+    const publicBase = feedsData?.public_base;
+    const rssUrlFor = (topicId: string): string | undefined =>
+        publicBase
+            ? `${publicBase}/api/v1/feed/rss.xml?topic_id=${encodeURIComponent(topicId)}`
+            : undefined;
 
     useEffect(() => {
         const t = setTimeout(() => setDebounced(search), 250);
@@ -107,6 +115,7 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
             count={count}
             status={status}
             busy={busy}
+            rssUrl={rssUrlFor(t.id)}
             onManage={() => onOpenTopic({ id: t.id, label: t.label })}
             onPrimary={() => setConfirm(stageConfig(t.id, t.label, status, count))}
             onRename={() => setEdit({ topic: { id: t.id, label: t.label }, mode: 'rename' })}
@@ -166,6 +175,7 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
                                                 status={col.status}
                                                 isUncategorized
                                                 busy={busy}
+                                                rssUrl={rssUrlFor('none')}
                                                 onManage={() => onOpenTopic({ id: 'none', label: 'Uncategorized' })}
                                                 onPrimary={() =>
                                                     setConfirm(stageConfig('none', 'Uncategorized', col.status, uncCount))

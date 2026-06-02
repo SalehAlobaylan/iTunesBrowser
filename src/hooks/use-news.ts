@@ -10,6 +10,7 @@ import {
     deleteNewsOlderThan,
     deleteTopic,
     extractNewsUrl,
+    importFeed,
     listNewsLineup,
     listPendingArticles,
     listTopicContent,
@@ -129,6 +130,29 @@ export function useExtractNewsUrl() {
         onError: (error: Error) => {
             toast({
                 title: 'Could not read that URL',
+                description: error.message,
+                variant: 'destructive',
+            });
+        },
+    });
+}
+
+/** Import every item from an RSS/Atom feed in one shot. */
+export function useImportFeed() {
+    const invalidate = useInvalidateNews();
+    return useMutation({
+        mutationFn: (url: string) => importFeed(url),
+        onSuccess: (res) => {
+            invalidate();
+            toast({
+                title: res.is_feed ? 'Feed imported' : 'Article imported',
+                description: `${res.imported} added${res.skipped ? `, ${res.skipped} skipped (duplicates)` : ''}.`,
+                variant: 'success',
+            });
+        },
+        onError: (error: Error) => {
+            toast({
+                title: 'Import failed',
                 description: error.message,
                 variant: 'destructive',
             });

@@ -34,6 +34,15 @@ export interface CreateNewsRequest {
     status?: ContentStatus;
 }
 
+/** Result of POST /admin/content/import-feed (bulk import of a whole feed). */
+export interface ImportFeedResult {
+    is_feed: boolean;
+    imported: number;
+    skipped: number;
+    total: number;
+    site_name: string;
+}
+
 /** Response from POST /admin/content/extract-url (Enrichment /v1/extract). */
 export interface ExtractUrlResult {
     title?: string | null;
