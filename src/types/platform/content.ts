@@ -26,7 +26,31 @@ export interface ContentItem {
     like_count: number;
     view_count: number;
     share_count: number;
+    // Caption-first state (Media tab)
+    caption_state?: CaptionState;
+    transcript_source?: string;
+    has_transcript?: boolean;
 }
+
+// Caption/transcript provenance state (never-downgrade machine).
+export type CaptionState = 'none' | 'youtube_auto' | 'youtube_human' | 'stt_done';
+
+export const CAPTION_STATE_LABELS: Record<CaptionState, string> = {
+    none: 'No transcript',
+    youtube_auto: 'Auto caption — needs enrichment',
+    youtube_human: 'Human caption',
+    stt_done: 'STT transcript',
+};
+
+export const CAPTION_STATE_VARIANTS: Record<
+    CaptionState,
+    'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline'
+> = {
+    none: 'outline',
+    youtube_auto: 'warning',
+    youtube_human: 'success',
+    stt_done: 'default',
+};
 
 export type NewsConfidence = 'low' | 'medium' | 'high';
 
