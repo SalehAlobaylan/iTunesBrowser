@@ -105,7 +105,7 @@ export function MediaList({ type }: { type: ContentType }) {
                                     <TableRow key={item.id}>
                                         <TableCell className="max-w-0">
                                             <Link
-                                                href={`/platform/content/${item.id}`}
+                                                href={`/platform/media/${item.id}`}
                                                 className="block truncate font-medium hover:underline"
                                                 title={item.title}
                                             >
