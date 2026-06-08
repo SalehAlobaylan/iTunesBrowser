@@ -77,10 +77,15 @@ export interface ListContentParams {
     search?: string;
     status?: ContentStatus;
     type?: ContentType;
+    caption_state?: CaptionState;
     source_id?: string;
     source_name?: string;
     date_from?: string;
     date_to?: string;
+    // Server-side sort (CMS query parser reads `sort` + `order`; both accept a
+    // comma-separated list for multi-field sort, e.g. sort=source_name,published_at).
+    sort?: string;
+    order?: string;
 }
 
 export interface ListContentResponse {
