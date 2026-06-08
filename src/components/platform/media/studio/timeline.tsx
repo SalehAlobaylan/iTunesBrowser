@@ -1,8 +1,9 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import type { StudioChapter } from '@/types/platform/studio';
+import type { StudioChapter, HeatmapPoint, SponsorSegment } from '@/types/platform/studio';
 import { formatMs } from '@/lib/studio/chapters';
+import { heatmapMax } from '@/lib/studio/heatmap';
 import { cn } from '@/lib/utils';
 
 interface TimelineProps {
@@ -11,6 +12,8 @@ interface TimelineProps {
     currentMs: number;
     onSeek: (ms: number) => void;
     onMoveBoundary: (index: number, newStartMs: number) => void;
+    heatmap?: HeatmapPoint[];
+    sponsorSegments?: SponsorSegment[];
 }
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -23,7 +26,15 @@ const SOURCE_COLORS: Record<string, string> = {
  * Duration-scaled chapter track with a playhead, click-to-seek, and draggable
  * boundary handles. Pure pointer events — no DnD library.
  */
-export function Timeline({ chapters, durationMs, currentMs, onSeek, onMoveBoundary }: TimelineProps) {
+export function Timeline({
+    chapters,
+    durationMs,
+    currentMs,
+    onSeek,
+    onMoveBoundary,
+    heatmap,
+    sponsorSegments,
+}: TimelineProps) {
     const trackRef = useRef<HTMLDivElement>(null);
     const [dragIndex, setDragIndex] = useState<number | null>(null);
 
@@ -42,8 +53,39 @@ export function Timeline({ chapters, durationMs, currentMs, onSeek, onMoveBounda
         return Math.min(durationMs, Math.max(0, ratio * durationMs));
     };
 
+    // "Most replayed" curve → an SVG area path (x scaled to duration, y to max value).
+    const durationSec = durationMs / 1000;
+    const hmMax = heatmap && heatmap.length ? heatmapMax(heatmap) : 0;
+    const heatmapPath =
+        heatmap && heatmap.length && hmMax > 0 && durationSec > 0
+            ? 'M0,100 ' +
+              heatmap
+                  .map((p) => {
+                      const x = Math.min(100, Math.max(0, (p.start / durationSec) * 100));
+                      const y = 100 - (p.value / hmMax) * 100;
+                      return `L${x.toFixed(2)},${y.toFixed(2)}`;
+                  })
+                  .join(' ') +
+              ' L100,100 Z'
+            : null;
+
     return (
         <div className="space-y-1">
+            {heatmapPath && (
+                <div className="relative h-8 w-full overflow-hidden rounded-md border bg-muted/20">
+                    <svg
+                        className="absolute inset-0 h-full w-full text-primary"
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
+                        aria-hidden
+                    >
+                        <path d={heatmapPath} fill="currentColor" fillOpacity={0.25} />
+                    </svg>
+                    <span className="absolute left-1.5 top-0.5 text-[9px] font-medium text-muted-foreground">
+                        Most replayed
+                    </span>
+                </div>
+            )}
             <div
                 ref={trackRef}
                 className="relative h-12 w-full cursor-pointer select-none overflow-hidden rounded-md border bg-muted/40"
@@ -95,6 +137,20 @@ export function Timeline({ chapters, durationMs, currentMs, onSeek, onMoveBounda
                         />
                     )
                 )}
+
+                {/* SponsorBlock zones — thin striped bar along the top edge */}
+                {sponsorSegments?.map((s, i) => {
+                    const left = (s.start / durationSec) * 100;
+                    const width = Math.max(0.4, ((s.end - s.start) / durationSec) * 100);
+                    return (
+                        <div
+                            key={`sb${i}`}
+                            className="pointer-events-none absolute top-0 z-20 h-1.5 bg-amber-500/80"
+                            style={{ left: `${left}%`, width: `${width}%` }}
+                            title={`SponsorBlock: ${s.category}`}
+                        />
+                    );
+                })}
 
                 {/* Playhead */}
                 <div

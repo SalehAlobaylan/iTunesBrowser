@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Trash2, Play } from 'lucide-react';
+import { Plus, Trash2, Play, Flame } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,8 @@ interface ChapterListProps {
     onAddAtPlayhead: () => void;
     onUpdate: (index: number, patch: Partial<Pick<StudioChapter, 'title' | 'summary'>>) => void;
     onDelete: (index: number) => void;
+    // Present only when the video has a "most replayed" heatmap.
+    onAddAtPeaks?: () => void;
 }
 
 /**
@@ -26,14 +28,27 @@ export function ChapterList({
     onAddAtPlayhead,
     onUpdate,
     onDelete,
+    onAddAtPeaks,
 }: ChapterListProps) {
     return (
         <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-semibold">Chapters ({chapters.length})</h3>
-                <Button size="sm" variant="outline" onClick={onAddAtPlayhead}>
-                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Add at playhead
-                </Button>
+                <div className="flex items-center gap-2">
+                    {onAddAtPeaks && (
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={onAddAtPeaks}
+                            title="Add chapters at the most-replayed moments"
+                        >
+                            <Flame className="mr-1.5 h-3.5 w-3.5" /> At peaks
+                        </Button>
+                    )}
+                    <Button size="sm" variant="outline" onClick={onAddAtPlayhead}>
+                        <Plus className="mr-1.5 h-3.5 w-3.5" /> Add at playhead
+                    </Button>
+                </div>
             </div>
 
             {chapters.length === 0 ? (

@@ -17,6 +17,18 @@ export interface StudioChapter {
     source: ChapterSource;
 }
 
+export interface HeatmapPoint {
+    start: number; // seconds
+    end: number;
+    value: number; // 0..1 (relative replay intensity)
+}
+
+export interface SponsorSegment {
+    start: number; // seconds
+    end: number;
+    category: string;
+}
+
 export interface StudioContent {
     id: string;
     type: string;
@@ -26,6 +38,9 @@ export interface StudioContent {
     thumbnail_url?: string;
     duration_sec?: number;
     caption_state?: string;
+    // Download-time engagement signals (YouTube "most replayed" + SponsorBlock).
+    heatmap?: HeatmapPoint[];
+    sponsor_segments?: SponsorSegment[];
 }
 
 export interface StudioTranscript {

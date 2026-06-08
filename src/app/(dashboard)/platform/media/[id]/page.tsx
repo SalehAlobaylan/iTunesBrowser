@@ -26,6 +26,7 @@ import {
     normalize,
     updateChapter,
 } from '@/lib/studio/chapters';
+import { peakStartsMs } from '@/lib/studio/heatmap';
 import type {
     GenerateChaptersRequest,
     StudioChapter,
@@ -84,6 +85,12 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
         setChaptersDirty(true);
     };
     const handleAddAtPlayhead = () => editChapters(addChapterAt(chapters, currentMs, durationMs));
+    const handleAddAtPeaks = () => {
+        const peaks = peakStartsMs(data?.content.heatmap ?? [], durationMs, 5);
+        let next = chapters;
+        for (const ms of peaks) next = addChapterAt(next, ms, durationMs, 'Highlight');
+        editChapters(next);
+    };
     const handleDelete = (i: number) => editChapters(deleteChapterAt(chapters, i, durationMs));
     const handleUpdate = (i: number, patch: Partial<Pick<StudioChapter, 'title' | 'summary'>>) =>
         editChapters(updateChapter(chapters, i, patch));
@@ -192,6 +199,8 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                         currentMs={currentMs}
                         onSeek={seek}
                         onMoveBoundary={handleMoveBoundary}
+                        heatmap={content.heatmap}
+                        sponsorSegments={content.sponsor_segments}
                     />
 
                     {/* Source legend — what each chapter color/source means */}
@@ -210,6 +219,7 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                             onAddAtPlayhead={handleAddAtPlayhead}
                             onUpdate={handleUpdate}
                             onDelete={handleDelete}
+                            onAddAtPeaks={content.heatmap?.length ? handleAddAtPeaks : undefined}
                         />
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
