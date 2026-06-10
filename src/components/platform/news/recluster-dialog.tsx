@@ -65,8 +65,10 @@ export function RecclusterDialog({ open, onClose }: RecclusterDialogProps) {
             qc.invalidateQueries({ queryKey: newsKeys.all });
             setPhase('done');
             toast({
-                title: 'Re-cluster complete',
-                description: `${res.clusters} topics from ${res.articles.toLocaleString()} articles.`,
+                title: 'Story rebuild started',
+                description:
+                    res.message ||
+                    `${res.clusters} topics from ${res.articles.toLocaleString()} articles.`,
                 variant: 'success',
             });
         } catch (e) {
@@ -87,8 +89,10 @@ export function RecclusterDialog({ open, onClose }: RecclusterDialogProps) {
                 <DialogHeader>
                     <DialogTitle>Re-cluster all topics</DialogTitle>
                     <DialogDescription>
-                        Rebuilds the entire taxonomy from scratch — clusters every article by
-                        meaning, then names each cluster with AI.
+                        Rebuilds all stories from scratch — replays every article through
+                        event-level clustering in the background (cosine threshold + activity
+                        window), then refreshes the News snapshot automatically. Naming runs
+                        as stories form.
                     </DialogDescription>
                 </DialogHeader>
 

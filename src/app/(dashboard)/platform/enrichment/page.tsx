@@ -367,10 +367,10 @@ export default function EnrichmentPage() {
 
             <MissingPanel
                 title="News & Articles"
-                description="Articles missing a dense embedding or BGE-M3 sparse vector (hybrid retrieval)"
+                description="News items missing a dense embedding (Qwen)"
                 icon={<Newspaper className="h-5 w-5 text-muted-foreground" />}
-                typeQuery="ARTICLE"
-                typeOptions={[{ value: '', label: 'Article' }]}
+                typeQuery="NEWS"
+                typeOptions={[{ value: '', label: 'News' }]}
                 artifacts={[
                     { value: 'embedding', label: 'Embedding', badgeVariant: 'secondary' },
                     { value: 'sparse', label: 'Sparse', badgeVariant: 'outline' },

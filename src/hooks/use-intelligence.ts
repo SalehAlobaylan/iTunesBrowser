@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     getModes, setMode,
-    getRankingConfig, updateRankingConfig,
+    getRankingConfig, updateRankingConfig, refreshNewsSnapshot,
     listContentFlags, upsertContentFlag, deleteContentFlag, bulkSetFlags,
     getEmbeddingClusters, getSimilarContent, getEmbeddingStats,
     getScoreDistribution, getVelocityLeaderboard, getTrendingItems,
@@ -74,6 +74,18 @@ export function useUpdateRankingConfig() {
             toast({ title: 'Algorithm updated', variant: 'success' });
         },
         onError: (e: Error) => toast({ title: 'Failed to update', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useRefreshNewsSnapshot() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: refreshNewsSnapshot,
+        onSuccess: (res) => {
+            qc.invalidateQueries({ queryKey: intelligenceKeys.config() });
+            toast({ title: `News snapshot rebuilt (${res.slide_count} slides)`, variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to rebuild snapshot', description: e.message, variant: 'destructive' }),
     });
 }
 

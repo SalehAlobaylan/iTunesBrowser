@@ -318,7 +318,7 @@ export function MissingPanel({
                                                 {item.type === 'PODCAST' && (
                                                     <Podcast className="h-3 w-3 mr-1" />
                                                 )}
-                                                {item.type === 'ARTICLE' && (
+                                                {item.type === 'NEWS' && (
                                                     <FileText className="h-3 w-3 mr-1" />
                                                 )}
                                                 {item.type}

@@ -80,7 +80,7 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
                     from_status: tr.from,
                     to_status: tr.to,
                     topic_id: topicId,
-                    type: 'ARTICLE',
+                    type: 'NEWS',
                     dry_run: true,
                 }).then((r) => r.updated_count),
             commit: () =>
@@ -88,7 +88,7 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
                     from_status: tr.from,
                     to_status: tr.to,
                     topic_id: topicId,
-                    type: 'ARTICLE',
+                    type: 'NEWS',
                 }),
         };
     };

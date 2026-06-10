@@ -1,6 +1,6 @@
 // Content Item types for Platform Module
 
-export type ContentType = 'ARTICLE' | 'VIDEO' | 'TWEET' | 'COMMENT' | 'PODCAST';
+export type ContentType = 'NEWS' | 'ARTICLE' | 'VIDEO' | 'TWEET' | 'COMMENT' | 'PODCAST';
 export type ContentStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED' | 'ARCHIVED';
 
 export interface ContentItem {
@@ -102,6 +102,7 @@ export interface UpdateContentStatusRequest {
 
 // Display labels
 export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
+    NEWS: 'News',
     ARTICLE: 'Article',
     VIDEO: 'Video',
     TWEET: 'Tweet',

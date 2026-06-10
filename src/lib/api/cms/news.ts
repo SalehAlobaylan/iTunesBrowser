@@ -39,7 +39,7 @@ export async function listNewsLineup(
 ): Promise<ListContentResponse> {
     return cmsClient.get<ListContentResponse>('/admin/content', {
         ...params,
-        type: 'ARTICLE',
+        type: 'NEWS',
         status: params.status ?? 'READY',
     });
 }
@@ -53,7 +53,7 @@ export async function listPendingArticles(
 ): Promise<ListContentResponse> {
     return cmsClient.get<ListContentResponse>('/admin/content', {
         ...params,
-        type: 'ARTICLE',
+        type: 'NEWS',
         status: 'PENDING',
     });
 }
@@ -100,7 +100,7 @@ export async function archiveNewsOlderThan(
     return cmsClient.post<BulkStatusResult>('/admin/content/bulk-status', {
         from_status: 'READY',
         to_status: 'ARCHIVED',
-        type: 'ARTICLE',
+        type: 'NEWS',
         created_before: daysAgoISO(days),
         limit: 500,
         dry_run: dryRun,
@@ -121,7 +121,7 @@ export async function deleteNewsOlderThan(
     dryRun = false
 ): Promise<BulkDeleteResponse> {
     return bulkDeleteContent({
-        type: 'ARTICLE',
+        type: 'NEWS',
         created_before: daysAgoISO(days),
         dry_run: dryRun,
     });
@@ -134,7 +134,7 @@ export async function listTopics(
     params: ListTopicsParams = {}
 ): Promise<TopicsListResponse> {
     return cmsClient.get<TopicsListResponse>('/admin/content/topics', {
-        type: 'ARTICLE',
+        type: 'NEWS',
         ...params,
     });
 }
@@ -144,7 +144,7 @@ export async function listTopicContent(
     params: TopicContentParams
 ): Promise<ListContentResponse> {
     return cmsClient.get<ListContentResponse>('/admin/content', {
-        type: 'ARTICLE',
+        type: 'NEWS',
         ...params,
     });
 }

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ModeCard, AdvancedSettingsDialog } from '@/components/platform/intelligence';
+import { NewsFeedModeCard } from '@/components/platform/intelligence/news-feed-mode-card';
 import {
     useModes,
     useSetMode,
@@ -54,6 +55,9 @@ export default function IntelligencePage() {
                     isSaving={updateConfigMutation.isPending}
                 />
             </div>
+
+            {/* Phase 13 — News (stories) feed mode + snapshot refresh */}
+            <NewsFeedModeCard />
 
             {/* Mode Selector */}
             {modesLoading ? (

@@ -111,7 +111,7 @@ export function NewsColumn({
 
     const selectionForMove = (): { sel: BulkSelection; count: number } =>
         scope === 'all'
-            ? { sel: { topic_id: topicParam, status, type: 'ARTICLE' }, count: matchingTotal }
+            ? { sel: { topic_id: topicParam, status, type: 'NEWS' }, count: matchingTotal }
             : { sel: { ids: [...selected] }, count: selected.size };
 
     // ── Row actions ──
@@ -142,7 +142,7 @@ export function NewsColumn({
                         from_status: status,
                         to_status: transition.to,
                         topic_id: topicParam,
-                        type: 'ARTICLE',
+                        type: 'NEWS',
                         dry_run: true,
                     }).then((r) => r.updated_count),
                 commit: () =>
@@ -151,7 +151,7 @@ export function NewsColumn({
                             from_status: status,
                             to_status: transition.to,
                             topic_id: topicParam,
-                            type: 'ARTICLE',
+                            type: 'NEWS',
                         })
                         .then(clear),
             });

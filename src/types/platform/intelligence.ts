@@ -22,6 +22,10 @@ export interface RankingConfig {
     engagement_normalization: 'log' | 'linear';
     mode: RankingMode;
     is_active: boolean;
+    // Phase 13 — NEWS-first stories feed.
+    story_match_threshold: number;
+    news_feed_mode: 'precompute' | 'on_demand';
+    news_rerank_enabled: boolean;
     created_at: string;
     updated_at: string;
 }

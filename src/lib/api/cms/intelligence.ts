@@ -32,6 +32,13 @@ export const getRankingConfig = () =>
 export const updateRankingConfig = (data: UpdateRankingConfigRequest) =>
     cmsClient.put<RankingConfig>('/admin/intelligence/ranking', data);
 
+// Rebuild the precomputed News-feed story-slide snapshot (precompute mode).
+export const refreshNewsSnapshot = () =>
+    cmsClient.post<{ slide_count: number; built_at: string }>(
+        '/admin/intelligence/news-snapshot/refresh',
+        {},
+    );
+
 // ---- Content Flags ----
 export const listContentFlags = (params?: { page?: number; limit?: number }) =>
     cmsClient.get<ContentFlagListResponse>('/admin/intelligence/flags', params);
