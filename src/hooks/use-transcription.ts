@@ -3,6 +3,7 @@ import {
     getTranscriptionConfig,
     updateTranscriptionConfig,
     triggerStt,
+    bulkCreateTranscriptionJobs,
 } from '@/lib/api/cms/transcription';
 import type { UpdateTranscriptionConfigRequest } from '@/types/platform/media';
 import { contentKeys } from '@/hooks/use-content';
@@ -44,15 +45,32 @@ export function useTriggerStt() {
         mutationFn: (id: string) => triggerStt(id),
         onSuccess: (res) => {
             queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
-            const errored = res.errors && res.errors.length > 0;
             toast({
-                title: errored ? 'STT upgrade had issues' : 'STT upgrade started',
-                description: errored ? res.errors.join('; ') : (res.results?.join('; ') || undefined),
-                variant: errored ? 'destructive' : 'success',
+                title: res.triggered ? 'STT job queued' : 'STT skipped',
+                description: res.reason || `Job ${res.job.id}`,
+                variant: res.triggered ? 'success' : 'default',
             });
         },
         onError: (error: Error) => {
             toast({ title: 'Failed to start STT', description: error.message, variant: 'destructive' });
+        },
+    });
+}
+
+export function useBulkTriggerStt() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (ids: string[]) => bulkCreateTranscriptionJobs(ids, true),
+        onSuccess: (res) => {
+            queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
+            toast({
+                title: 'Bulk STT queued',
+                description: `${res.accepted} accepted, ${res.skipped} skipped, ${res.failed} failed`,
+                variant: res.failed ? 'default' : 'success',
+            });
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Failed to queue bulk STT', description: error.message, variant: 'destructive' });
         },
     });
 }

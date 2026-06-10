@@ -3,7 +3,7 @@ import type {
     TranscriptionConfig,
     UpdateTranscriptionConfigRequest,
 } from '@/types/platform/media';
-import type { TriggerEnrichmentResponse } from '@/types/platform/enrichment';
+import type { TranscriptionJobSummary } from '@/types/platform/content';
 
 interface CmsEnvelope<T> {
     data: T;
@@ -24,12 +24,46 @@ export const getTranscriptionConfig = () =>
 export const updateTranscriptionConfig = (data: UpdateTranscriptionConfigRequest) =>
     cmsClient.patch<TranscriptionConfig>('/admin/transcription-config', data);
 
-// ── Manual STT upgrade (force bypasses the toggle; budget cap still applies) ──
+export interface CreateTranscriptionJobRequest {
+    content_id: string;
+    force?: boolean;
+    trigger_source?: string;
+}
 
-export const triggerStt = (id: string) =>
+export interface CreateTranscriptionJobResponse {
+    job: TranscriptionJobSummary;
+    triggered: boolean;
+    reason?: string;
+}
+
+export interface BulkCreateTranscriptionJobsResponse {
+    accepted: number;
+    skipped: number;
+    failed: number;
+    results: Array<{
+        content_id: string;
+        status: string;
+        job_id?: string;
+        reason?: string;
+        error?: string;
+    }>;
+}
+
+export const createTranscriptionJob = (data: CreateTranscriptionJobRequest) =>
     unwrapCmsData(
-        cmsClient.post<CmsEnvelope<TriggerEnrichmentResponse>>(
-            `/admin/enrichment/trigger/${id}`,
-            { types: ['transcript'], force: true }
+        cmsClient.post<CmsEnvelope<CreateTranscriptionJobResponse>>(
+            '/admin/transcription/jobs',
+            data
         )
     );
+
+export const bulkCreateTranscriptionJobs = (contentIds: string[], force = true) =>
+    unwrapCmsData(
+        cmsClient.post<CmsEnvelope<BulkCreateTranscriptionJobsResponse>>(
+            '/admin/transcription/jobs/bulk',
+            { content_ids: contentIds, force }
+        )
+    );
+
+export const triggerStt = (id: string) =>
+    createTranscriptionJob({ content_id: id, force: true, trigger_source: 'manual' });

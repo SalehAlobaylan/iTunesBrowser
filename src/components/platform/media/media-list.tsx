@@ -3,7 +3,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
 import {
     Loader2, Sparkles, Search, MoreHorizontal, SlidersHorizontal, RefreshCw,
     Clapperboard, Trash2, Copy, ExternalLink, ArrowUpDown, Rss, Layers, ChevronRight, ChevronDown,
@@ -26,13 +25,14 @@ import {
     Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
-import { useContent, contentKeys, useDeleteContentByIds } from '@/hooks/use-content';
-import { useTriggerStt } from '@/hooks/use-transcription';
-import { triggerStt as triggerSttApi } from '@/lib/api/cms/transcription';
+import { useContent, useDeleteContentByIds } from '@/hooks/use-content';
+import { useBulkTriggerStt, useTriggerStt } from '@/hooks/use-transcription';
 import { listSourceNames } from '@/lib/api/cms/content';
 import {
     CAPTION_STATE_LABELS, CAPTION_STATE_VARIANTS, CONTENT_STATUS_LABELS, CONTENT_STATUS_VARIANTS,
     type CaptionState, type ContentItem, type ContentStatus, type ContentType,
+    type TranscriptQualityStatus, type TranscriptionJobStatus, type TranscriptQualitySummary,
+    type TranscriptionJobSummary,
 } from '@/types/platform/content';
 
 function formatDuration(sec?: number): string {
@@ -65,16 +65,114 @@ const SORT_OPTIONS = [
     { value: 'shortest', label: 'Shortest', sort: 'duration_sec', order: 'asc' as const },
     { value: 'title', label: 'Title A–Z', sort: 'title', order: 'asc' as const },
 ];
+type JobFilterValue = TranscriptionJobStatus | 'auto_repair_queued' | 'all';
+
+const JOB_FILTERS: { value: JobFilterValue; label: string }[] = [
+    { value: 'all', label: 'All jobs' },
+    { value: 'auto_repair_queued', label: 'Auto repair queued' },
+    { value: 'queued', label: 'Queued' },
+    { value: 'running', label: 'Running' },
+    { value: 'failed', label: 'Failed' },
+    { value: 'writeback_failed', label: 'Writeback failed' },
+];
+const QUALITY_FILTERS: { value: TranscriptQualityStatus | 'all'; label: string }[] = [
+    { value: 'all', label: 'All quality' },
+    { value: 'needs_review', label: 'Needs review' },
+    { value: 'auto_repair', label: 'Auto repair' },
+    { value: 'ok', label: 'OK' },
+];
+const JOB_STATUS_LABELS: Record<TranscriptionJobStatus, string> = {
+    queued: 'Queued',
+    running: 'Running',
+    skipped: 'Skipped',
+    succeeded: 'Succeeded',
+    failed: 'Failed',
+    writeback_failed: 'Writeback failed',
+};
+const JOB_STATUS_VARIANTS: Record<
+    TranscriptionJobStatus,
+    'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' | 'info'
+> = {
+    queued: 'secondary',
+    running: 'info',
+    skipped: 'outline',
+    succeeded: 'success',
+    failed: 'destructive',
+    writeback_failed: 'destructive',
+};
+const QUALITY_STATUS_LABELS: Record<TranscriptQualityStatus, string> = {
+    ok: 'OK',
+    needs_review: 'Needs review',
+    auto_repair: 'Auto repair',
+};
+const QUALITY_STATUS_VARIANTS: Record<
+    TranscriptQualityStatus,
+    'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' | 'info'
+> = {
+    ok: 'success',
+    needs_review: 'warning',
+    auto_repair: 'destructive',
+};
+
+function formatUsd(value?: number): string {
+    if (!value || value <= 0) return '$0.00';
+    return `$${value.toFixed(2)}`;
+}
+
+function formatDateShort(value?: string): string {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function renderQualitySummary(quality?: TranscriptQualitySummary) {
+    if (!quality) return <span className="text-xs text-muted-foreground">Not scored</span>;
+    const issueLabel = quality.issue_codes.length
+        ? `${quality.issue_codes.length} issue${quality.issue_codes.length === 1 ? '' : 's'}`
+        : 'No issues';
+    return (
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <Badge variant={QUALITY_STATUS_VARIANTS[quality.status]}>
+                {QUALITY_STATUS_LABELS[quality.status]} · {Math.round(quality.score * 100)}%
+            </Badge>
+            <span className="text-xs text-muted-foreground">{issueLabel}</span>
+        </div>
+    );
+}
+
+function renderJobSummary(job?: TranscriptionJobSummary) {
+    if (!job) return <span className="text-xs text-muted-foreground">No jobs yet</span>;
+    const reason = job.error_message || job.skip_reason;
+    const cost = job.actual_cost_usd > 0
+        ? formatUsd(job.actual_cost_usd)
+        : job.reserved_cost_usd > 0
+            ? `${formatUsd(job.reserved_cost_usd)} reserved`
+            : formatUsd(job.estimated_cost_usd);
+    return (
+        <div className="space-y-1 text-xs">
+            <div className="flex flex-wrap items-center gap-1.5">
+                <Badge variant={JOB_STATUS_VARIANTS[job.status]}>{JOB_STATUS_LABELS[job.status]}</Badge>
+                {job.provider && <span className="text-muted-foreground">{job.provider}</span>}
+            </div>
+            <div className="text-muted-foreground">
+                {formatDateShort(job.completed_at || job.started_at || job.created_at)} · {cost}
+            </div>
+            {reason && <div className="line-clamp-2 max-w-44 text-muted-foreground" title={reason}>{reason}</div>}
+        </div>
+    );
+}
 
 export function MediaList({ type }: { type: ContentType }) {
     const router = useRouter();
-    const queryClient = useQueryClient();
 
     const [page, setPage] = useState(1);
     const [searchInput, setSearchInput] = useState('');
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState<ContentStatus | 'all'>('all');
     const [captionFilter, setCaptionFilter] = useState<CaptionState | 'all'>('all');
+    const [jobFilter, setJobFilter] = useState<JobFilterValue>('all');
+    const [qualityFilter, setQualityFilter] = useState<TranscriptQualityStatus | 'all'>('all');
     const [source, setSource] = useState<string>('all');
     const [sortValue, setSortValue] = useState('newest');
     const [groupBy, setGroupBy] = useState(true);
@@ -87,6 +185,7 @@ export function MediaList({ type }: { type: ContentType }) {
     const [bulkBusy, setBulkBusy] = useState(false);
 
     const triggerStt = useTriggerStt();
+    const bulkTriggerStt = useBulkTriggerStt();
     const deleteByIds = useDeleteContentByIds();
 
     useEffect(() => {
@@ -97,7 +196,7 @@ export function MediaList({ type }: { type: ContentType }) {
     useEffect(() => {
         setPage(1);
         setSelected(new Set());
-    }, [type, search, status, captionFilter, source, sortValue, groupBy]);
+    }, [type, search, status, captionFilter, jobFilter, qualityFilter, source, sortValue, groupBy]);
 
     useEffect(() => {
         listSourceNames().then(setSourceNames).catch(() => setSourceNames([]));
@@ -117,6 +216,13 @@ export function MediaList({ type }: { type: ContentType }) {
             search: search || undefined,
             status: status === 'all' ? undefined : status,
             caption_state: captionFilter === 'all' ? undefined : captionFilter,
+            transcription_status: jobFilter === 'all'
+                ? undefined
+                : jobFilter === 'auto_repair_queued'
+                    ? 'queued'
+                    : jobFilter,
+            transcription_trigger: jobFilter === 'auto_repair_queued' ? 'auto_quality' : undefined,
+            quality_status: qualityFilter === 'all' ? undefined : qualityFilter,
             source_name: source === 'all' ? undefined : source,
             sort: sortParam,
             order: orderParam,
@@ -124,7 +230,7 @@ export function MediaList({ type }: { type: ContentType }) {
         { paused: bulkBusy }
     );
 
-    const items = data?.data ?? [];
+    const items = useMemo(() => data?.data ?? [], [data?.data]);
     const total = data?.total ?? 0;
     const totalPages = data?.total_pages ?? 1;
 
@@ -171,24 +277,9 @@ export function MediaList({ type }: { type: ContentType }) {
             return;
         }
         setBulkBusy(true);
-        let ok = 0;
-        let fail = 0;
-        for (const it of targets) {
-            try {
-                await triggerSttApi(it.id);
-                ok++;
-            } catch {
-                fail++;
-            }
-        }
+        await bulkTriggerStt.mutateAsync(targets.map((t) => t.id)).catch(() => undefined);
         setBulkBusy(false);
         setSelected(new Set());
-        queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
-        toast({
-            title: 'Re-transcribe queued',
-            description: `${ok} started${fail ? `, ${fail} failed` : ''}`,
-            variant: fail ? 'destructive' : 'success',
-        });
     };
 
     const runDelete = (targets: ContentItem[]) => {
@@ -202,7 +293,7 @@ export function MediaList({ type }: { type: ContentType }) {
         toast({ title: 'ID copied', variant: 'success' });
     };
 
-    const colSpan = 6;
+    const colSpan = 7;
 
     const renderRow = (item: ContentItem) => {
         const state = captionStateOf(item);
@@ -242,10 +333,16 @@ export function MediaList({ type }: { type: ContentType }) {
                 </TableCell>
                 <TableCell className="tabular-nums text-sm">{formatDuration(item.duration_sec)}</TableCell>
                 <TableCell>
-                    <Badge variant={CAPTION_STATE_VARIANTS[state]}>
-                        {state === 'youtube_auto' && '⚠️ '}
-                        {CAPTION_STATE_LABELS[state]}
-                    </Badge>
+                    <div className="space-y-1">
+                        <Badge variant={CAPTION_STATE_VARIANTS[state]}>
+                            {state === 'youtube_auto' && '⚠️ '}
+                            {CAPTION_STATE_LABELS[state]}
+                        </Badge>
+                        {renderQualitySummary(item.transcript_quality)}
+                    </div>
+                </TableCell>
+                <TableCell>
+                    {renderJobSummary(item.latest_transcription_job)}
                 </TableCell>
                 <TableCell className="text-right">
                     <DropdownMenu>
@@ -317,6 +414,18 @@ export function MediaList({ type }: { type: ContentType }) {
                         {CAPTION_FILTERS.map((f) => (<SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>))}
                     </SelectContent>
                 </Select>
+                <Select value={qualityFilter} onValueChange={(v) => setQualityFilter(v as TranscriptQualityStatus | 'all')}>
+                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        {QUALITY_FILTERS.map((f) => (<SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>))}
+                    </SelectContent>
+                </Select>
+                <Select value={jobFilter} onValueChange={(v) => setJobFilter(v as JobFilterValue)}>
+                    <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        {JOB_FILTERS.map((f) => (<SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>))}
+                    </SelectContent>
+                </Select>
                 {sourceNames.length > 0 && (
                     <Select value={source} onValueChange={setSource}>
                         <SelectTrigger className="w-[170px]">
@@ -371,6 +480,7 @@ export function MediaList({ type }: { type: ContentType }) {
                             <TableHead className="w-28">Status</TableHead>
                             <TableHead className="w-20">Length</TableHead>
                             <TableHead className="w-56">Transcript</TableHead>
+                            <TableHead className="w-56">Latest job</TableHead>
                             <TableHead className="w-12" />
                         </TableRow>
                     </TableHeader>

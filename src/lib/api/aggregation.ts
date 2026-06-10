@@ -66,11 +66,11 @@ export async function purgeQueues(data?: PurgeQueuesRequest): Promise<PurgeQueue
     return aggregationClient.post<PurgeQueuesResponse>('/admin/queues/purge', data || {});
 }
 
-export async function retryPending(data?: { source?: string; limit?: number }): Promise<RetryResponse> {
+export async function retryPending(data?: { source?: string; ids?: string[]; limit?: number }): Promise<RetryResponse> {
     return aggregationClient.post<RetryResponse>('/admin/retry-pending', data || {});
 }
 
-export async function retryFailed(data?: { source?: string; limit?: number }): Promise<RetryResponse> {
+export async function retryFailed(data?: { source?: string; ids?: string[]; limit?: number }): Promise<RetryResponse> {
     return aggregationClient.post<RetryResponse>('/admin/retry-failed', data || {});
 }
 

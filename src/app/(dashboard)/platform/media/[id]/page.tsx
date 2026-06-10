@@ -1,8 +1,8 @@
 'use client';
 
-import { use, useEffect, useRef, useState } from 'react';
+import { use, useEffect, useRef, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Loader2, Save, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Clock3, Loader2, Save, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -32,9 +32,53 @@ import type {
     StudioChapter,
     StudioSegment,
 } from '@/types/platform/studio';
+import type {
+    TranscriptQualityStatus,
+    TranscriptionJobStatus,
+} from '@/types/platform/content';
 
 interface StudioPageProps {
     params: Promise<{ id: string }>;
+}
+
+const JOB_STATUS_LABELS: Record<TranscriptionJobStatus, string> = {
+    queued: 'Queued',
+    running: 'Running',
+    skipped: 'Skipped',
+    succeeded: 'Succeeded',
+    failed: 'Failed',
+    writeback_failed: 'Writeback failed',
+};
+const JOB_STATUS_VARIANTS: Record<
+    TranscriptionJobStatus,
+    'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' | 'info'
+> = {
+    queued: 'secondary',
+    running: 'info',
+    skipped: 'outline',
+    succeeded: 'success',
+    failed: 'destructive',
+    writeback_failed: 'destructive',
+};
+const QUALITY_STATUS_LABELS: Record<TranscriptQualityStatus, string> = {
+    ok: 'OK',
+    needs_review: 'Needs review',
+    auto_repair: 'Auto repair',
+};
+const QUALITY_STATUS_VARIANTS: Record<
+    TranscriptQualityStatus,
+    'default' | 'secondary' | 'success' | 'warning' | 'destructive' | 'outline' | 'info'
+> = {
+    ok: 'success',
+    needs_review: 'warning',
+    auto_repair: 'destructive',
+};
+
+function formatDateShort(value?: string): string {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export default function MediaStudioPage({ params }: StudioPageProps) {
@@ -66,6 +110,23 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
             setSegments(data.transcript?.segments ?? []);
         }
     }, [data, id]);
+
+    useEffect(() => {
+        const onBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (!chaptersDirty && !transcriptDirty) return;
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, [chaptersDirty, transcriptDirty]);
+
+    const confirmLeave = (event: MouseEvent<HTMLAnchorElement>) => {
+        if (!chaptersDirty && !transcriptDirty) return;
+        if (!window.confirm('Leave Media Studio and discard unsaved changes?')) {
+            event.preventDefault();
+        }
+    };
 
     const seek = (ms: number) => {
         if (mediaRef.current) mediaRef.current.currentTime = ms / 1000;
@@ -149,6 +210,7 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                 <div className="min-w-0">
                     <Link
                         href="/platform/media"
+                        onClick={confirmLeave}
                         className="mb-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft className="h-3.5 w-3.5" /> Media
@@ -163,7 +225,8 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <Button variant="outline" onClick={() => setGenerateOpen(true)} disabled={!transcript}>
-                        <Sparkles className="mr-1.5 h-4 w-4" /> Generate chapters
+                        <Sparkles className="mr-1.5 h-4 w-4" />
+                        {chapters.length > 0 ? 'Regenerate chapters' : 'Generate chapters'}
                     </Button>
                     <Button onClick={handleSaveChapters} disabled={!chaptersDirty || saveChaptersMut.isPending}>
                         {saveChaptersMut.isPending ? (
@@ -192,6 +255,80 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                 </div>
             ) : (
                 <>
+                    <div className="grid gap-3 lg:grid-cols-3">
+                        <div className="rounded-md border p-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                                <h2 className="text-sm font-semibold">Transcript quality</h2>
+                                {data.transcript_quality ? (
+                                    <Badge variant={QUALITY_STATUS_VARIANTS[data.transcript_quality.status]}>
+                                        {QUALITY_STATUS_LABELS[data.transcript_quality.status]} · {Math.round(data.transcript_quality.score * 100)}%
+                                    </Badge>
+                                ) : (
+                                    <Badge variant="outline">Not scored</Badge>
+                                )}
+                            </div>
+                            {data.transcript_quality?.issue_codes?.length ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {data.transcript_quality.issue_codes.map((issue) => (
+                                        <Badge key={issue} variant="outline" title={issue}>
+                                            <AlertTriangle className="mr-1 h-3 w-3" />
+                                            {issue.replaceAll('_', ' ')}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-muted-foreground">No transcript quality issues recorded.</p>
+                            )}
+                        </div>
+                        <div className="rounded-md border p-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                                <h2 className="text-sm font-semibold">Latest STT job</h2>
+                                {data.latest_transcription_job ? (
+                                    <Badge variant={JOB_STATUS_VARIANTS[data.latest_transcription_job.status]}>
+                                        {JOB_STATUS_LABELS[data.latest_transcription_job.status]}
+                                    </Badge>
+                                ) : (
+                                    <Badge variant="outline">No jobs</Badge>
+                                )}
+                            </div>
+                            {data.latest_transcription_job ? (
+                                <div className="space-y-1 text-xs text-muted-foreground">
+                                    <p>
+                                        {data.latest_transcription_job.provider || 'Provider pending'}
+                                        {data.latest_transcription_job.model ? ` · ${data.latest_transcription_job.model}` : ''}
+                                    </p>
+                                    <p>
+                                        <Clock3 className="mr-1 inline h-3 w-3" />
+                                        {formatDateShort(
+                                            data.latest_transcription_job.completed_at ||
+                                            data.latest_transcription_job.started_at ||
+                                            data.latest_transcription_job.created_at
+                                        )}
+                                    </p>
+                                    {(data.latest_transcription_job.error_message || data.latest_transcription_job.skip_reason) && (
+                                        <p className="line-clamp-2">
+                                            {data.latest_transcription_job.error_message || data.latest_transcription_job.skip_reason}
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-muted-foreground">No transcription job has been recorded for this item.</p>
+                            )}
+                        </div>
+                        <div className="rounded-md border p-3">
+                            <h2 className="mb-2 text-sm font-semibold">Studio audit</h2>
+                            {data.transcript_audit?.last_action ? (
+                                <div className="space-y-1 text-xs text-muted-foreground">
+                                    <p>{data.transcript_audit.last_action.replace('media_studio.', '').replaceAll('_', ' ')}</p>
+                                    <p>{formatDateShort(data.transcript_audit.last_at)}</p>
+                                    {data.transcript_audit.user_email && <p>{data.transcript_audit.user_email}</p>}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-muted-foreground">No Studio edit audit event yet.</p>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Timeline */}
                     <Timeline
                         chapters={chapters}
@@ -224,17 +361,29 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <h3 className="text-sm font-semibold">Transcript</h3>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={handleSaveTranscript}
-                                    disabled={!transcriptDirty || saveTranscriptMut.isPending}
-                                >
-                                    {saveTranscriptMut.isPending && (
-                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                    )}
-                                    Save transcript
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        title={transcriptDirty ? 'Save transcript before regenerating chapters' : 'Regenerate chapters from the current transcript'}
+                                        onClick={() => setGenerateOpen(true)}
+                                        disabled={transcriptDirty || !transcript}
+                                    >
+                                        <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                                        Regenerate chapters
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleSaveTranscript}
+                                        disabled={!transcriptDirty || saveTranscriptMut.isPending}
+                                    >
+                                        {saveTranscriptMut.isPending && (
+                                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                        )}
+                                        Save transcript
+                                    </Button>
+                                </div>
                             </div>
                             <TranscriptPanel
                                 segments={segments}

@@ -1,5 +1,7 @@
 // Media Studio types — per-item transcript + chapter editor.
 
+import type { TranscriptQualitySummary, TranscriptionJobSummary } from '@/types/platform/content';
+
 export type ChapterSource = 'youtube' | 'derived' | 'manual';
 
 export interface StudioSegment {
@@ -54,6 +56,14 @@ export interface StudioData {
     content: StudioContent;
     transcript: StudioTranscript | null;
     chapters: StudioChapter[];
+    latest_transcription_job?: TranscriptionJobSummary;
+    transcript_quality?: TranscriptQualitySummary;
+    transcript_audit?: {
+        last_action?: string;
+        last_status?: string;
+        last_at?: string;
+        user_email?: string;
+    } | null;
 }
 
 export type GenerateMode = 'auto' | 'count' | 'duration';

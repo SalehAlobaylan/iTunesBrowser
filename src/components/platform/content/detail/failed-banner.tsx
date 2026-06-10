@@ -35,8 +35,7 @@ export function FailedBanner({ item }: FailedBannerProps) {
                         This item failed to process.
                     </p>
                     <p className="text-xs text-muted-foreground">
-                        Re-queue it through the aggregation pipeline. Best-effort —
-                        scoped to source <code>{item.source_name || '—'}</code>.
+                        Re-queue this item through the aggregation pipeline.
                     </p>
                 </div>
             </div>

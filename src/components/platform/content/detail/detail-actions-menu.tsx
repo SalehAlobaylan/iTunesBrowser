@@ -86,10 +86,8 @@ export function DetailActionsMenu({ item }: DetailActionsMenuProps) {
     const retryProcessing = async () => {
         setWorking('retry');
         try {
-            // The aggregation retry endpoint takes source + limit, not ids.
-            // Best-effort: scope to this item's source and limit 1.
             const res = await retryFailed({
-                source: item.source_name,
+                ids: [item.id],
                 limit: 1,
             });
             toast({

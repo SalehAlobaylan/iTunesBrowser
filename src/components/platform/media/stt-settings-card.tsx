@@ -20,24 +20,36 @@ export function SttSettingsCard() {
     const update = useUpdateTranscriptionConfig();
 
     const [autoStt, setAutoStt] = useState(false);
+    const [autoRepair, setAutoRepair] = useState(false);
     const [budgetCap, setBudgetCap] = useState('0');
+    const [reviewThreshold, setReviewThreshold] = useState('0.75');
+    const [repairThreshold, setRepairThreshold] = useState('0.45');
 
     useEffect(() => {
         if (config) {
             setAutoStt(config.auto_stt_enabled);
+            setAutoRepair(config.auto_repair_enabled);
             setBudgetCap(String(config.monthly_budget_cap_usd ?? 0));
+            setReviewThreshold(String(config.quality_review_threshold ?? 0.75));
+            setRepairThreshold(String(config.quality_auto_repair_threshold ?? 0.45));
         }
     }, [config]);
 
     const dirty =
         !!config &&
         (autoStt !== config.auto_stt_enabled ||
-            Number(budgetCap) !== config.monthly_budget_cap_usd);
+            autoRepair !== config.auto_repair_enabled ||
+            Number(budgetCap) !== config.monthly_budget_cap_usd ||
+            Number(reviewThreshold) !== config.quality_review_threshold ||
+            Number(repairThreshold) !== config.quality_auto_repair_threshold);
 
     const save = () => {
         update.mutate({
             auto_stt_enabled: autoStt,
+            auto_repair_enabled: autoRepair,
             monthly_budget_cap_usd: Number(budgetCap) || 0,
+            quality_review_threshold: Number(reviewThreshold) || 0,
+            quality_auto_repair_threshold: Number(repairThreshold) || 0,
         });
     };
 
@@ -75,6 +87,15 @@ export function SttSettingsCard() {
                                 Auto-run STT on auto-captions &amp; caption-less media
                             </span>
                         </label>
+                        <label className="flex items-center gap-3">
+                            <Checkbox
+                                checked={autoRepair}
+                                onCheckedChange={(v) => setAutoRepair(v === true)}
+                            />
+                            <span className="text-sm">
+                                Auto-repair weak transcripts when quality scoring marks them repairable
+                            </span>
+                        </label>
 
                         <div className="flex flex-wrap items-end gap-4">
                             <div className="space-y-1.5">
@@ -91,6 +112,32 @@ export function SttSettingsCard() {
                                 <p className="text-xs text-muted-foreground">0 = no cap</p>
                             </div>
                             <div className="space-y-1.5">
+                                <Label htmlFor="review-threshold">Review threshold</Label>
+                                <Input
+                                    id="review-threshold"
+                                    type="number"
+                                    min="0"
+                                    max="1"
+                                    step="0.05"
+                                    className="w-36"
+                                    value={reviewThreshold}
+                                    onChange={(e) => setReviewThreshold(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="repair-threshold">Auto-repair threshold</Label>
+                                <Input
+                                    id="repair-threshold"
+                                    type="number"
+                                    min="0"
+                                    max="1"
+                                    step="0.05"
+                                    className="w-36"
+                                    value={repairThreshold}
+                                    onChange={(e) => setRepairThreshold(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
                                 <Label>Spent this window</Label>
                                 <p className="text-sm font-medium tabular-nums">
                                     ${config.monthly_spend_usd.toFixed(2)}
@@ -100,6 +147,12 @@ export function SttSettingsCard() {
                                             / ${config.monthly_budget_cap_usd.toFixed(2)}
                                         </span>
                                     )}
+                                </p>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label>Reserved</Label>
+                                <p className="text-sm font-medium tabular-nums">
+                                    ${config.monthly_reserved_usd.toFixed(2)}
                                 </p>
                             </div>
                             <Button onClick={save} disabled={!dirty || update.isPending}>

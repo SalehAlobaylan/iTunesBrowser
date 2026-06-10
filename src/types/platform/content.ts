@@ -30,6 +30,50 @@ export interface ContentItem {
     caption_state?: CaptionState;
     transcript_source?: string;
     has_transcript?: boolean;
+    latest_transcription_job?: TranscriptionJobSummary;
+    transcript_quality?: TranscriptQualitySummary;
+}
+
+export type TranscriptionJobStatus =
+    | 'queued'
+    | 'running'
+    | 'skipped'
+    | 'succeeded'
+    | 'failed'
+    | 'writeback_failed';
+
+export interface TranscriptionJobSummary {
+    id: string;
+    content_item_id: string;
+    transcript_id?: string;
+    trigger_source: string;
+    status: TranscriptionJobStatus;
+    provider?: string;
+    model?: string;
+    language?: string;
+    skip_reason?: string;
+    error_message?: string;
+    retry_count: number;
+    estimated_cost_usd: number;
+    reserved_cost_usd: number;
+    actual_cost_usd: number;
+    started_at?: string;
+    completed_at?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export type TranscriptQualityStatus = 'ok' | 'needs_review' | 'auto_repair';
+
+export interface TranscriptQualitySummary {
+    id: string;
+    content_item_id: string;
+    transcript_id: string;
+    score: number;
+    status: TranscriptQualityStatus;
+    issue_codes: string[];
+    details?: Record<string, unknown>;
+    computed_at: string;
 }
 
 // Caption/transcript provenance state (never-downgrade machine).
@@ -78,6 +122,9 @@ export interface ListContentParams {
     status?: ContentStatus;
     type?: ContentType;
     caption_state?: CaptionState;
+    transcription_status?: TranscriptionJobStatus;
+    transcription_trigger?: string;
+    quality_status?: TranscriptQualityStatus;
     source_id?: string;
     source_name?: string;
     date_from?: string;

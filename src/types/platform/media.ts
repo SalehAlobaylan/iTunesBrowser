@@ -10,6 +10,10 @@ export interface TranscriptionConfig {
     monthly_budget_cap_usd: number;
     /** Estimated STT spend in the current window (server-managed, read-only). */
     monthly_spend_usd: number;
+    monthly_reserved_usd: number;
+    auto_repair_enabled: boolean;
+    quality_review_threshold: number;
+    quality_auto_repair_threshold: number;
     monthly_window_start: string;
     created_at: string;
     updated_at: string;
@@ -19,4 +23,7 @@ export interface UpdateTranscriptionConfigRequest {
     auto_stt_enabled?: boolean;
     provider?: string;
     monthly_budget_cap_usd?: number;
+    auto_repair_enabled?: boolean;
+    quality_review_threshold?: number;
+    quality_auto_repair_threshold?: number;
 }
