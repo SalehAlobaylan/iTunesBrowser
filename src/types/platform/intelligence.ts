@@ -24,7 +24,13 @@ export interface RankingConfig {
     is_active: boolean;
     // Phase 13 — NEWS-first stories feed.
     story_match_threshold: number;
-    news_feed_mode: 'precompute' | 'on_demand';
+    // 'live' = assemble from current story state behind a ≤60s read-through
+    // cache (the product default); 'cached_only' = emergency escape hatch.
+    // Legacy 'precompute'/'on_demand' values may still come back from older
+    // rows; the backend folds them into 'live' on update.
+    news_feed_mode: 'live' | 'cached_only' | 'precompute' | 'on_demand';
+    // Quality knob: write-time cross-encoder reranking of related stories.
+    // Independent of news_feed_mode.
     news_rerank_enabled: boolean;
     created_at: string;
     updated_at: string;
