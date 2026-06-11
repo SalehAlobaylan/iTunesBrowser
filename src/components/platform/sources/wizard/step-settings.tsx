@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Image as ImageIcon, RotateCcw, X } from 'lucide-react';
 
 import type { Dispatch } from 'react';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ export function StepSettings({ state, dispatch }: StepSettingsProps) {
     const [showAdvanced, setShowAdvanced] = useState(
         state.type === 'TELEGRAM' || state.type === 'YOUTUBE'
     );
+    const suggestedIconUrl = sourceIconFromURL(state.feedUrl || state.name);
 
     return (
         <div className="space-y-6">
@@ -48,6 +49,63 @@ export function StepSettings({ state, dispatch }: StepSettingsProps) {
                             })
                         }
                     />
+                </div>
+            </div>
+
+            <div className="space-y-3">
+                <Label htmlFor="image_url">Source Icon</Label>
+                <div className="flex items-start gap-3">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+                        {state.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={state.imageUrl}
+                                alt=""
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                }}
+                            />
+                        ) : (
+                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                        )}
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-2">
+                        <Input
+                            id="image_url"
+                            type="url"
+                            placeholder="https://example.com/logo.png"
+                            value={state.imageUrl}
+                            onChange={(e) => dispatch({ kind: 'set_image_url', url: e.target.value })}
+                        />
+                        <div className="flex flex-wrap gap-2">
+                            {suggestedIconUrl && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => dispatch({ kind: 'set_image_url', url: suggestedIconUrl })}
+                                >
+                                    <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                                    Use favicon
+                                </Button>
+                            )}
+                            {state.imageUrl && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => dispatch({ kind: 'set_image_url', url: '' })}
+                                >
+                                    <X className="mr-2 h-3.5 w-3.5" />
+                                    Clear
+                                </Button>
+                            )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Used as the News image when an item has no thumbnail. Paste a better logo URL here to override bad auto-detected icons.
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -99,6 +157,19 @@ export function StepSettings({ state, dispatch }: StepSettingsProps) {
             )}
         </div>
     );
+}
+
+function sourceIconFromURL(value: string): string | undefined {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const candidate = trimmed.includes('://') ? trimmed : `https://${trimmed}`;
+    try {
+        const url = new URL(candidate);
+        if (!url.hostname.includes('.')) return undefined;
+        return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(url.hostname)}&sz=128`;
+    } catch {
+        return undefined;
+    }
 }
 
 function YoutubeAdvanced({ state, dispatch }: StepSettingsProps) {

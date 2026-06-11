@@ -7,6 +7,7 @@ export interface ContentSource {
     name: string;
     type: SourceType;
     feed_url?: string;
+    image_url?: string;
     api_config?: Record<string, unknown>;
     is_active: boolean;
     fetch_interval_minutes: number;
@@ -36,6 +37,7 @@ export interface CreateSourceRequest {
     name: string;
     type: SourceType;
     feed_url?: string;
+    image_url?: string;
     api_config?: Record<string, unknown>;
     is_active?: boolean;
     fetch_interval_minutes?: number;
@@ -45,6 +47,7 @@ export interface UpdateSourceRequest {
     name?: string;
     type?: SourceType;
     feed_url?: string;
+    image_url?: string;
     api_config?: Record<string, unknown>;
     is_active?: boolean;
     fetch_interval_minutes?: number;

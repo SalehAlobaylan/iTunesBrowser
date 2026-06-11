@@ -96,6 +96,20 @@ export default function SourceDetailPage({ params }: SourceDetailPageProps) {
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+                        {source.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={source.image_url}
+                                alt=""
+                                className="h-full w-full object-cover"
+                            />
+                        ) : (
+                            <span className="text-lg font-semibold text-muted-foreground">
+                                {source.name.slice(0, 1).toUpperCase()}
+                            </span>
+                        )}
+                    </div>
                     <div>
                         <div className="flex items-center gap-3">
                             <h1 className="text-3xl font-bold tracking-tight">{source.name}</h1>
@@ -146,6 +160,12 @@ export default function SourceDetailPage({ params }: SourceDetailPageProps) {
                             <dt className="text-sm text-muted-foreground">Created</dt>
                             <dd className="font-medium">
                                 {formatDistanceToNow(new Date(source.created_at), { addSuffix: true })}
+                            </dd>
+                        </div>
+                        <div>
+                            <dt className="text-sm text-muted-foreground">Icon</dt>
+                            <dd className="truncate font-medium">
+                                {source.image_url || 'Auto-detect on save'}
                             </dd>
                         </div>
                     </dl>

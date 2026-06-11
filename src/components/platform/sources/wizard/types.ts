@@ -30,6 +30,7 @@ export interface WizardState {
     step: WizardStep;
     type: SourceType | null;
     feedUrl: string;
+    imageUrl: string;
     name: string;
     fetchIntervalMinutes: number;
     isActive: boolean;
@@ -43,6 +44,7 @@ export const initialWizardState: WizardState = {
     step: 1,
     type: null,
     feedUrl: '',
+    imageUrl: '',
     name: '',
     fetchIntervalMinutes: 60,
     isActive: true,
@@ -56,6 +58,7 @@ export type WizardAction =
     | { kind: 'set_step'; step: WizardStep }
     | { kind: 'set_type'; type: SourceType }
     | { kind: 'set_feed_url'; url: string }
+    | { kind: 'set_image_url'; url: string }
     | { kind: 'set_name'; name: string }
     | { kind: 'set_fetch_interval'; minutes: number }
     | { kind: 'set_is_active'; active: boolean }
@@ -87,6 +90,8 @@ export function wizardReducer(state: WizardState, action: WizardAction): WizardS
                 hasPreviewedSinceLastEdit: false,
                 previewResult: null,
             };
+        case 'set_image_url':
+            return { ...state, imageUrl: action.url };
         case 'set_name':
             return { ...state, name: action.name };
         case 'set_fetch_interval':
@@ -216,6 +221,7 @@ export function buildCreatePayload(state: WizardState): CreateSourceRequest {
         name: state.name.trim(),
         type: state.type as SourceType,
         feed_url: state.feedUrl.trim() || undefined,
+        image_url: state.imageUrl.trim() || undefined,
         api_config: buildApiConfig(state),
         is_active: state.isActive,
         fetch_interval_minutes: state.fetchIntervalMinutes,
@@ -237,6 +243,7 @@ export function sourceToWizardState(source: ContentSource): WizardState {
         step: 2,
         type: source.type,
         feedUrl: source.feed_url ?? '',
+        imageUrl: source.image_url ?? '',
         name: source.name,
         fetchIntervalMinutes: source.fetch_interval_minutes,
         isActive: source.is_active,

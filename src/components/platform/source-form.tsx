@@ -24,6 +24,7 @@ const sourceSchema = z.object({
     name: z.string().min(1, 'Name is required'),
     type: z.enum(['RSS', 'PODCAST', 'YOUTUBE', 'TWITTER', 'REDDIT', 'TELEGRAM', 'MANUAL'] as const),
     feed_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
+    image_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
     fetch_interval_minutes: z.coerce.number().min(1, 'Minimum 1 minute'),
     is_active: z.boolean(),
     telegram_channel_username: z.string().optional(),
@@ -48,6 +49,7 @@ type SourceFormSubmitData = {
     name: SourceFormData['name'];
     type: SourceFormData['type'];
     feed_url?: string;
+    image_url?: string;
     fetch_interval_minutes: SourceFormData['fetch_interval_minutes'];
     is_active: SourceFormData['is_active'];
     api_config?: Record<string, unknown>;
@@ -79,6 +81,7 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             name: source?.name || '',
             type: source?.type || 'RSS',
             feed_url: source?.feed_url || '',
+            image_url: source?.image_url || '',
             fetch_interval_minutes: source?.fetch_interval_minutes || 60,
             is_active: source?.is_active ?? true,
             telegram_channel_username: typeof sourceApiConfig?.['channel_username'] === 'string'
@@ -143,6 +146,7 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             fetch_interval_minutes: data.fetch_interval_minutes,
             is_active: data.is_active,
             feed_url: data.feed_url || undefined,
+            image_url: data.image_url || undefined,
         };
 
         if (data.type === 'TELEGRAM') {
@@ -247,6 +251,23 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                             )}
                         </div>
                     )}
+
+                    <div className="space-y-2">
+                        <Label htmlFor="image_url">Source Image URL</Label>
+                        <Input
+                            id="image_url"
+                            type="url"
+                            placeholder="https://example.com/logo.png"
+                            {...register('image_url')}
+                            disabled={isLoading}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Used on News cards when an item does not provide its own image.
+                        </p>
+                        {errors.image_url && (
+                            <p className="text-sm text-destructive">{errors.image_url.message}</p>
+                        )}
+                    </div>
 
                     {showTelegramConfig && (
                         <div className="grid gap-4 md:grid-cols-2" data-testid="telegram-config">
