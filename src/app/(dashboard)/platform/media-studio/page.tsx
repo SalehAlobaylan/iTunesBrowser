@@ -8,6 +8,7 @@ import {
     CheckCircle2,
     Clapperboard,
     Clock3,
+    HardDrive,
     Loader2,
     Mic,
     Search,
@@ -19,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useContent } from '@/hooks/use-content';
+import { useContent, useMediaSizeStats } from '@/hooks/use-content';
 import {
     CONTENT_STATUS_LABELS,
     CONTENT_STATUS_VARIANTS,
@@ -57,6 +58,23 @@ const QUALITY_STATUS_LABELS: Record<TranscriptQualityStatus, string> = {
     needs_review: 'Needs review',
     auto_repair: 'Auto repair',
 };
+
+const MB = 1024 * 1024;
+const LARGE_MEDIA_BYTES = 500 * MB;
+const MEDIA_TYPES_FILTER = 'in:VIDEO,PODCAST';
+
+function formatBytes(bytes?: number, emptyLabel = 'Untracked'): string {
+    if (!bytes || bytes <= 0) return emptyLabel;
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+    const precision = value >= 10 || unit === 0 ? 0 : 1;
+    return `${value.toFixed(precision)} ${units[unit]}`;
+}
 
 function formatDateShort(value?: string): string {
     if (!value) return 'No timestamp';
@@ -100,6 +118,7 @@ function StudioItemRow({ item, compact = false }: { item: ContentItem; compact?:
                     <Badge variant={CONTENT_STATUS_VARIANTS[item.status]}>{CONTENT_STATUS_LABELS[item.status]}</Badge>
                     {job && <Badge variant={JOB_STATUS_VARIANTS[job.status]}>{JOB_STATUS_LABELS[job.status]}</Badge>}
                     {quality && <Badge variant={quality.status === 'ok' ? 'success' : quality.status === 'needs_review' ? 'warning' : 'destructive'}>{QUALITY_STATUS_LABELS[quality.status]}</Badge>}
+                    <span>{formatBytes(item.file_size_bytes)}</span>
                     {!compact && <span>{jobTime(item)}</span>}
                 </div>
                 {reason && !compact && (
@@ -135,6 +154,12 @@ export default function MediaStudioPage() {
     const writebackFailed = useContent({ page: 1, limit: 6, transcription_status: 'writeback_failed', sort: 'updated_at', order: 'desc' });
     const needsReview = useContent({ page: 1, limit: 6, quality_status: 'needs_review', sort: 'updated_at', order: 'desc' });
     const autoRepair = useContent({ page: 1, limit: 6, quality_status: 'auto_repair', sort: 'updated_at', order: 'desc' });
+    const sizeStats = useMediaSizeStats({});
+    const untrackedSize = useContent({ page: 1, limit: 5, type: MEDIA_TYPES_FILTER, size_tracked: 'untracked', sort: 'updated_at', order: 'desc' });
+    const largeFailed = useContent({ page: 1, limit: 5, type: MEDIA_TYPES_FILTER, min_size_bytes: LARGE_MEDIA_BYTES, transcription_status: 'failed', sort: 'file_size_bytes', order: 'desc' });
+    const largeWritebackFailed = useContent({ page: 1, limit: 5, type: MEDIA_TYPES_FILTER, min_size_bytes: LARGE_MEDIA_BYTES, transcription_status: 'writeback_failed', sort: 'file_size_bytes', order: 'desc' });
+    const largeNeedsReview = useContent({ page: 1, limit: 5, type: MEDIA_TYPES_FILTER, min_size_bytes: LARGE_MEDIA_BYTES, quality_status: 'needs_review', sort: 'file_size_bytes', order: 'desc' });
+    const largeAutoRepair = useContent({ page: 1, limit: 5, type: MEDIA_TYPES_FILTER, min_size_bytes: LARGE_MEDIA_BYTES, quality_status: 'auto_repair', sort: 'file_size_bytes', order: 'desc' });
     const searchResults = useContent({
         page: 1,
         limit: 8,
@@ -158,6 +183,26 @@ export default function MediaStudioPage() {
     }, [failed.data?.data, queued.data?.data, running.data?.data, writebackFailed.data?.data]);
 
     const loadingQueue = queued.isLoading || running.isLoading || failed.isLoading || writebackFailed.isLoading;
+    const largeFailureItems = useMemo(() => {
+        const byId = new Map<string, ContentItem>();
+        for (const item of [
+            ...(largeFailed.data?.data ?? []),
+            ...(largeWritebackFailed.data?.data ?? []),
+        ]) {
+            byId.set(item.id, item);
+        }
+        return Array.from(byId.values()).sort((a, b) => (b.file_size_bytes ?? 0) - (a.file_size_bytes ?? 0)).slice(0, 5);
+    }, [largeFailed.data?.data, largeWritebackFailed.data?.data]);
+    const largeReviewItems = useMemo(() => {
+        const byId = new Map<string, ContentItem>();
+        for (const item of [
+            ...(largeNeedsReview.data?.data ?? []),
+            ...(largeAutoRepair.data?.data ?? []),
+        ]) {
+            byId.set(item.id, item);
+        }
+        return Array.from(byId.values()).sort((a, b) => (b.file_size_bytes ?? 0) - (a.file_size_bytes ?? 0)).slice(0, 5);
+    }, [largeAutoRepair.data?.data, largeNeedsReview.data?.data]);
 
     const stats = [
         {
@@ -273,6 +318,104 @@ export default function MediaStudioPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            <Card>
+                <CardHeader className="pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <HardDrive className="h-4 w-4" />
+                            Size Bottlenecks
+                        </CardTitle>
+                        <Button size="sm" variant="outline" asChild>
+                            <Link href="/platform/storage?tab=candidates">Storage candidates</Link>
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-md border p-3">
+                            <div className="text-lg font-semibold tabular-nums">
+                                {sizeStats.isLoading ? 'Loading...' : formatBytes(sizeStats.data?.total_bytes, '0 B')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Tracked media size</div>
+                        </div>
+                        <div className="rounded-md border p-3">
+                            <div className="text-lg font-semibold tabular-nums">
+                                {sizeStats.isLoading ? 'Loading...' : formatBytes(sizeStats.data?.max_bytes, '0 B')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Largest media item</div>
+                        </div>
+                        <div className="rounded-md border p-3">
+                            <div className="text-lg font-semibold tabular-nums">
+                                {sizeStats.isLoading ? 'Loading...' : sizeStats.data?.untracked_count ?? 0}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Untracked size items</div>
+                        </div>
+                    </div>
+                    <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+                        <div className="space-y-2">
+                            <h3 className="text-sm font-semibold">Largest media</h3>
+                            {sizeStats.isLoading ? (
+                                <div className="flex items-center justify-center py-6 text-muted-foreground">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                </div>
+                            ) : (sizeStats.data?.largest_items ?? []).length > 0 ? (
+                                sizeStats.data!.largest_items.slice(0, 5).map((item) => (
+                                    <Link
+                                        key={item.id}
+                                        href={`/platform/media-studio/${item.id}`}
+                                        className="block rounded-md border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+                                    >
+                                        <div className="truncate font-medium">{item.title || '(untitled)'}</div>
+                                        <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                                            <span>{item.type}</span>
+                                            <span>{formatBytes(item.file_size_bytes)}</span>
+                                        </div>
+                                    </Link>
+                                ))
+                            ) : (
+                                <EmptyState label="No tracked media sizes yet." />
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-sm font-semibold">Untracked size</h3>
+                            {untrackedSize.isLoading ? (
+                                <div className="flex items-center justify-center py-6 text-muted-foreground">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                </div>
+                            ) : (untrackedSize.data?.data ?? []).length > 0 ? (
+                                untrackedSize.data!.data.map((item) => <StudioItemRow key={item.id} item={item} compact />)
+                            ) : (
+                                <EmptyState label="No untracked media size items." />
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-sm font-semibold">Large failures</h3>
+                            {largeFailed.isLoading || largeWritebackFailed.isLoading ? (
+                                <div className="flex items-center justify-center py-6 text-muted-foreground">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                </div>
+                            ) : largeFailureItems.length > 0 ? (
+                                largeFailureItems.map((item) => <StudioItemRow key={item.id} item={item} compact />)
+                            ) : (
+                                <EmptyState label="No large failed transcription jobs." />
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <h3 className="text-sm font-semibold">Large review work</h3>
+                            {largeNeedsReview.isLoading || largeAutoRepair.isLoading ? (
+                                <div className="flex items-center justify-center py-6 text-muted-foreground">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                </div>
+                            ) : largeReviewItems.length > 0 ? (
+                                largeReviewItems.map((item) => <StudioItemRow key={item.id} item={item} compact />)
+                            ) : (
+                                <EmptyState label="No large review or auto-repair items." />
+                            )}
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             <div className="grid gap-5 lg:grid-cols-2">
                 <Card>

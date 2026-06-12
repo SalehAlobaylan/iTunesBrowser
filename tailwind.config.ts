@@ -56,6 +56,20 @@ const config: Config = {
                     DEFAULT: 'hsl(var(--info))',
                     foreground: 'hsl(var(--info-foreground))',
                 },
+                // Wahb brand accents (alpha-capable for /10, /40 tints)
+                gold: {
+                    DEFAULT: 'hsl(var(--gold) / <alpha-value>)',
+                    dim: 'hsl(var(--gold-dim) / <alpha-value>)',
+                    foreground: 'hsl(var(--gold-foreground) / <alpha-value>)',
+                },
+                news: {
+                    DEFAULT: 'hsl(var(--news) / <alpha-value>)',
+                    foreground: 'hsl(var(--news-foreground) / <alpha-value>)',
+                },
+                newsprint: {
+                    DEFAULT: 'hsl(var(--newsprint) / <alpha-value>)',
+                    foreground: 'hsl(var(--newsprint-foreground) / <alpha-value>)',
+                },
             },
             borderRadius: {
                 lg: 'var(--radius)',

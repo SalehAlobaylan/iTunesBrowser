@@ -1,6 +1,6 @@
 # Platform Console — Comprehensive Refactoring Plan
 
-> **Note (March 2026):** CRM-Service has been removed from the monorepo. All CRM references in this plan are outdated and no longer applicable.
+> **Note (March 2026):** The old CRM module has been removed from the monorepo. All CRM references in this plan are outdated and no longer applicable.
 
 **Version:** 1.0
 **Created:** January 24, 2026  

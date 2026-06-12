@@ -1,6 +1,6 @@
 # CMS Auth API Contract for Platform Console
 
-> **Note (March 2026):** CRM-Service has been removed from the monorepo. References to CRM in this document are outdated.
+> **Note (March 2026):** The old CRM module has been removed from the monorepo. References to CRM in this document are outdated.
 
 **Document Version:** 1.0
 **Date:** 2026-02-02

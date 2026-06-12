@@ -66,6 +66,9 @@ function createAxiosInstance(baseURL: string): AxiosInstance {
         baseURL,
         headers: { 'Content-Type': 'application/json' },
         withCredentials: true,
+        // Array params serialize as repeated keys (a=1&a=2) — the CMS query
+        // parser reads repeated keys; its filter fields reject bracket syntax.
+        paramsSerializer: { indexes: null },
     });
 
     instance.interceptors.response.use(

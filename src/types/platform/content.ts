@@ -17,6 +17,8 @@ export interface ContentItem {
     thumbnail_url?: string;
     original_url?: string;
     duration_sec?: number;
+    file_size_bytes?: number;
+    storage_tier?: string;
     topic_tags?: string[];
     metadata?: Record<string, unknown>;
     published_at?: string;
@@ -130,19 +132,59 @@ export interface ListContentParams {
     limit?: number;
     search?: string;
     status?: ContentStatus;
-    type?: ContentType;
+    type?: ContentType | `in:${string}`;
     caption_state?: CaptionState;
     transcription_status?: TranscriptionJobStatus;
     transcription_trigger?: string;
     quality_status?: TranscriptQualityStatus;
     source_id?: string;
     source_name?: string;
-    date_from?: string;
-    date_to?: string;
+    min_size_bytes?: number;
+    max_size_bytes?: number;
+    size_tracked?: 'tracked' | 'untracked' | 'all';
+    /**
+     * Published-date range as CMS operator filters, e.g.
+     * ['gte:2026-01-01T00:00:00Z', 'lte:2026-01-31T23:59:59Z'] — serialized as
+     * repeated `published_at=` keys.
+     */
+    published_at?: string[];
     // Server-side sort (CMS query parser reads `sort` + `order`; both accept a
     // comma-separated list for multi-field sort, e.g. sort=source_name,published_at).
     sort?: string;
     order?: string;
+}
+
+export interface MediaSizeAggregate {
+    count: number;
+    bytes: number;
+}
+
+export interface MediaSizeLargestItem {
+    id: string;
+    type: ContentType;
+    status: ContentStatus;
+    title: string;
+    source_name?: string;
+    file_size_bytes: number;
+    storage_tier?: string;
+    media_url?: string;
+    thumbnail_url?: string;
+    published_at?: string;
+    updated_at: string;
+}
+
+export interface MediaSizeStats {
+    total_count: number;
+    tracked_count: number;
+    untracked_count: number;
+    total_bytes: number;
+    avg_bytes: number;
+    max_bytes: number;
+    largest_items: MediaSizeLargestItem[];
+    by_type: Record<string, MediaSizeAggregate>;
+    by_source: Record<string, MediaSizeAggregate>;
+    by_status: Record<string, MediaSizeAggregate>;
+    size_buckets: Record<string, MediaSizeAggregate>;
 }
 
 export interface ListContentResponse {

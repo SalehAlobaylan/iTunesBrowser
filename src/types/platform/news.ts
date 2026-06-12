@@ -119,6 +119,11 @@ export interface TopicContentParams {
     type?: string;
     source_name?: string;
     created_before?: string;
+    /** Published-date range as CMS operator filters (repeated `published_at=` keys). */
+    published_at?: string[];
+    /** Server-side sort (CMS query parser: `sort` + `order`). */
+    sort?: string;
+    order?: string;
 }
 
 /** A bulk action's selection: either explicit ids OR the active filter set. */

@@ -39,6 +39,8 @@ export interface StudioContent {
     media_url?: string;
     thumbnail_url?: string;
     duration_sec?: number;
+    file_size_bytes?: number;
+    storage_tier?: string;
     caption_state?: string;
     // Download-time engagement signals (YouTube "most replayed" + SponsorBlock).
     heatmap?: HeatmapPoint[];

@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Loader2, Trash2, Star, FolderInput } from 'lucide-react';
+import { X, Loader2, Trash2, Star, FolderInput, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 
@@ -20,7 +20,10 @@ interface NewsBulkBarProps {
     onDelete: () => void;
     /** Feature is small-N only — provided only for page-scope READY selections. */
     onFeature?: () => void;
-    onMove: () => void;
+    /** Topic move — editorial types only; button hidden when omitted. */
+    onMove?: () => void;
+    /** Re-enrich — ids-scope only (no filter-scope enrichment API); disabled on "all". */
+    onReEnrich?: () => void;
 }
 
 export function NewsBulkBar({
@@ -36,6 +39,7 @@ export function NewsBulkBar({
     onDelete,
     onFeature,
     onMove,
+    onReEnrich,
 }: NewsBulkBarProps) {
     if (pageCount === 0) return null;
 
@@ -74,9 +78,23 @@ export function NewsBulkBar({
                         <Star className="h-4 w-4" />
                     </Button>
                 )}
-                <Button size="sm" variant="outline" disabled={busy} onClick={onMove} aria-label="Move to topic">
-                    <FolderInput className="h-4 w-4" />
-                </Button>
+                {onReEnrich && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy || allSelected}
+                        onClick={onReEnrich}
+                        aria-label="Re-enrich"
+                        title={allSelected ? 'Re-enrich works on page selections only' : 'Re-enrich selected'}
+                    >
+                        <Sparkles className="h-4 w-4" />
+                    </Button>
+                )}
+                {onMove && (
+                    <Button size="sm" variant="outline" disabled={busy} onClick={onMove} aria-label="Move to topic">
+                        <FolderInput className="h-4 w-4" />
+                    </Button>
+                )}
                 <Button size="sm" variant="destructive" disabled={busy} onClick={onDelete} aria-label="Delete">
                     <Trash2 className="h-4 w-4" />
                 </Button>

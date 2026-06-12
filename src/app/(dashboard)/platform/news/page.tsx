@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, ArrowLeft, Sparkles, Wand2, ChevronDown, Loader2, Rss } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -10,17 +11,49 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/components/ui/toast';
 import { TopicBoard } from '@/components/platform/news/topic-board';
 import { NewsBoard } from '@/components/platform/news/news-board';
+import { NewsOverview } from '@/components/platform/news/news-overview';
+import { NewsLibrary, type NewsLibraryType } from '@/components/platform/news/news-library';
 import { AddNewsSheet } from '@/components/platform/news/add-news-sheet';
 import { PullFreshButton } from '@/components/platform/news/run-source-dialog';
 import { RecclusterDialog } from '@/components/platform/news/recluster-dialog';
 import { FeedsManager } from '@/components/platform/news/feeds-manager';
 import { useReclassify } from '@/hooks/use-news';
+import { CONTENT_STATUS_LABELS } from '@/types/platform/content';
+import type { ContentStatus } from '@/types/platform/content';
 import type { TopicSelection } from '@/types/platform/news';
 
+type NewsViewTab = 'overview' | 'topics' | 'library';
+
+const VIEW_SUBTITLES: Record<NewsViewTab, string> = {
+    overview: 'News Center — feed health, topic backlog, and ingestion at a glance.',
+    topics: 'Rotate the feed by topic — publish, archive, and curate whole topics at once.',
+    library: 'Browse, filter, and manage every news and article item.',
+};
+
 export default function NewsPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    const viewParam = searchParams.get('view');
+    const view: NewsViewTab =
+        viewParam === 'topics' || viewParam === 'library' ? viewParam : 'overview';
+
+    // Library deep-link presets (e.g. Content type-breakdown / overview cards).
+    const statusParam = searchParams.get('status');
+    const initialStatus =
+        statusParam && statusParam in CONTENT_STATUS_LABELS
+            ? (statusParam as ContentStatus)
+            : ('all' as const);
+    const typeParam = searchParams.get('type');
+    const initialType: NewsLibraryType =
+        typeParam === 'ARTICLE' || typeParam === 'TWEET' || typeParam === 'COMMENT'
+            ? typeParam
+            : 'NEWS';
+
     const [active, setActive] = useState<TopicSelection | null>(null);
     const [addOpen, setAddOpen] = useState(false);
     const [reclusterOpen, setReclusterOpen] = useState(false);
@@ -28,6 +61,17 @@ export default function NewsPage() {
     const [classifying, setClassifying] = useState(false);
 
     const reclassify = useReclassify();
+
+    const setView = useCallback(
+        (v: NewsViewTab, extra?: Record<string, string>) => {
+            const params = new URLSearchParams();
+            if (v !== 'overview') params.set('view', v);
+            for (const [k, val] of Object.entries(extra ?? {})) params.set(k, val);
+            const qs = params.toString();
+            router.replace(`/platform/news${qs ? `?${qs}` : ''}`, { scroll: false });
+        },
+        [router]
+    );
 
     const runClassify = async () => {
         setClassifying(true);
@@ -49,12 +93,14 @@ export default function NewsPage() {
         }
     };
 
+    const drilledIn = view === 'topics' && active !== null;
+
     return (
         <div className="space-y-5">
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                    {active ? (
+                    {drilledIn ? (
                         <>
                             <button
                                 type="button"
@@ -71,10 +117,9 @@ export default function NewsPage() {
                         </>
                     ) : (
                         <>
-                            <h1 className="text-3xl font-bold tracking-tight">News</h1>
-                            <p className="text-muted-foreground">
-                                Rotate the feed by topic — publish, archive, and curate whole topics at once.
-                            </p>
+                            <span className="brand-overline text-news">News Center</span>
+                            <h1 className="font-editorial text-3xl font-bold tracking-tight">News</h1>
+                            <p className="text-muted-foreground">{VIEW_SUBTITLES[view]}</p>
                         </>
                     )}
                 </div>
@@ -92,7 +137,7 @@ export default function NewsPage() {
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline">
-                                Topics
+                                Auto-topics
                                 <ChevronDown className="ml-1 h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
@@ -114,8 +159,32 @@ export default function NewsPage() {
                 </div>
             </div>
 
-            {/* Main: topic board, or a topic's news board when drilled in */}
-            {active ? <NewsBoard topic={active} /> : <TopicBoard onOpenTopic={setActive} />}
+            {/* View switcher */}
+            <Tabs value={view} onValueChange={(v) => setView(v as NewsViewTab)}>
+                <TabsList>
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="topics">Topics</TabsTrigger>
+                    <TabsTrigger value="library">Library</TabsTrigger>
+                </TabsList>
+            </Tabs>
+
+            {view === 'overview' && (
+                <NewsOverview
+                    onOpenLibrary={(preset) =>
+                        setView('library', preset?.status ? { status: preset.status } : undefined)
+                    }
+                    onOpenTopics={() => setView('topics')}
+                />
+            )}
+            {view === 'topics' &&
+                (active ? <NewsBoard topic={active} /> : <TopicBoard onOpenTopic={setActive} />)}
+            {view === 'library' && (
+                <NewsLibrary
+                    key={`${initialType}-${initialStatus}`}
+                    initialType={initialType}
+                    initialStatus={initialStatus}
+                />
+            )}
 
             <AddNewsSheet open={addOpen} onClose={() => setAddOpen(false)} />
             <RecclusterDialog open={reclusterOpen} onClose={() => setReclusterOpen(false)} />

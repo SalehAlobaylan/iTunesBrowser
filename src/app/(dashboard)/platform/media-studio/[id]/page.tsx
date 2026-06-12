@@ -2,7 +2,8 @@
 
 import { use, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ArrowLeft, Clock3, GitCompare, Loader2, Save, ShieldCheck, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Clock3, GitCompare, HardDrive, Loader2, RefreshCw, Save, ShieldCheck, Sparkles } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +18,7 @@ import { TranscriptPanel } from '@/components/platform/media/studio/transcript-p
 import { GenerateDialog } from '@/components/platform/media/studio/generate-dialog';
 import { SourceLegend } from '@/components/platform/media/studio/source-legend';
 import {
+    studioKeys,
     useStudio,
     useGenerateChapters,
     useSaveChapters,
@@ -25,6 +27,7 @@ import {
     useUnapproveTranscript,
     useTranscriptCompare,
 } from '@/hooks/use-studio';
+import { useTriggerStt } from '@/hooks/use-transcription';
 import {
     addChapterAt,
     deleteChapterAt,
@@ -83,6 +86,21 @@ const QUALITY_STATUS_VARIANTS: Record<
     needs_review: 'warning',
     auto_repair: 'destructive',
 };
+const MB = 1024 * 1024;
+const LARGE_MEDIA_WARNING_BYTES = 500 * MB;
+
+function formatBytes(bytes?: number, emptyLabel = 'Untracked'): string {
+    if (!bytes || bytes <= 0) return emptyLabel;
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+    const precision = value >= 10 || unit === 0 ? 0 : 1;
+    return `${value.toFixed(precision)} ${units[unit]}`;
+}
 
 function formatDateShort(value?: string): string {
     if (!value) return '—';
@@ -148,7 +166,10 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
     const [selectedCompareIndex, setSelectedCompareIndex] = useState(0);
     const [approveOpen, setApproveOpen] = useState(false);
     const [approvalReason, setApprovalReason] = useState('');
+    const [sttOpen, setSttOpen] = useState(false);
 
+    const queryClient = useQueryClient();
+    const triggerStt = useTriggerStt();
     const generate = useGenerateChapters(id);
     const saveChaptersMut = useSaveChapters(id);
     const saveTranscriptMut = useSaveTranscript(id);
@@ -223,7 +244,7 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
             return ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable;
         };
         const onKeyDown = (event: KeyboardEvent) => {
-            if (generateOpen || compareOpen || approveOpen) return;
+            if (generateOpen || compareOpen || approveOpen || sttOpen) return;
             if (isTyping(event.target)) return;
             if (event.key === ' ') {
                 event.preventDefault();
@@ -246,7 +267,7 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [segments, currentMs, handleAddAtPlayhead, seek, generateOpen, compareOpen, approveOpen]);
+    }, [segments, currentMs, handleAddAtPlayhead, seek, generateOpen, compareOpen, approveOpen, sttOpen]);
 
     const handleGenerate = async (req: GenerateChaptersRequest) => {
         try {
@@ -294,6 +315,15 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
         await unapproveTranscript.mutateAsync().catch(() => undefined);
     };
 
+    const handleReTranscribe = () => {
+        setSttOpen(false);
+        triggerStt.mutate(id, {
+            // Hook toasts + invalidates content lists; also refresh this
+            // workspace so the "Latest STT job" card picks up the new job.
+            onSuccess: () => queryClient.invalidateQueries({ queryKey: studioKeys.detail(id) }),
+        });
+    };
+
     if (isLoading || !data) {
         return (
             <div className="flex h-64 items-center justify-center text-muted-foreground">
@@ -322,6 +352,11 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                     <div className="mt-1 flex items-center gap-2">
                         <Badge variant="secondary">{content.type}</Badge>
                         <Badge variant="outline">{content.status}</Badge>
+                        <Badge variant="outline" title={content.file_size_bytes ? `${content.file_size_bytes.toLocaleString()} bytes` : 'Size not tracked'}>
+                            <HardDrive className="mr-1 h-3 w-3" />
+                            {formatBytes(content.file_size_bytes)}
+                        </Badge>
+                        {content.storage_tier && <Badge variant="outline">{content.storage_tier}</Badge>}
                         <Link
                             href="/platform/media"
                             onClick={confirmLeave}
@@ -338,6 +373,19 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                        variant="outline"
+                        onClick={() => setSttOpen(true)}
+                        disabled={!content.media_url || triggerStt.isPending}
+                        title={!content.media_url ? 'No media file available for STT' : undefined}
+                    >
+                        {triggerStt.isPending ? (
+                            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                        ) : (
+                            <RefreshCw className="mr-1.5 h-4 w-4" />
+                        )}
+                        Re-transcribe
+                    </Button>
                     <Button variant="outline" onClick={() => setCompareOpen(true)} disabled={!transcript}>
                         <GitCompare className="mr-1.5 h-4 w-4" />
                         Compare
@@ -425,6 +473,10 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                                     <p>
                                         {data.latest_transcription_job.provider || 'Provider pending'}
                                         {data.latest_transcription_job.model ? ` · ${data.latest_transcription_job.model}` : ''}
+                                    </p>
+                                    <p>
+                                        Media size: {formatBytes(content.file_size_bytes)}
+                                        {content.storage_tier ? ` · ${content.storage_tier}` : ''}
                                     </p>
                                     <p>
                                         <Clock3 className="mr-1 inline h-3 w-3" />
@@ -614,6 +666,38 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                         <Button onClick={handleApprove} disabled={approveTranscript.isPending}>
                             {approveTranscript.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                             Approve
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            <Dialog open={sttOpen} onOpenChange={setSttOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{transcript ? 'Re-transcribe with STT?' : 'Transcribe with STT?'}</DialogTitle>
+                        <DialogDescription>
+                            Runs the configured STT engine on “{content.title || 'this item'}”, replacing any
+                            existing transcript and re-running embeddings. The monthly budget cap still applies.
+                            <span className="mt-2 block">
+                                Media size: {formatBytes(content.file_size_bytes)}
+                                {content.storage_tier ? ` · ${content.storage_tier}` : ''}.
+                            </span>
+                            {(content.file_size_bytes ?? 0) >= LARGE_MEDIA_WARNING_BYTES && (
+                                <span className="mt-2 block font-medium text-amber-600 dark:text-amber-500">
+                                    Large media can slow provider upload/download and is more likely to expose pipeline timeouts.
+                                </span>
+                            )}
+                            {transcript?.approved_at && (
+                                <span className="mt-2 block font-medium text-amber-600 dark:text-amber-500">
+                                    This transcript is approved. Approval is advisory; this action is still allowed.
+                                </span>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setSttOpen(false)}>Cancel</Button>
+                        <Button onClick={handleReTranscribe} disabled={triggerStt.isPending}>
+                            {triggerStt.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                            {transcript ? 'Re-transcribe' : 'Transcribe'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

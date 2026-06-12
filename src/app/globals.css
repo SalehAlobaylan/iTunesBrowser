@@ -32,6 +32,17 @@
     --warning-foreground: 26 83% 14%;
     --info: 217 91% 60%;
     --info-foreground: 224 71% 4%;
+
+    /* Wahb brand — For You surface (Warm Gold #DAA428 on near-black) */
+    --gold: 41 71% 51%;
+    --gold-dim: 39 72% 42%;
+    --gold-foreground: 0 0% 7%;
+
+    /* Wahb brand — News surface (newsprint + red accent, per .news-page theme) */
+    --news: 355 78% 56%;
+    --news-foreground: 0 0% 100%;
+    --newsprint: 30 25% 96%;
+    --newsprint-foreground: 0 0% 10%;
   }
 
   .dark {
@@ -62,6 +73,15 @@
     --warning-foreground: 26 83% 14%;
     --info: 217 91% 60%;
     --info-foreground: 210 40% 98%;
+
+    /* Wahb brand — dark mode (gold holds; news red lifts to #ff6b6b) */
+    --gold: 41 71% 51%;
+    --gold-dim: 39 72% 42%;
+    --gold-foreground: 0 0% 7%;
+    --news: 0 100% 71%;
+    --news-foreground: 0 0% 7%;
+    --newsprint: 0 0% 10%;
+    --newsprint-foreground: 0 0% 94%;
   }
 }
 
@@ -75,6 +95,17 @@
 }
 
 @layer utilities {
+  /* Editorial serif for News surfaces (Playfair if available, Georgia fallback). */
+  .font-editorial {
+    font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  }
+  /* Tracked-uppercase overline used as surface identity chrome (FOR YOU, NEWS CENTER). */
+  .brand-overline {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;

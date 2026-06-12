@@ -91,6 +91,10 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
     }
 
     const isMediaItem = item.type === 'VIDEO' || item.type === 'PODCAST';
+    // Return to the surface that owns this type, not the legacy browser.
+    const backHref = isMediaItem
+        ? `/platform/media?type=${item.type}`
+        : `/platform/news?view=library&type=${item.type}`;
 
     return (
         <div className="space-y-6">
@@ -98,7 +102,7 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
             <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
                     <Button variant="ghost" size="icon" asChild>
-                        <Link href="/platform/content">
+                        <Link href={backHref}>
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>

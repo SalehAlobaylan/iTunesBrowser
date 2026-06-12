@@ -40,6 +40,7 @@ const VALID_STATUSES: ReadonlyArray<StatusFilter> = [
 
 const VALID_TYPES: ReadonlyArray<TypeFilter> = [
     'all',
+    'NEWS',
     'ARTICLE',
     'VIDEO',
     'TWEET',

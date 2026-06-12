@@ -4,6 +4,7 @@ import type {
     ContentStatus,
     ListContentParams,
     ListContentResponse,
+    MediaSizeStats,
     UpdateContentStatusRequest,
 } from '@/types/platform/content';
 
@@ -13,6 +14,14 @@ import type {
  */
 export async function listContent(params?: ListContentParams): Promise<ListContentResponse> {
     return cmsClient.get<ListContentResponse>('/admin/content', params);
+}
+
+/**
+ * Aggregated media size totals using the same filter params as the media list.
+ * GET /admin/content/media-size-stats
+ */
+export async function getMediaSizeStats(params?: ListContentParams): Promise<MediaSizeStats> {
+    return cmsClient.get<MediaSizeStats>('/admin/content/media-size-stats', params);
 }
 
 /**

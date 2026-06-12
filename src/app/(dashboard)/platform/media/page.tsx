@@ -1,11 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { Video, Mic } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Video, Mic, Clapperboard } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { SttSettingsCard } from '@/components/platform/media/stt-settings-card';
 import { MediaList } from '@/components/platform/media/media-list';
+import { cn } from '@/lib/utils';
 import type { ContentType } from '@/types/platform/content';
 
 /**
@@ -13,29 +16,43 @@ import type { ContentType } from '@/types/platform/content';
  * caption-state badges, and on-demand STT upgrades.
  */
 export default function MediaPage() {
-    const [type, setType] = useState<ContentType>('VIDEO');
+    // Deep-link preset (e.g. Content distribution cards): ?type=PODCAST.
+    const searchParams = useSearchParams();
+    const typeParam = searchParams.get('type');
+    const [type, setType] = useState<ContentType>(typeParam === 'PODCAST' ? 'PODCAST' : 'VIDEO');
+
+    useEffect(() => {
+        setType(typeParam === 'PODCAST' ? 'PODCAST' : 'VIDEO');
+    }, [typeParam]);
 
     return (
         <div className="space-y-5">
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
                 <div>
+                    <span className="brand-overline text-gold">For You</span>
                     <h1 className="text-2xl font-semibold">Media Library</h1>
                     <p className="text-sm text-muted-foreground">
                         Browse, filter, and manage video and podcast items. Keep captions first, then
                         use STT batches for weak or missing transcripts.
                     </p>
                 </div>
+                <Button variant="outline" asChild>
+                    <Link href="/platform/media-studio">
+                        <Clapperboard className="mr-2 h-4 w-4" /> Open Studio
+                    </Link>
+                </Button>
             </div>
 
             {/* STT settings */}
             <SttSettingsCard />
 
-            {/* Type toggle */}
+            {/* Type toggle — gold active state, the For You accent */}
             <div className="flex items-center gap-2">
                 <Button
                     size="sm"
                     variant={type === 'VIDEO' ? 'default' : 'outline'}
+                    className={cn(type === 'VIDEO' && 'bg-gold text-gold-foreground hover:bg-gold/90')}
                     onClick={() => setType('VIDEO')}
                 >
                     <Video className="mr-1.5 h-4 w-4" /> Video
@@ -43,6 +60,7 @@ export default function MediaPage() {
                 <Button
                     size="sm"
                     variant={type === 'PODCAST' ? 'default' : 'outline'}
+                    className={cn(type === 'PODCAST' && 'bg-gold text-gold-foreground hover:bg-gold/90')}
                     onClick={() => setType('PODCAST')}
                 >
                     <Mic className="mr-1.5 h-4 w-4" /> Podcast

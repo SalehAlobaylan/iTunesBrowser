@@ -249,13 +249,14 @@ export default function ContentPage() {
     const mediaTotal = (videoSummary.data?.total ?? 0) + (podcastSummary.data?.total ?? 0);
     const newsTotal = (newsSummary.data?.total ?? 0) + (articleSummary.data?.total ?? 0);
     const socialTotal = (tweetSummary.data?.total ?? 0) + (commentSummary.data?.total ?? 0);
+    // News types route into the News Library; media types into Media Library.
     const typeBreakdown = [
-        { type: 'NEWS' as ContentType, total: newsSummary.data?.total ?? 0, icon: <Newspaper className="h-4 w-4" /> },
-        { type: 'ARTICLE' as ContentType, total: articleSummary.data?.total ?? 0, icon: <FileText className="h-4 w-4" /> },
-        { type: 'VIDEO' as ContentType, total: videoSummary.data?.total ?? 0, icon: <Video className="h-4 w-4" /> },
-        { type: 'PODCAST' as ContentType, total: podcastSummary.data?.total ?? 0, icon: <Mic className="h-4 w-4" /> },
-        { type: 'TWEET' as ContentType, total: tweetSummary.data?.total ?? 0, icon: <MessageSquare className="h-4 w-4" /> },
-        { type: 'COMMENT' as ContentType, total: commentSummary.data?.total ?? 0, icon: <MessageSquare className="h-4 w-4" /> },
+        { type: 'NEWS' as ContentType, total: newsSummary.data?.total ?? 0, icon: <Newspaper className="h-4 w-4" />, href: '/platform/news?view=library&type=NEWS' },
+        { type: 'ARTICLE' as ContentType, total: articleSummary.data?.total ?? 0, icon: <FileText className="h-4 w-4" />, href: '/platform/news?view=library&type=ARTICLE' },
+        { type: 'VIDEO' as ContentType, total: videoSummary.data?.total ?? 0, icon: <Video className="h-4 w-4" />, href: '/platform/media?type=VIDEO' },
+        { type: 'PODCAST' as ContentType, total: podcastSummary.data?.total ?? 0, icon: <Mic className="h-4 w-4" />, href: '/platform/media?type=PODCAST' },
+        { type: 'TWEET' as ContentType, total: tweetSummary.data?.total ?? 0, icon: <MessageSquare className="h-4 w-4" />, href: '/platform/news?view=library&type=TWEET' },
+        { type: 'COMMENT' as ContentType, total: commentSummary.data?.total ?? 0, icon: <MessageSquare className="h-4 w-4" />, href: '/platform/news?view=library&type=COMMENT' },
     ];
 
     return (
@@ -325,19 +326,34 @@ export default function ContentPage() {
                                 <div className="text-2xl font-semibold tabular-nums">{mediaTotal}</div>
                                 <div className="text-xs text-muted-foreground">Media library</div>
                             </Link>
-                            <div className="rounded-md border p-3">
+                            <Link href="/platform/news?view=library&type=TWEET" className="rounded-md border p-3 transition-colors hover:bg-muted/50">
                                 <div className="text-2xl font-semibold tabular-nums">{socialTotal}</div>
                                 <div className="text-xs text-muted-foreground">Social items</div>
-                            </div>
+                            </Link>
                         </div>
                         <div className="space-y-2">
-                            {typeBreakdown.map((entry) => (
-                                <div key={entry.type} className="flex items-center gap-3 rounded-md border px-3 py-2">
-                                    <div className="text-muted-foreground">{entry.icon}</div>
-                                    <div className="flex-1 text-sm">{CONTENT_TYPE_LABELS[entry.type]}</div>
-                                    <div className="font-mono text-sm tabular-nums">{entry.total}</div>
-                                </div>
-                            ))}
+                            {typeBreakdown.map((entry) => {
+                                const row = (
+                                    <>
+                                        <div className="text-muted-foreground">{entry.icon}</div>
+                                        <div className="flex-1 text-sm">{CONTENT_TYPE_LABELS[entry.type]}</div>
+                                        <div className="font-mono text-sm tabular-nums">{entry.total}</div>
+                                    </>
+                                );
+                                return entry.href ? (
+                                    <Link
+                                        key={entry.type}
+                                        href={entry.href}
+                                        className="flex items-center gap-3 rounded-md border px-3 py-2 transition-colors hover:bg-muted/50"
+                                    >
+                                        {row}
+                                    </Link>
+                                ) : (
+                                    <div key={entry.type} className="flex items-center gap-3 rounded-md border px-3 py-2">
+                                        {row}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </CardContent>
                 </Card>

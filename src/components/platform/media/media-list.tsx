@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
     Loader2, Sparkles, Search, MoreHorizontal, SlidersHorizontal, RefreshCw,
     Clapperboard, Trash2, Copy, ExternalLink, ArrowUpDown, Rss, Layers, ChevronRight, ChevronDown,
-    ShieldCheck, X,
+    ShieldCheck, X, LayoutGrid, List, HardDrive,
 } from 'lucide-react';
 
 import {
@@ -26,7 +26,8 @@ import {
     Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
-import { useContent, useDeleteContentByIds } from '@/hooks/use-content';
+import { cn } from '@/lib/utils';
+import { useContent, useDeleteContentByIds, useMediaSizeStats } from '@/hooks/use-content';
 import {
     useBulkTriggerStt,
     useCancelTranscriptionBatch,
@@ -36,7 +37,7 @@ import {
 import { listSourceNames } from '@/lib/api/cms/content';
 import {
     CAPTION_STATE_LABELS, CAPTION_STATE_VARIANTS, CONTENT_STATUS_LABELS, CONTENT_STATUS_VARIANTS,
-    type CaptionState, type ContentItem, type ContentStatus, type ContentType,
+    type CaptionState, type ContentItem, type ContentStatus, type ContentType, type ListContentParams,
     type TranscriptQualityStatus, type TranscriptionJobStatus, type TranscriptQualitySummary,
     type TranscriptionJobSummary,
 } from '@/types/platform/content';
@@ -49,6 +50,19 @@ function formatDuration(sec?: number): string {
     return h
         ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
         : `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function formatBytes(bytes?: number, emptyLabel = 'Untracked'): string {
+    if (!bytes || bytes <= 0) return emptyLabel;
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit += 1;
+    }
+    const precision = value >= 10 || unit === 0 ? 0 : 1;
+    return `${value.toFixed(precision)} ${units[unit]}`;
 }
 
 function captionStateOf(item: ContentItem): CaptionState {
@@ -69,7 +83,28 @@ const SORT_OPTIONS = [
     { value: 'oldest', label: 'Oldest', sort: 'published_at', order: 'asc' as const },
     { value: 'longest', label: 'Longest', sort: 'duration_sec', order: 'desc' as const },
     { value: 'shortest', label: 'Shortest', sort: 'duration_sec', order: 'asc' as const },
+    { value: 'largest', label: 'Largest file', sort: 'file_size_bytes', order: 'desc' as const },
+    { value: 'smallest', label: 'Smallest file', sort: 'file_size_bytes', order: 'asc' as const },
     { value: 'title', label: 'Title A–Z', sort: 'title', order: 'asc' as const },
+];
+type SizeFilterValue = 'all' | 'untracked' | 'lt_100mb' | '100_500mb' | '500mb_1gb' | '1_2gb' | 'gt_2gb';
+const MB = 1024 * 1024;
+const GB = 1024 * MB;
+const LARGE_MEDIA_WARNING_BYTES = 500 * MB;
+const SIZE_FILTERS: {
+    value: SizeFilterValue;
+    label: string;
+    min?: number;
+    max?: number;
+    sizeTracked?: 'tracked' | 'untracked' | 'all';
+}[] = [
+    { value: 'all', label: 'All sizes', sizeTracked: 'all' },
+    { value: 'untracked', label: 'Untracked', sizeTracked: 'untracked' },
+    { value: 'lt_100mb', label: '<100 MB', min: 1, max: 100 * MB - 1, sizeTracked: 'tracked' },
+    { value: '100_500mb', label: '100-500 MB', min: 100 * MB, max: 500 * MB - 1, sizeTracked: 'tracked' },
+    { value: '500mb_1gb', label: '500 MB-1 GB', min: 500 * MB, max: GB - 1, sizeTracked: 'tracked' },
+    { value: '1_2gb', label: '1-2 GB', min: GB, max: 2 * GB - 1, sizeTracked: 'tracked' },
+    { value: 'gt_2gb', label: '>2 GB', min: 2 * GB, sizeTracked: 'tracked' },
 ];
 type JobFilterValue = TranscriptionJobStatus | 'auto_repair_queued' | 'all';
 
@@ -188,9 +223,13 @@ export function MediaList({ type }: { type: ContentType }) {
     const [captionFilter, setCaptionFilter] = useState<CaptionState | 'all'>('all');
     const [jobFilter, setJobFilter] = useState<JobFilterValue>('all');
     const [qualityFilter, setQualityFilter] = useState<TranscriptQualityStatus | 'all'>('all');
+    const [sizeFilter, setSizeFilter] = useState<SizeFilterValue>('all');
     const [source, setSource] = useState<string>('all');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [sortValue, setSortValue] = useState('newest');
     const [groupBy, setGroupBy] = useState(true);
+    const [view, setView] = useState<'gallery' | 'table'>('gallery');
     const [sourceNames, setSourceNames] = useState<string[]>([]);
 
     const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -219,7 +258,7 @@ export function MediaList({ type }: { type: ContentType }) {
     useEffect(() => {
         setPage(1);
         setSelected(new Set());
-    }, [type, search, status, captionFilter, jobFilter, qualityFilter, source, sortValue, groupBy]);
+    }, [type, search, status, captionFilter, jobFilter, qualityFilter, sizeFilter, source, dateFrom, dateTo, sortValue, groupBy]);
 
     useEffect(() => {
         listSourceNames().then(setSourceNames).catch(() => setSourceNames([]));
@@ -230,13 +269,18 @@ export function MediaList({ type }: { type: ContentType }) {
     // the chosen within-group order (multi-sort: the CMS parser pairs them).
     const sortParam = groupBy ? `source_name,${sortOpt.sort}` : sortOpt.sort;
     const orderParam = groupBy ? `asc,${sortOpt.order}` : sortOpt.order;
+    const sizeOpt = SIZE_FILTERS.find((option) => option.value === sizeFilter) ?? SIZE_FILTERS[0];
 
-    const { data, isLoading } = useContent(
-        {
+    // Published-date range as CMS operator filters (repeated published_at= keys).
+    const publishedRange = useMemo(() => [
+        dateFrom ? `gte:${dateFrom}T00:00:00Z` : '',
+        dateTo ? `lte:${dateTo}T23:59:59Z` : '',
+    ].filter(Boolean), [dateFrom, dateTo]);
+
+    const contentFilters = useMemo<ListContentParams>(() => ({
             type,
-            page,
-            limit: groupBy ? 50 : 20,
             search: search || undefined,
+            published_at: publishedRange.length ? publishedRange : undefined,
             status: status === 'all' ? undefined : status,
             caption_state: captionFilter === 'all' ? undefined : captionFilter,
             transcription_status: jobFilter === 'all'
@@ -247,11 +291,34 @@ export function MediaList({ type }: { type: ContentType }) {
             transcription_trigger: jobFilter === 'auto_repair_queued' ? 'auto_quality' : undefined,
             quality_status: qualityFilter === 'all' ? undefined : qualityFilter,
             source_name: source === 'all' ? undefined : source,
+            min_size_bytes: sizeOpt.min,
+            max_size_bytes: sizeOpt.max,
+            size_tracked: sizeOpt.sizeTracked === 'all' ? undefined : sizeOpt.sizeTracked,
+        }), [
+            type,
+            search,
+            publishedRange,
+            status,
+            captionFilter,
+            jobFilter,
+            qualityFilter,
+            source,
+            sizeOpt.min,
+            sizeOpt.max,
+            sizeOpt.sizeTracked,
+        ]);
+
+    const { data, isLoading } = useContent(
+        {
+            ...contentFilters,
+            page,
+            limit: groupBy ? 50 : 20,
             sort: sortParam,
             order: orderParam,
         },
         { paused: bulkBusy }
     );
+    const mediaSizeStats = useMediaSizeStats(contentFilters, { paused: bulkBusy });
 
     const items = useMemo(() => data?.data ?? [], [data?.data]);
     const total = data?.total ?? 0;
@@ -269,6 +336,10 @@ export function MediaList({ type }: { type: ContentType }) {
     }, [items]);
 
     const selectedItems = useMemo(() => items.filter((i) => selected.has(i.id)), [items, selected]);
+    const selectedBytes = selectedItems.reduce((sum, item) => sum + Math.max(0, item.file_size_bytes ?? 0), 0);
+    const selectedUntracked = selectedItems.filter((item) => !item.file_size_bytes || item.file_size_bytes <= 0).length;
+    const sttConfirmBytes = (sttConfirm ?? []).reduce((sum, item) => sum + Math.max(0, item.file_size_bytes ?? 0), 0);
+    const sttConfirmUntracked = (sttConfirm ?? []).filter((item) => !item.file_size_bytes || item.file_size_bytes <= 0).length;
     const allSelected = items.length > 0 && items.every((i) => selected.has(i.id));
 
     const setMany = (ids: string[], on: boolean) =>
@@ -317,12 +388,165 @@ export function MediaList({ type }: { type: ContentType }) {
         toast({ title: 'ID copied', variant: 'success' });
     };
 
-    const colSpan = 7;
+    const colSpan = 8;
 
-    const renderRow = (item: ContentItem) => {
+    /** Row/card actions — shared between the table and gallery views. */
+    const renderActions = (item: ContentItem, triggerClassName?: string) => {
         const state = captionStateOf(item);
         const hasMedia = !!item.media_url;
         const isReT = state === 'stt_done' || state === 'youtube_human';
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className={cn('h-8 w-8', triggerClassName)} aria-label="Item actions">
+                        <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={() => router.push(`/platform/media-studio/${item.id}`)}>
+                        <Clapperboard className="mr-2 h-4 w-4" /> Open in Media Studio
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled={!hasMedia} onClick={() => setSttConfirm([item])}>
+                        {isReT ? <RefreshCw className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        {isReT ? 'Re-transcribe with STT' : 'Enrich with STT'}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => copyId(item.id)}>
+                        <Copy className="mr-2 h-4 w-4" /> Copy ID
+                    </DropdownMenuItem>
+                    {item.original_url && (
+                        <DropdownMenuItem asChild>
+                            <a href={item.original_url} target="_blank" rel="noreferrer">
+                                <ExternalLink className="mr-2 h-4 w-4" /> Open original
+                            </a>
+                        </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteConfirm([item])}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+    };
+
+    /**
+     * Gallery card — thumbnail-led, the way the For You product presents media:
+     * duration timecode in monospace, caption/quality chips, gold selection ring.
+     */
+    const renderCard = (item: ContentItem) => {
+        const state = captionStateOf(item);
+        const approved = !!item.transcript_approved_at;
+        const job = item.latest_transcription_job;
+        const jobIsLive = job && ['queued', 'running', 'failed', 'writeback_failed'].includes(job.status);
+        const isSelected = selected.has(item.id);
+        return (
+            <div
+                key={item.id}
+                className={cn(
+                    'group relative flex flex-col overflow-hidden rounded-xl border bg-card transition-all hover:shadow-md',
+                    isSelected && 'border-gold ring-1 ring-gold'
+                )}
+            >
+                <div className="relative aspect-video w-full overflow-hidden bg-muted">
+                    <Link href={`/platform/media-studio/${item.id}`} className="absolute inset-0">
+                        {item.thumbnail_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={item.thumbnail_url}
+                                alt=""
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                loading="lazy"
+                            />
+                        ) : (
+                            <Clapperboard className="absolute inset-0 m-auto h-6 w-6 text-muted-foreground" />
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/60" />
+                    </Link>
+                    <div className="absolute left-1.5 top-1.5 rounded-md bg-black/45 p-1 backdrop-blur-sm">
+                        <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleOne(item.id)}
+                            aria-label="Select item"
+                            className="border-white/70"
+                        />
+                    </div>
+                    {renderActions(
+                        item,
+                        'absolute right-1.5 top-1.5 h-7 w-7 rounded-md bg-black/45 text-white backdrop-blur-sm hover:bg-black/65 hover:text-white'
+                    )}
+                    <span className="pointer-events-none absolute bottom-1.5 right-1.5 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[11px] leading-none text-white">
+                        {formatDuration(item.duration_sec)}
+                    </span>
+                    <span
+                        className="pointer-events-none absolute right-1.5 top-10 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[11px] leading-none text-white"
+                        title={item.file_size_bytes ? `${item.file_size_bytes.toLocaleString()} bytes` : 'Size not tracked'}
+                    >
+                        {formatBytes(item.file_size_bytes)}
+                    </span>
+                    {item.status !== 'READY' && (
+                        <Badge
+                            variant={CONTENT_STATUS_VARIANTS[item.status]}
+                            className="pointer-events-none absolute bottom-1.5 left-1.5"
+                        >
+                            {CONTENT_STATUS_LABELS[item.status]}
+                        </Badge>
+                    )}
+                </div>
+                <div className="flex flex-1 flex-col gap-1.5 p-3">
+                    <Link
+                        href={`/platform/media-studio/${item.id}`}
+                        dir="auto"
+                        title={item.title}
+                        className="line-clamp-2 text-sm font-medium leading-snug hover:underline"
+                    >
+                        {item.title || '(untitled)'}
+                    </Link>
+                    {item.source_name && (
+                        <span className="truncate text-xs text-muted-foreground">{item.source_name}</span>
+                    )}
+                    <div className="mt-auto flex flex-wrap items-center gap-1 pt-1">
+                        <Badge variant={CAPTION_STATE_VARIANTS[state]} className="text-[10px]">
+                            {state === 'youtube_auto' && '⚠️ '}
+                            {CAPTION_STATE_LABELS[state]}
+                        </Badge>
+                        {item.transcript_quality && (
+                            <Badge
+                                variant={QUALITY_STATUS_VARIANTS[item.transcript_quality.status]}
+                                className="text-[10px]"
+                            >
+                                {QUALITY_STATUS_LABELS[item.transcript_quality.status]} ·{' '}
+                                {Math.round(item.transcript_quality.score * 100)}%
+                            </Badge>
+                        )}
+                        {approved && (
+                            <Badge
+                                variant="outline"
+                                className="text-[10px]"
+                                title={`Approved by ${item.transcript_approved_by || 'admin'}`}
+                            >
+                                <ShieldCheck className="mr-0.5 h-3 w-3" /> Approved
+                            </Badge>
+                        )}
+                        {jobIsLive && job && (
+                            <Badge variant={JOB_STATUS_VARIANTS[job.status]} className="text-[10px]">
+                                {JOB_STATUS_LABELS[job.status]}
+                            </Badge>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const cardGrid = (cardItems: ContentItem[]) => (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+            {cardItems.map(renderCard)}
+        </div>
+    );
+
+    const renderRow = (item: ContentItem) => {
+        const state = captionStateOf(item);
         const approved = !!item.transcript_approved_at;
         return (
             <TableRow key={item.id}>
@@ -357,6 +581,9 @@ export function MediaList({ type }: { type: ContentType }) {
                     <Badge variant={CONTENT_STATUS_VARIANTS[item.status]}>{CONTENT_STATUS_LABELS[item.status]}</Badge>
                 </TableCell>
                 <TableCell className="tabular-nums text-sm">{formatDuration(item.duration_sec)}</TableCell>
+                <TableCell className="tabular-nums text-sm" title={item.file_size_bytes ? `${item.file_size_bytes.toLocaleString()} bytes` : 'Size not tracked'}>
+                    {formatBytes(item.file_size_bytes)}
+                </TableCell>
                 <TableCell>
                     <div className="space-y-1">
                         <Badge variant={CAPTION_STATE_VARIANTS[state]}>
@@ -375,39 +602,7 @@ export function MediaList({ type }: { type: ContentType }) {
                 <TableCell>
                     {renderJobSummary(item.latest_transcription_job)}
                 </TableCell>
-                <TableCell className="text-right">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52">
-                            <DropdownMenuItem onClick={() => router.push(`/platform/media-studio/${item.id}`)}>
-                                <Clapperboard className="mr-2 h-4 w-4" /> Open in Media Studio
-                            </DropdownMenuItem>
-                            <DropdownMenuItem disabled={!hasMedia} onClick={() => setSttConfirm([item])}>
-                                {isReT ? <RefreshCw className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                {isReT ? 'Re-transcribe with STT' : 'Enrich with STT'}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => copyId(item.id)}>
-                                <Copy className="mr-2 h-4 w-4" /> Copy ID
-                            </DropdownMenuItem>
-                            {item.original_url && (
-                                <DropdownMenuItem asChild>
-                                    <a href={item.original_url} target="_blank" rel="noreferrer">
-                                        <ExternalLink className="mr-2 h-4 w-4" /> Open original
-                                    </a>
-                                </DropdownMenuItem>
-                            )}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteConfirm([item])}>
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </TableCell>
+                <TableCell className="text-right">{renderActions(item)}</TableCell>
             </TableRow>
         );
     };
@@ -449,6 +644,44 @@ export function MediaList({ type }: { type: ContentType }) {
                 </div>
             )}
 
+            <div className="rounded-md border bg-muted/30 p-3">
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2 pr-2">
+                        <HardDrive className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Size bottleneck</span>
+                    </div>
+                    <div className="grid flex-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        <div>
+                            <div className="text-sm font-semibold tabular-nums">
+                                {mediaSizeStats.isLoading ? 'Loading...' : formatBytes(mediaSizeStats.data?.total_bytes, '0 B')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Tracked size</div>
+                        </div>
+                        <div>
+                            <div className="text-sm font-semibold tabular-nums">
+                                {mediaSizeStats.isLoading ? 'Loading...' : formatBytes(mediaSizeStats.data?.max_bytes, '0 B')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Largest item</div>
+                        </div>
+                        <div>
+                            <div className="text-sm font-semibold tabular-nums">
+                                {mediaSizeStats.isLoading ? 'Loading...' : formatBytes(mediaSizeStats.data?.avg_bytes, '0 B')}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Average tracked size</div>
+                        </div>
+                        <div>
+                            <div className="text-sm font-semibold tabular-nums">
+                                {mediaSizeStats.isLoading ? 'Loading...' : mediaSizeStats.data?.untracked_count ?? 0}
+                            </div>
+                            <div className="text-xs text-muted-foreground">Untracked items</div>
+                        </div>
+                    </div>
+                    <Button size="sm" variant="outline" asChild>
+                        <Link href="/platform/storage?tab=candidates">Storage candidates</Link>
+                    </Button>
+                </div>
+            </div>
+
             {/* Filter / search bar */}
             <div className="flex flex-wrap items-center gap-2">
                 <div className="relative min-w-[200px] flex-1">
@@ -463,6 +696,36 @@ export function MediaList({ type }: { type: ContentType }) {
                 >
                     <Layers className="mr-1.5 h-3.5 w-3.5" /> Group by source
                 </Button>
+                <div className="flex items-center gap-0.5 rounded-md border p-0.5">
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className={cn(
+                            'h-7 px-2',
+                            view === 'gallery' &&
+                                'bg-gold text-gold-foreground hover:bg-gold/90 hover:text-gold-foreground'
+                        )}
+                        onClick={() => setView('gallery')}
+                        title="Gallery view"
+                        aria-label="Gallery view"
+                    >
+                        <LayoutGrid className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className={cn(
+                            'h-7 px-2',
+                            view === 'table' &&
+                                'bg-gold text-gold-foreground hover:bg-gold/90 hover:text-gold-foreground'
+                        )}
+                        onClick={() => setView('table')}
+                        title="Table view"
+                        aria-label="Table view"
+                    >
+                        <List className="h-4 w-4" />
+                    </Button>
+                </div>
                 <Select value={status} onValueChange={(v) => setStatus(v as ContentStatus | 'all')}>
                     <SelectTrigger className="w-[140px]">
                         <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -492,6 +755,12 @@ export function MediaList({ type }: { type: ContentType }) {
                         {JOB_FILTERS.map((f) => (<SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>))}
                     </SelectContent>
                 </Select>
+                <Select value={sizeFilter} onValueChange={(v) => setSizeFilter(v as SizeFilterValue)}>
+                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        {SIZE_FILTERS.map((f) => (<SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>))}
+                    </SelectContent>
+                </Select>
                 {sourceNames.length > 0 && (
                     <Select value={source} onValueChange={setSource}>
                         <SelectTrigger className="w-[170px]">
@@ -513,12 +782,36 @@ export function MediaList({ type }: { type: ContentType }) {
                         {SORT_OPTIONS.map((o) => (<SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>))}
                     </SelectContent>
                 </Select>
+                {/* Published-date range */}
+                <div className="flex items-center gap-1.5">
+                    <Input
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="w-[150px]"
+                        aria-label="Published from"
+                        title="Published from"
+                    />
+                    <span className="text-xs text-muted-foreground">–</span>
+                    <Input
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="w-[150px]"
+                        aria-label="Published to"
+                        title="Published to"
+                    />
+                </div>
             </div>
 
             {/* Bulk action bar OR result count */}
             {selected.size > 0 ? (
                 <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
                     <span className="font-medium">{selected.size} selected</span>
+                    <span className="text-muted-foreground">
+                        {formatBytes(selectedBytes, '0 B')} tracked
+                        {selectedUntracked > 0 ? ` · ${selectedUntracked} untracked` : ''}
+                    </span>
                     <div className="flex-1" />
                     <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => setSttConfirm(selectedItems.filter((i) => i.media_url))}>
                         {bulkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
@@ -530,11 +823,67 @@ export function MediaList({ type }: { type: ContentType }) {
                     <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
                 </div>
             ) : (
-                <p className="text-xs text-muted-foreground">
-                    {isLoading ? 'Loading…' : `${total} ${type.toLowerCase()} item${total === 1 ? '' : 's'}${groupBy ? ` · ${groups.length} source${groups.length === 1 ? '' : 's'} on this page` : ''}`}
-                </p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {view === 'gallery' && items.length > 0 && (
+                        <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="Select all on this page" />
+                    )}
+                    <p>
+                        {isLoading ? 'Loading…' : `${total} ${type.toLowerCase()} item${total === 1 ? '' : 's'}${groupBy ? ` · ${groups.length} source${groups.length === 1 ? '' : 's'} on this page` : ''}`}
+                    </p>
+                </div>
             )}
 
+            {view === 'gallery' ? (
+                isLoading ? (
+                    <div className="flex justify-center rounded-md border py-16 text-muted-foreground">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                ) : items.length === 0 ? (
+                    <div className="rounded-md border py-16 text-center text-sm text-muted-foreground">
+                        No matching {type.toLowerCase()} items.
+                    </div>
+                ) : groupBy ? (
+                    <div className="space-y-5">
+                        {groups.map(([src, gItems]) => {
+                            const groupIds = gItems.map((i) => i.id);
+                            const groupAllSelected = groupIds.every((id) => selected.has(id));
+                            const isCollapsed = collapsed.has(src);
+                            return (
+                                <div key={src} className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <Checkbox
+                                            checked={groupAllSelected}
+                                            onCheckedChange={() => setMany(groupIds, !groupAllSelected)}
+                                            aria-label="Select source"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleCollapse(src)}
+                                            className="flex items-center gap-1.5 text-sm font-semibold"
+                                        >
+                                            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                            <Rss className="h-3.5 w-3.5 text-muted-foreground" />
+                                            {src}
+                                            <Badge variant="secondary" className="ml-1">{gItems.length}</Badge>
+                                            <Badge variant="outline" className="ml-1">
+                                                {formatBytes(gItems.reduce((sum, item) => sum + Math.max(0, item.file_size_bytes ?? 0), 0), '0 B')}
+                                            </Badge>
+                                            {gItems.some((item) => !item.file_size_bytes || item.file_size_bytes <= 0) && (
+                                                <Badge variant="outline" className="ml-1">
+                                                    {gItems.filter((item) => !item.file_size_bytes || item.file_size_bytes <= 0).length} untracked
+                                                </Badge>
+                                            )}
+                                        </button>
+                                    </div>
+                                    {!isCollapsed && cardGrid(gItems)}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    cardGrid(items)
+                )
+            ) : (
             <div className="rounded-md border">
                 <Table>
                     <TableHeader>
@@ -545,6 +894,7 @@ export function MediaList({ type }: { type: ContentType }) {
                             <TableHead>Title</TableHead>
                             <TableHead className="w-28">Status</TableHead>
                             <TableHead className="w-20">Length</TableHead>
+                            <TableHead className="w-24">Size</TableHead>
                             <TableHead className="w-56">Transcript</TableHead>
                             <TableHead className="w-56">Latest job</TableHead>
                             <TableHead className="w-12" />
@@ -588,6 +938,14 @@ export function MediaList({ type }: { type: ContentType }) {
                                                     <Rss className="h-3.5 w-3.5 text-muted-foreground" />
                                                     {src}
                                                     <Badge variant="secondary" className="ml-1">{gItems.length}</Badge>
+                                                    <Badge variant="outline" className="ml-1">
+                                                        {formatBytes(gItems.reduce((sum, item) => sum + Math.max(0, item.file_size_bytes ?? 0), 0), '0 B')}
+                                                    </Badge>
+                                                    {gItems.some((item) => !item.file_size_bytes || item.file_size_bytes <= 0) && (
+                                                        <Badge variant="outline" className="ml-1">
+                                                            {gItems.filter((item) => !item.file_size_bytes || item.file_size_bytes <= 0).length} untracked
+                                                        </Badge>
+                                                    )}
                                                 </button>
                                             </TableCell>
                                         </TableRow>
@@ -601,6 +959,7 @@ export function MediaList({ type }: { type: ContentType }) {
                     </TableBody>
                 </Table>
             </div>
+            )}
 
             {totalPages > 1 && (
                 <div className="flex items-center justify-end gap-2">
@@ -618,6 +977,15 @@ export function MediaList({ type }: { type: ContentType }) {
                         <DialogDescription>
                             Runs the configured STT engine{(sttConfirm?.length ?? 0) > 1 ? ' on the selected items' : ` on “${sttConfirm?.[0]?.title || 'this item'}”`},
                             replacing any existing transcript and re-running embeddings. The monthly budget cap still applies.
+                            <span className="mt-2 block">
+                                Media size: {formatBytes(sttConfirmBytes, '0 B')} tracked
+                                {sttConfirmUntracked > 0 ? ` · ${sttConfirmUntracked} untracked` : ''}.
+                            </span>
+                            {sttConfirmBytes >= LARGE_MEDIA_WARNING_BYTES && (
+                                <span className="mt-2 block font-medium text-amber-600 dark:text-amber-500">
+                                    Large media can slow provider upload/download and is more likely to expose pipeline timeouts.
+                                </span>
+                            )}
                             {sttConfirm?.some((item) => item.transcript_approved_at) && (
                                 <span className="mt-2 block font-medium text-amber-600 dark:text-amber-500">
                                     {sttConfirm.filter((item) => item.transcript_approved_at).length} approved transcript{sttConfirm.filter((item) => item.transcript_approved_at).length === 1 ? '' : 's'} selected. Approval is advisory; this action is still allowed.
