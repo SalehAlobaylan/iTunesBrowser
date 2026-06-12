@@ -24,6 +24,9 @@ export interface RankingConfig {
     is_active: boolean;
     // Phase 13 — NEWS-first stories feed.
     story_match_threshold: number;
+    // Coverage-aware ranking: story momentum × (1 + w·ln(1 + recent members)).
+    // Rewards aggregation — heavily-covered stories outrank fresh singletons.
+    story_coverage_weight: number;
     // 'live' = assemble from current story state behind a ≤60s read-through
     // cache (the product default); 'cached_only' = emergency escape hatch.
     // Legacy 'precompute'/'on_demand' values may still come back from older
