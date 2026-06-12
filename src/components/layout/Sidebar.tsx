@@ -42,14 +42,14 @@ export function Sidebar({ className }: SidebarProps) {
       >
         {mobile || !sidebarCollapsed ? (
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={26} height={26} className="dark:hidden object-contain" />
-            <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={26} height={26} className="hidden dark:block object-contain" />
+            <Image src="/images/wahb_logo_transparent_dark.png" alt="Wahb" width={26} height={26} className="dark:hidden object-contain" />
+            <Image src="/images/wahb_logo_transparent_light.png" alt="Wahb" width={26} height={26} className="hidden dark:block object-contain" />
             <span className="text-sm font-semibold tracking-tight">Platform Console</span>
           </Link>
         ) : (
           <Link href="/" className="mx-auto flex items-center justify-center">
-            <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={24} height={24} className="dark:hidden object-contain" />
-            <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={24} height={24} className="hidden dark:block object-contain" />
+            <Image src="/images/wahb_logo_transparent_dark.png" alt="Wahb" width={24} height={24} className="dark:hidden object-contain" />
+            <Image src="/images/wahb_logo_transparent_light.png" alt="Wahb" width={24} height={24} className="hidden dark:block object-contain" />
           </Link>
         )}
         {mobile && (

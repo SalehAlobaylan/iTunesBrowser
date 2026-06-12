@@ -46,8 +46,8 @@ export default function LoginPage() {
                     className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 shadow-sm transition-transform hover:scale-110 active:scale-95 cursor-pointer"
                     title="Quick sign in"
                 >
-                    <Image src="/images/Wahb-logo-black.png" alt="Wahb" width={28} height={28} className="dark:hidden object-contain" />
-                    <Image src="/images/Wahb-logo-White.png" alt="Wahb" width={28} height={28} className="hidden dark:block object-contain" />
+                    <Image src="/images/wahb_logo_transparent_dark.png" alt="Wahb" width={28} height={28} className="dark:hidden object-contain" />
+                    <Image src="/images/wahb_logo_transparent_light.png" alt="Wahb" width={28} height={28} className="hidden dark:block object-contain" />
                 </button>
                 <div className="text-center">
                     <h1 className="text-xl font-semibold tracking-tight">Platform Console</h1>
