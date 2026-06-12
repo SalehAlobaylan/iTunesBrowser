@@ -9,8 +9,8 @@ import { MediaList } from '@/components/platform/media/media-list';
 import type { ContentType } from '@/types/platform/content';
 
 /**
- * Media tab — manages the For You audio/video corpus: caption-first transcripts,
- * caption-state badges, and on-demand STT upgrades. Mirrors the News tab.
+ * Media Library — manages the For You audio/video corpus: caption-first transcripts,
+ * caption-state badges, and on-demand STT upgrades.
  */
 export default function MediaPage() {
     const [type, setType] = useState<ContentType>('VIDEO');
@@ -20,10 +20,10 @@ export default function MediaPage() {
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-semibold">Media</h1>
+                    <h1 className="text-2xl font-semibold">Media Library</h1>
                     <p className="text-sm text-muted-foreground">
-                        Audio &amp; video transcripts — YouTube captions first, with on-demand STT
-                        upgrades for weak auto-captions.
+                        Browse, filter, and manage video and podcast items. Keep captions first, then
+                        use STT batches for weak or missing transcripts.
                     </p>
                 </div>
             </div>

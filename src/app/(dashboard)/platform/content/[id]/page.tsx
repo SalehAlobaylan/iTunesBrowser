@@ -8,6 +8,7 @@ import {
     Eye,
     ThumbsUp,
     Share2,
+    Clapperboard,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 
@@ -89,6 +90,8 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
         );
     }
 
+    const isMediaItem = item.type === 'VIDEO' || item.type === 'PODCAST';
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -137,6 +140,14 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                                 <ExternalLink className="mr-2 h-4 w-4" />
                                 Open original
                             </a>
+                        </Button>
+                    )}
+                    {isMediaItem && (
+                        <Button variant="outline" asChild>
+                            <Link href={`/platform/media-studio/${item.id}`}>
+                                <Clapperboard className="mr-2 h-4 w-4" />
+                                Open in Media Studio
+                            </Link>
                         </Button>
                     )}
                     <DetailActionsMenu item={item} />

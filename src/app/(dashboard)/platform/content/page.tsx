@@ -1,10 +1,26 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Search, RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
+import {
+    Activity,
+    AlertTriangle,
+    CheckCircle2,
+    Clock3,
+    Database,
+    FileText,
+    MessageSquare,
+    Mic,
+    Newspaper,
+    RefreshCw,
+    Search,
+    Video,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Select,
     SelectContent,
@@ -45,6 +61,7 @@ import {
 import {
     CONTENT_TYPE_LABELS,
     CONTENT_STATUS_LABELS,
+    CONTENT_STATUS_VARIANTS,
 } from '@/types/platform/content';
 import type {
     ContentItem,
@@ -95,6 +112,16 @@ export default function ContentPage() {
     );
 
     const counts = useStatusCounts({ paused: bulkBusy });
+    const newsSummary = useContent({ page: 1, limit: 1, type: 'NEWS' }, { paused: bulkBusy });
+    const articleSummary = useContent({ page: 1, limit: 1, type: 'ARTICLE' }, { paused: bulkBusy });
+    const videoSummary = useContent({ page: 1, limit: 1, type: 'VIDEO' }, { paused: bulkBusy });
+    const podcastSummary = useContent({ page: 1, limit: 1, type: 'PODCAST' }, { paused: bulkBusy });
+    const tweetSummary = useContent({ page: 1, limit: 1, type: 'TWEET' }, { paused: bulkBusy });
+    const commentSummary = useContent({ page: 1, limit: 1, type: 'COMMENT' }, { paused: bulkBusy });
+    const recentFailures = useContent(
+        { page: 1, limit: 5, status: 'FAILED', sort: 'updated_at', order: 'desc' },
+        { paused: bulkBusy }
+    );
 
     // Lazy-load source names once for the toolbar filter.
     useEffect(() => {
@@ -215,6 +242,21 @@ export default function ContentPage() {
         () => buildPagination(state.page, totalPages),
         [state.page, totalPages]
     );
+    const statusCounts = counts.data;
+    const totalContent = statusCounts
+        ? Object.values(statusCounts).reduce((sum, value) => sum + value, 0)
+        : 0;
+    const mediaTotal = (videoSummary.data?.total ?? 0) + (podcastSummary.data?.total ?? 0);
+    const newsTotal = (newsSummary.data?.total ?? 0) + (articleSummary.data?.total ?? 0);
+    const socialTotal = (tweetSummary.data?.total ?? 0) + (commentSummary.data?.total ?? 0);
+    const typeBreakdown = [
+        { type: 'NEWS' as ContentType, total: newsSummary.data?.total ?? 0, icon: <Newspaper className="h-4 w-4" /> },
+        { type: 'ARTICLE' as ContentType, total: articleSummary.data?.total ?? 0, icon: <FileText className="h-4 w-4" /> },
+        { type: 'VIDEO' as ContentType, total: videoSummary.data?.total ?? 0, icon: <Video className="h-4 w-4" /> },
+        { type: 'PODCAST' as ContentType, total: podcastSummary.data?.total ?? 0, icon: <Mic className="h-4 w-4" /> },
+        { type: 'TWEET' as ContentType, total: tweetSummary.data?.total ?? 0, icon: <MessageSquare className="h-4 w-4" /> },
+        { type: 'COMMENT' as ContentType, total: commentSummary.data?.total ?? 0, icon: <MessageSquare className="h-4 w-4" /> },
+    ];
 
     return (
         <div className="space-y-6">
@@ -223,7 +265,7 @@ export default function ContentPage() {
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Content</h1>
                     <p className="text-muted-foreground">
-                        Browse, triage and act on ingested content items
+                        General content health, distribution, and cross-platform operations.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -239,6 +281,108 @@ export default function ContentPage() {
                         <RefreshCw className="h-4 w-4" />
                     </Button>
                     <ToolsMenu />
+                </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <OverviewStat
+                    label="Total content"
+                    value={totalContent}
+                    icon={<Database className="h-4 w-4" />}
+                />
+                <OverviewStat
+                    label="Ready"
+                    value={statusCounts?.READY ?? 0}
+                    icon={<CheckCircle2 className="h-4 w-4" />}
+                    tone="text-success"
+                />
+                <OverviewStat
+                    label="Processing"
+                    value={(statusCounts?.PROCESSING ?? 0) + (statusCounts?.PENDING ?? 0)}
+                    icon={<Clock3 className="h-4 w-4" />}
+                    tone="text-info"
+                />
+                <OverviewStat
+                    label="Failed"
+                    value={statusCounts?.FAILED ?? 0}
+                    icon={<AlertTriangle className="h-4 w-4" />}
+                    tone="text-destructive"
+                />
+            </div>
+
+            <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Content Distribution</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                            <Link href="/platform/news" className="rounded-md border p-3 transition-colors hover:bg-muted/50">
+                                <div className="text-2xl font-semibold tabular-nums">{newsTotal}</div>
+                                <div className="text-xs text-muted-foreground">News center</div>
+                            </Link>
+                            <Link href="/platform/media" className="rounded-md border p-3 transition-colors hover:bg-muted/50">
+                                <div className="text-2xl font-semibold tabular-nums">{mediaTotal}</div>
+                                <div className="text-xs text-muted-foreground">Media library</div>
+                            </Link>
+                            <div className="rounded-md border p-3">
+                                <div className="text-2xl font-semibold tabular-nums">{socialTotal}</div>
+                                <div className="text-xs text-muted-foreground">Social items</div>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            {typeBreakdown.map((entry) => (
+                                <div key={entry.type} className="flex items-center gap-3 rounded-md border px-3 py-2">
+                                    <div className="text-muted-foreground">{entry.icon}</div>
+                                    <div className="flex-1 text-sm">{CONTENT_TYPE_LABELS[entry.type]}</div>
+                                    <div className="font-mono text-sm tabular-nums">{entry.total}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Recent Failures</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        {recentFailures.isLoading ? (
+                            <div className="flex items-center justify-center py-8 text-muted-foreground">
+                                <Activity className="h-5 w-5 animate-pulse" />
+                            </div>
+                        ) : (recentFailures.data?.data ?? []).length > 0 ? (
+                            recentFailures.data!.data.map((item) => (
+                                <Link
+                                    key={item.id}
+                                    href={item.type === 'VIDEO' || item.type === 'PODCAST' ? `/platform/media-studio/${item.id}` : `/platform/content/${item.id}`}
+                                    className="flex items-center gap-3 rounded-md border px-3 py-2 transition-colors hover:bg-muted/50"
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <div className="truncate text-sm font-medium">{item.title || '(untitled)'}</div>
+                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                            <Badge variant="outline">{CONTENT_TYPE_LABELS[item.type]}</Badge>
+                                            <Badge variant={CONTENT_STATUS_VARIANTS[item.status]}>{CONTENT_STATUS_LABELS[item.status]}</Badge>
+                                            {item.source_name && <span className="text-xs text-muted-foreground">{item.source_name}</span>}
+                                        </div>
+                                    </div>
+                                </Link>
+                            ))
+                        ) : (
+                            <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                                No failed content items right now.
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t pt-6">
+                <div>
+                    <h2 className="text-lg font-semibold">All Content Browser</h2>
+                    <p className="text-sm text-muted-foreground">
+                        Temporary legacy browser while News and Media continue moving into dedicated tabs.
+                    </p>
                 </div>
             </div>
 
@@ -503,4 +647,28 @@ function buildPagination(current: number, total: number): Array<number | '…'> 
     if (end < total - 1) out.push('…');
     out.push(total);
     return out;
+}
+
+function OverviewStat({
+    label,
+    value,
+    icon,
+    tone = 'text-muted-foreground',
+}: {
+    label: string;
+    value: number;
+    icon: ReactNode;
+    tone?: string;
+}) {
+    return (
+        <Card>
+            <CardContent className="flex items-center justify-between p-4">
+                <div>
+                    <div className="text-2xl font-semibold tabular-nums">{value.toLocaleString()}</div>
+                    <div className="text-xs text-muted-foreground">{label}</div>
+                </div>
+                <div className={tone}>{icon}</div>
+            </CardContent>
+        </Card>
+    );
 }

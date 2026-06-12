@@ -9,6 +9,7 @@ import {
     Copy,
     PanelRight,
     Loader2,
+    Clapperboard,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,7 @@ export function ContentRowActions({ item, onDelete }: ContentRowActionsProps) {
 
     const isUpdating =
         updateStatus.isPending && updateStatus.variables?.id === item.id;
+    const isMediaItem = item.type === 'VIDEO' || item.type === 'PODCAST';
 
     const copyId = async () => {
         try {
@@ -96,6 +98,11 @@ export function ContentRowActions({ item, onDelete }: ContentRowActionsProps) {
                 <DropdownMenuItem onClick={() => router.push(`/platform/content/${item.id}`)}>
                     <PanelRight className="mr-2 h-4 w-4" /> Open detail
                 </DropdownMenuItem>
+                {isMediaItem && (
+                    <DropdownMenuItem onClick={() => router.push(`/platform/media-studio/${item.id}`)}>
+                        <Clapperboard className="mr-2 h-4 w-4" /> Open in Media Studio
+                    </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                     onClick={() => item.original_url && window.open(item.original_url, '_blank')}
                     disabled={!item.original_url}

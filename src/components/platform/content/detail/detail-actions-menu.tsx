@@ -9,6 +9,7 @@ import {
     Copy,
     Trash2,
     Loader2,
+    Clapperboard,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -59,6 +60,7 @@ export function DetailActionsMenu({ item }: DetailActionsMenuProps) {
     const deleteByIds = useDeleteContentByIds();
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [working, setWorking] = useState<null | 'enrich' | 'retry'>(null);
+    const isMediaItem = item.type === 'VIDEO' || item.type === 'PODCAST';
 
     const isBusy =
         updateStatus.isPending || deleteByIds.isPending || Boolean(working);
@@ -142,6 +144,14 @@ export function DetailActionsMenu({ item }: DetailActionsMenuProps) {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
+                    {isMediaItem && (
+                        <>
+                            <DropdownMenuItem onClick={() => router.push(`/platform/media-studio/${item.id}`)}>
+                                <Clapperboard className="mr-2 h-4 w-4" /> Open in Media Studio
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                        </>
+                    )}
                     <DropdownMenuSub>
                         <DropdownMenuSubTrigger>
                             <DropdownMenuLabel className="flex items-center px-0 py-0 font-normal">
