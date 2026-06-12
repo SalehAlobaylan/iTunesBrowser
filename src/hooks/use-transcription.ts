@@ -3,7 +3,9 @@ import {
     getTranscriptionConfig,
     updateTranscriptionConfig,
     triggerStt,
-    bulkCreateTranscriptionJobs,
+    createTranscriptionBatch,
+    getTranscriptionBatch,
+    cancelTranscriptionBatch,
 } from '@/lib/api/cms/transcription';
 import type { UpdateTranscriptionConfigRequest } from '@/types/platform/media';
 import { contentKeys } from '@/hooks/use-content';
@@ -11,6 +13,7 @@ import { toast } from '@/components/ui/toast';
 
 export const transcriptionKeys = {
     config: ['transcription', 'config'] as const,
+    batch: (id: string) => ['transcription', 'batch', id] as const,
 };
 
 export function useTranscriptionConfig() {
@@ -60,17 +63,44 @@ export function useTriggerStt() {
 export function useBulkTriggerStt() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (ids: string[]) => bulkCreateTranscriptionJobs(ids, true),
+        mutationFn: (ids: string[]) => createTranscriptionBatch(ids, true),
         onSuccess: (res) => {
             queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
             toast({
-                title: 'Bulk STT queued',
-                description: `${res.accepted} accepted, ${res.skipped} skipped, ${res.failed} failed`,
-                variant: res.failed ? 'default' : 'success',
+                title: 'Bulk STT batch queued',
+                description: `${res.total_count} items accepted into batch`,
+                variant: 'success',
             });
         },
         onError: (error: Error) => {
             toast({ title: 'Failed to queue bulk STT', description: error.message, variant: 'destructive' });
+        },
+    });
+}
+
+export function useTranscriptionBatch(id?: string) {
+    return useQuery({
+        queryKey: id ? transcriptionKeys.batch(id) : ['transcription', 'batch', 'none'],
+        queryFn: () => getTranscriptionBatch(id!),
+        enabled: !!id,
+        refetchInterval: (query) => {
+            const status = query.state.data?.status;
+            return status === 'queued' || status === 'running' ? 2500 : false;
+        },
+    });
+}
+
+export function useCancelTranscriptionBatch() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => cancelTranscriptionBatch(id),
+        onSuccess: (batch) => {
+            queryClient.setQueryData(transcriptionKeys.batch(batch.id), batch);
+            queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
+            toast({ title: 'Transcription batch canceled', variant: 'success' });
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Failed to cancel batch', description: error.message, variant: 'destructive' });
         },
     });
 }

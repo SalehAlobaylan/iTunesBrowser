@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 import { Crosshair, Pencil, Search } from 'lucide-react';
 import type { StudioSegment } from '@/types/platform/studio';
 import { formatMs } from '@/lib/studio/chapters';
@@ -13,13 +13,14 @@ interface TranscriptPanelProps {
     currentMs: number;
     onSeek: (ms: number) => void;
     onEditSegment: (index: number, text: string) => void;
+    searchInputRef?: RefObject<HTMLInputElement | null>;
 }
 
 /**
  * Scrollable transcript synced to playback. Click a timestamp to seek; click the
  * pencil to edit a segment's text (light editing). One row edits at a time.
  */
-export function TranscriptPanel({ segments, currentMs, onSeek, onEditSegment }: TranscriptPanelProps) {
+export function TranscriptPanel({ segments, currentMs, onSeek, onEditSegment, searchInputRef }: TranscriptPanelProps) {
     const [editing, setEditing] = useState<number | null>(null);
     const [draft, setDraft] = useState('');
     const [query, setQuery] = useState('');
@@ -52,6 +53,7 @@ export function TranscriptPanel({ segments, currentMs, onSeek, onEditSegment }: 
                 <div className="relative flex-1">
                     <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                     <Input
+                        ref={searchInputRef}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search transcript"

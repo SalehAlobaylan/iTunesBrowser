@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
     Loader2, Sparkles, Search, MoreHorizontal, SlidersHorizontal, RefreshCw,
     Clapperboard, Trash2, Copy, ExternalLink, ArrowUpDown, Rss, Layers, ChevronRight, ChevronDown,
+    ShieldCheck, X,
 } from 'lucide-react';
 
 import {
@@ -26,7 +27,12 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toast';
 import { useContent, useDeleteContentByIds } from '@/hooks/use-content';
-import { useBulkTriggerStt, useTriggerStt } from '@/hooks/use-transcription';
+import {
+    useBulkTriggerStt,
+    useCancelTranscriptionBatch,
+    useTranscriptionBatch,
+    useTriggerStt,
+} from '@/hooks/use-transcription';
 import { listSourceNames } from '@/lib/api/cms/content';
 import {
     CAPTION_STATE_LABELS, CAPTION_STATE_VARIANTS, CONTENT_STATUS_LABELS, CONTENT_STATUS_VARIANTS,
@@ -74,6 +80,7 @@ const JOB_FILTERS: { value: JobFilterValue; label: string }[] = [
     { value: 'running', label: 'Running' },
     { value: 'failed', label: 'Failed' },
     { value: 'writeback_failed', label: 'Writeback failed' },
+    { value: 'canceled', label: 'Canceled' },
 ];
 const QUALITY_FILTERS: { value: TranscriptQualityStatus | 'all'; label: string }[] = [
     { value: 'all', label: 'All quality' },
@@ -88,6 +95,7 @@ const JOB_STATUS_LABELS: Record<TranscriptionJobStatus, string> = {
     succeeded: 'Succeeded',
     failed: 'Failed',
     writeback_failed: 'Writeback failed',
+    canceled: 'Canceled',
 };
 const JOB_STATUS_VARIANTS: Record<
     TranscriptionJobStatus,
@@ -99,6 +107,7 @@ const JOB_STATUS_VARIANTS: Record<
     succeeded: 'success',
     failed: 'destructive',
     writeback_failed: 'destructive',
+    canceled: 'outline',
 };
 const QUALITY_STATUS_LABELS: Record<TranscriptQualityStatus, string> = {
     ok: 'OK',
@@ -158,6 +167,12 @@ function renderJobSummary(job?: TranscriptionJobSummary) {
             <div className="text-muted-foreground">
                 {formatDateShort(job.completed_at || job.started_at || job.created_at)} · {cost}
             </div>
+            {job.writeback_status && (
+                <div className="text-muted-foreground">
+                    Writeback: {job.writeback_status}
+                    {job.writeback_error ? ` · ${job.writeback_error}` : ''}
+                </div>
+            )}
             {reason && <div className="line-clamp-2 max-w-44 text-muted-foreground" title={reason}>{reason}</div>}
         </div>
     );
@@ -183,10 +198,18 @@ export function MediaList({ type }: { type: ContentType }) {
     const [sttConfirm, setSttConfirm] = useState<ContentItem[] | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<ContentItem[] | null>(null);
     const [bulkBusy, setBulkBusy] = useState(false);
+    const [activeBatchId, setActiveBatchId] = useState<string | undefined>();
 
     const triggerStt = useTriggerStt();
     const bulkTriggerStt = useBulkTriggerStt();
+    const cancelBatch = useCancelTranscriptionBatch();
+    const { data: activeBatch } = useTranscriptionBatch(activeBatchId);
     const deleteByIds = useDeleteContentByIds();
+
+    const batchRunning = activeBatch?.status === 'queued' || activeBatch?.status === 'running';
+    const activeBatchRunningCount = activeBatch
+        ? Math.max(0, activeBatch.accepted_count - activeBatch.completed_count - activeBatch.failed_count - activeBatch.canceled_count)
+        : 0;
 
     useEffect(() => {
         const t = setTimeout(() => setSearch(searchInput.trim()), 300);
@@ -277,7 +300,8 @@ export function MediaList({ type }: { type: ContentType }) {
             return;
         }
         setBulkBusy(true);
-        await bulkTriggerStt.mutateAsync(targets.map((t) => t.id)).catch(() => undefined);
+        const batch = await bulkTriggerStt.mutateAsync(targets.map((t) => t.id)).catch(() => undefined);
+        if (batch?.id) setActiveBatchId(batch.id);
         setBulkBusy(false);
         setSelected(new Set());
     };
@@ -299,6 +323,7 @@ export function MediaList({ type }: { type: ContentType }) {
         const state = captionStateOf(item);
         const hasMedia = !!item.media_url;
         const isReT = state === 'stt_done' || state === 'youtube_human';
+        const approved = !!item.transcript_approved_at;
         return (
             <TableRow key={item.id}>
                 <TableCell>
@@ -339,6 +364,12 @@ export function MediaList({ type }: { type: ContentType }) {
                             {CAPTION_STATE_LABELS[state]}
                         </Badge>
                         {renderQualitySummary(item.transcript_quality)}
+                        {approved && (
+                            <Badge variant="outline" title={`Approved by ${item.transcript_approved_by || 'admin'}`}>
+                                <ShieldCheck className="mr-1 h-3 w-3" />
+                                Approved
+                            </Badge>
+                        )}
                     </div>
                 </TableCell>
                 <TableCell>
@@ -383,6 +414,41 @@ export function MediaList({ type }: { type: ContentType }) {
 
     return (
         <div className="space-y-3">
+            {activeBatch && (
+                <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">Transcription batch</span>
+                        <Badge variant={activeBatch.status === 'failed' ? 'destructive' : activeBatch.status === 'canceled' ? 'outline' : 'secondary'}>
+                            {activeBatch.status}
+                        </Badge>
+                        <span className="text-muted-foreground">
+                            {activeBatch.accepted_count} accepted · {activeBatchRunningCount} active · {activeBatch.completed_count} done · {activeBatch.skipped_count} skipped · {activeBatch.failed_count} failed · {activeBatch.canceled_count} canceled
+                        </span>
+                        <div className="flex-1" />
+                        {batchRunning && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => cancelBatch.mutate(activeBatch.id)}
+                                disabled={cancelBatch.isPending}
+                            >
+                                {cancelBatch.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <X className="mr-1.5 h-3.5 w-3.5" />}
+                                Cancel
+                            </Button>
+                        )}
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded bg-background">
+                        <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${Math.min(100, Math.round(((activeBatch.completed_count + activeBatch.skipped_count + activeBatch.failed_count + activeBatch.canceled_count) / Math.max(1, activeBatch.total_count)) * 100))}%` }}
+                        />
+                    </div>
+                    {activeBatch.latest_error && (
+                        <p className="mt-2 line-clamp-2 text-xs text-destructive">{activeBatch.latest_error}</p>
+                    )}
+                </div>
+            )}
+
             {/* Filter / search bar */}
             <div className="flex flex-wrap items-center gap-2">
                 <div className="relative min-w-[200px] flex-1">
@@ -552,6 +618,11 @@ export function MediaList({ type }: { type: ContentType }) {
                         <DialogDescription>
                             Runs the configured STT engine{(sttConfirm?.length ?? 0) > 1 ? ' on the selected items' : ` on “${sttConfirm?.[0]?.title || 'this item'}”`},
                             replacing any existing transcript and re-running embeddings. The monthly budget cap still applies.
+                            {sttConfirm?.some((item) => item.transcript_approved_at) && (
+                                <span className="mt-2 block font-medium text-amber-600 dark:text-amber-500">
+                                    {sttConfirm.filter((item) => item.transcript_approved_at).length} approved transcript{sttConfirm.filter((item) => item.transcript_approved_at).length === 1 ? '' : 's'} selected. Approval is advisory; this action is still allowed.
+                                </span>
+                            )}
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

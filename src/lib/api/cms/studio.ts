@@ -4,6 +4,8 @@ import type {
     StudioChapter,
     StudioSegment,
     GenerateChaptersRequest,
+    TranscriptCompareResponse,
+    StudioTranscript,
 } from '@/types/platform/studio';
 
 interface CmsEnvelope<T> {
@@ -50,5 +52,27 @@ export const saveTranscript = (id: string, segments: StudioSegment[]) =>
         cmsClient.put<CmsEnvelope<{ full_text: string; segments: StudioSegment[] }>>(
             `/admin/content/${id}/transcript`,
             { segments }
+        )
+    );
+
+export const approveTranscript = (id: string, reason?: string) =>
+    unwrap(
+        cmsClient.post<CmsEnvelope<{ transcript: StudioTranscript }>>(
+            `/admin/content/${id}/transcript/approve`,
+            { reason: reason ?? '' }
+        )
+    ).then((d) => d.transcript);
+
+export const unapproveTranscript = (id: string) =>
+    unwrap(
+        cmsClient.delete<CmsEnvelope<{ transcript: StudioTranscript }>>(
+            `/admin/content/${id}/transcript/approve`
+        )
+    ).then((d) => d.transcript);
+
+export const compareTranscripts = (id: string) =>
+    unwrap(
+        cmsClient.get<CmsEnvelope<TranscriptCompareResponse>>(
+            `/admin/content/${id}/transcripts/compare`
         )
     );

@@ -501,7 +501,16 @@ function collectIssues(
     return issues;
 }
 
-export async function GET(): Promise<NextResponse<SystemHealthSnapshot>> {
+export async function GET(): Promise<NextResponse<SystemHealthSnapshot | { message: string }>> {
+    // Require an authenticated console session. This snapshot exposes internal
+    // service URLs, versions, model inventory and env-var presence — admin-only
+    // recon data — so anonymous callers are rejected, matching the sibling
+    // restart/migrations routes.
+    const accessToken = (await cookies()).get(ACCESS_COOKIE)?.value;
+    if (!accessToken) {
+        return NextResponse.json({ message: 'Not authenticated' }, { status: 401 });
+    }
+
     const env: Record<(typeof ENV_KEYS)[number], string | undefined> = {
         // Trim — a stray trailing space in a *_BASE_URL env (easy to leave in a
         // hand-edited .env) otherwise yields URLs like "http://host:5050 /health"

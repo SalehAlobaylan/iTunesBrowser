@@ -30,6 +30,8 @@ export interface ContentItem {
     caption_state?: CaptionState;
     transcript_source?: string;
     has_transcript?: boolean;
+    transcript_approved_at?: string;
+    transcript_approved_by?: string;
     latest_transcription_job?: TranscriptionJobSummary;
     transcript_quality?: TranscriptQualitySummary;
 }
@@ -40,12 +42,15 @@ export type TranscriptionJobStatus =
     | 'skipped'
     | 'succeeded'
     | 'failed'
-    | 'writeback_failed';
+    | 'writeback_failed'
+    | 'canceled';
 
 export interface TranscriptionJobSummary {
     id: string;
     content_item_id: string;
     transcript_id?: string;
+    batch_id?: string;
+    batch_item_id?: string;
     trigger_source: string;
     status: TranscriptionJobStatus;
     provider?: string;
@@ -53,10 +58,15 @@ export interface TranscriptionJobSummary {
     language?: string;
     skip_reason?: string;
     error_message?: string;
+    provider_error_code?: string;
     retry_count: number;
+    canceled: boolean;
     estimated_cost_usd: number;
     reserved_cost_usd: number;
     actual_cost_usd: number;
+    media_job_id?: string;
+    writeback_status?: string;
+    writeback_error?: string;
     started_at?: string;
     completed_at?: string;
     created_at: string;

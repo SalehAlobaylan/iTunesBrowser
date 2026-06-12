@@ -49,6 +49,36 @@ export interface BulkCreateTranscriptionJobsResponse {
     }>;
 }
 
+export interface TranscriptionBatchItem {
+    id: string;
+    content_item_id: string;
+    job_id?: string;
+    status: 'pending' | 'accepted' | 'skipped' | 'failed' | 'canceled' | 'done';
+    reason?: string;
+    error?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface TranscriptionBatch {
+    id: string;
+    status: 'queued' | 'running' | 'completed' | 'canceled' | 'failed';
+    force: boolean;
+    actor?: string;
+    total_count: number;
+    accepted_count: number;
+    skipped_count: number;
+    failed_count: number;
+    canceled_count: number;
+    completed_count: number;
+    latest_error?: string;
+    canceled_at?: string;
+    completed_at?: string;
+    created_at: string;
+    updated_at: string;
+    items?: TranscriptionBatchItem[];
+}
+
 export const createTranscriptionJob = (data: CreateTranscriptionJobRequest) =>
     unwrapCmsData(
         cmsClient.post<CmsEnvelope<CreateTranscriptionJobResponse>>(
@@ -62,6 +92,29 @@ export const bulkCreateTranscriptionJobs = (contentIds: string[], force = true) 
         cmsClient.post<CmsEnvelope<BulkCreateTranscriptionJobsResponse>>(
             '/admin/transcription/jobs/bulk',
             { content_ids: contentIds, force }
+        )
+    );
+
+export const createTranscriptionBatch = (contentIds: string[], force = true) =>
+    unwrapCmsData(
+        cmsClient.post<CmsEnvelope<TranscriptionBatch>>(
+            '/admin/transcription/batches',
+            { content_ids: contentIds, force }
+        )
+    );
+
+export const getTranscriptionBatch = (id: string) =>
+    unwrapCmsData(
+        cmsClient.get<CmsEnvelope<TranscriptionBatch>>(
+            `/admin/transcription/batches/${id}`
+        )
+    );
+
+export const cancelTranscriptionBatch = (id: string) =>
+    unwrapCmsData(
+        cmsClient.post<CmsEnvelope<TranscriptionBatch>>(
+            `/admin/transcription/batches/${id}/cancel`,
+            {}
         )
     );
 

@@ -1,11 +1,15 @@
 'use client';
 
-import { use, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { use, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ArrowLeft, Clock3, Loader2, Save, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Clock3, GitCompare, Loader2, Save, ShieldCheck, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { StudioPlayer } from '@/components/platform/media/studio/player';
 import { Timeline } from '@/components/platform/media/studio/timeline';
 import { ChapterList } from '@/components/platform/media/studio/chapter-list';
@@ -17,6 +21,9 @@ import {
     useGenerateChapters,
     useSaveChapters,
     useSaveTranscript,
+    useApproveTranscript,
+    useUnapproveTranscript,
+    useTranscriptCompare,
 } from '@/hooks/use-studio';
 import {
     addChapterAt,
@@ -31,6 +38,7 @@ import type {
     GenerateChaptersRequest,
     StudioChapter,
     StudioSegment,
+    TranscriptCompareCandidate,
 } from '@/types/platform/studio';
 import type {
     TranscriptQualityStatus,
@@ -48,6 +56,7 @@ const JOB_STATUS_LABELS: Record<TranscriptionJobStatus, string> = {
     succeeded: 'Succeeded',
     failed: 'Failed',
     writeback_failed: 'Writeback failed',
+    canceled: 'Canceled',
 };
 const JOB_STATUS_VARIANTS: Record<
     TranscriptionJobStatus,
@@ -59,6 +68,7 @@ const JOB_STATUS_VARIANTS: Record<
     succeeded: 'success',
     failed: 'destructive',
     writeback_failed: 'destructive',
+    canceled: 'outline',
 };
 const QUALITY_STATUS_LABELS: Record<TranscriptQualityStatus, string> = {
     ok: 'OK',
@@ -81,11 +91,49 @@ function formatDateShort(value?: string): string {
     return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+function candidateLabel(candidate: TranscriptCompareCandidate): string {
+    if (candidate.kind === 'active') return 'Active transcript';
+    if (candidate.kind === 'youtube_caption') return 'YouTube caption';
+    if (candidate.kind === 'stt') return 'STT transcript';
+    if (candidate.kind === 'version') return 'Version snapshot';
+    return 'Transcript';
+}
+
+function CandidatePane({ candidate, query }: { candidate: TranscriptCompareCandidate; query: string }) {
+    const q = query.trim().toLowerCase();
+    const segments = q
+        ? candidate.segments.filter((seg) => seg.text.toLowerCase().includes(q))
+        : candidate.segments.slice(0, 80);
+    return (
+        <div className="min-w-0 rounded-md border p-3">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Badge variant={candidate.kind === 'active' ? 'default' : 'secondary'}>{candidateLabel(candidate)}</Badge>
+                {candidate.source && <Badge variant="outline">{candidate.source}</Badge>}
+                {candidate.provider && <span className="text-xs text-muted-foreground">{candidate.provider}</span>}
+            </div>
+            <div className="mb-2 text-xs text-muted-foreground">
+                {candidate.word_count} words · {candidate.segment_count} segments · {Math.round(candidate.similarity * 100)}% similar · Δ {candidate.difference_count}
+            </div>
+            <div className="max-h-80 space-y-1 overflow-y-auto text-sm">
+                {segments.length > 0 ? segments.map((seg, index) => (
+                    <div key={`${candidate.id}-${index}`} className="rounded bg-muted/40 px-2 py-1">
+                        <span className="mr-2 font-mono text-xs text-muted-foreground">{Math.round(seg.start)}s</span>
+                        <span dir="auto">{seg.text}</span>
+                    </div>
+                )) : (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No matching segments.</p>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export default function MediaStudioPage({ params }: StudioPageProps) {
     const { id } = use(params);
     const { data, isLoading } = useStudio(id);
 
     const mediaRef = useRef<HTMLVideoElement | null>(null);
+    const transcriptSearchRef = useRef<HTMLInputElement | null>(null);
     const initedRef = useRef<string | null>(null);
 
     const [chapters, setChapters] = useState<StudioChapter[]>([]);
@@ -95,10 +143,18 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
     const [chaptersDirty, setChaptersDirty] = useState(false);
     const [transcriptDirty, setTranscriptDirty] = useState(false);
     const [generateOpen, setGenerateOpen] = useState(false);
+    const [compareOpen, setCompareOpen] = useState(false);
+    const [compareQuery, setCompareQuery] = useState('');
+    const [selectedCompareIndex, setSelectedCompareIndex] = useState(0);
+    const [approveOpen, setApproveOpen] = useState(false);
+    const [approvalReason, setApprovalReason] = useState('');
 
     const generate = useGenerateChapters(id);
     const saveChaptersMut = useSaveChapters(id);
     const saveTranscriptMut = useSaveTranscript(id);
+    const approveTranscript = useApproveTranscript(id);
+    const unapproveTranscript = useUnapproveTranscript(id);
+    const compare = useTranscriptCompare(id, compareOpen);
 
     // Init working state once per item (refetches after save won't clobber edits).
     useEffect(() => {
@@ -128,10 +184,10 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
         }
     };
 
-    const seek = (ms: number) => {
+    const seek = useCallback((ms: number) => {
         if (mediaRef.current) mediaRef.current.currentTime = ms / 1000;
         setCurrentMs(ms);
-    };
+    }, []);
 
     const onDurationMs = (ms: number) => {
         if (ms > 0) {
@@ -141,11 +197,13 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
     };
 
     // Chapter edit handlers (client working set).
-    const editChapters = (next: StudioChapter[]) => {
+    const editChapters = useCallback((next: StudioChapter[]) => {
         setChapters(next);
         setChaptersDirty(true);
-    };
-    const handleAddAtPlayhead = () => editChapters(addChapterAt(chapters, currentMs, durationMs));
+    }, []);
+    const handleAddAtPlayhead = useCallback(() => {
+        editChapters(addChapterAt(chapters, currentMs, durationMs));
+    }, [chapters, currentMs, durationMs, editChapters]);
     const handleAddAtPeaks = () => {
         const peaks = peakStartsMs(data?.content.heatmap ?? [], durationMs, 5);
         let next = chapters;
@@ -157,6 +215,38 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
         editChapters(updateChapter(chapters, i, patch));
     const handleMoveBoundary = (i: number, ms: number) =>
         editChapters(moveBoundary(chapters, i, ms, durationMs));
+
+    useEffect(() => {
+        const isTyping = (target: EventTarget | null) => {
+            const el = target as HTMLElement | null;
+            if (!el) return false;
+            return ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable;
+        };
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (generateOpen || compareOpen || approveOpen) return;
+            if (isTyping(event.target)) return;
+            if (event.key === ' ') {
+                event.preventDefault();
+                const media = mediaRef.current;
+                if (!media) return;
+                if (media.paused) void media.play();
+                else media.pause();
+            } else if (event.key.toLowerCase() === 'j') {
+                const prev = [...segments].reverse().find((seg) => seg.start * 1000 < currentMs - 250);
+                if (prev) seek(prev.start * 1000);
+            } else if (event.key.toLowerCase() === 'k') {
+                const next = segments.find((seg) => seg.start * 1000 > currentMs + 250);
+                if (next) seek(next.start * 1000);
+            } else if (event.key.toLowerCase() === 'c') {
+                handleAddAtPlayhead();
+            } else if (event.key === '/') {
+                event.preventDefault();
+                transcriptSearchRef.current?.focus();
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [segments, currentMs, handleAddAtPlayhead, seek, generateOpen, compareOpen, approveOpen]);
 
     const handleGenerate = async (req: GenerateChaptersRequest) => {
         try {
@@ -193,6 +283,17 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
         }
     };
 
+    const handleApprove = async () => {
+        await approveTranscript.mutateAsync(approvalReason).then(() => {
+            setApproveOpen(false);
+            setApprovalReason('');
+        }).catch(() => undefined);
+    };
+
+    const handleUnapprove = async () => {
+        await unapproveTranscript.mutateAsync().catch(() => undefined);
+    };
+
     if (isLoading || !data) {
         return (
             <div className="flex h-64 items-center justify-center text-muted-foreground">
@@ -221,9 +322,30 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                     <div className="mt-1 flex items-center gap-2">
                         <Badge variant="secondary">{content.type}</Badge>
                         <Badge variant="outline">{content.status}</Badge>
+                        {transcript?.approved_at && (
+                            <Badge variant="outline" title={transcript.approval_reason || transcript.approved_by}>
+                                <ShieldCheck className="mr-1 h-3 w-3" />
+                                Approved
+                            </Badge>
+                        )}
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" onClick={() => setCompareOpen(true)} disabled={!transcript}>
+                        <GitCompare className="mr-1.5 h-4 w-4" />
+                        Compare
+                    </Button>
+                    {transcript?.approved_at ? (
+                        <Button variant="outline" onClick={handleUnapprove} disabled={unapproveTranscript.isPending}>
+                            <ShieldCheck className="mr-1.5 h-4 w-4" />
+                            Clear approval
+                        </Button>
+                    ) : (
+                        <Button variant="outline" onClick={() => setApproveOpen(true)} disabled={!transcript || approveTranscript.isPending}>
+                            <ShieldCheck className="mr-1.5 h-4 w-4" />
+                            Approve
+                        </Button>
+                    )}
                     <Button variant="outline" onClick={() => setGenerateOpen(true)} disabled={!transcript}>
                         <Sparkles className="mr-1.5 h-4 w-4" />
                         {chapters.length > 0 ? 'Regenerate chapters' : 'Generate chapters'}
@@ -305,6 +427,12 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                                             data.latest_transcription_job.created_at
                                         )}
                                     </p>
+                                    {data.latest_transcription_job.writeback_status && (
+                                        <p>
+                                            Writeback: {data.latest_transcription_job.writeback_status}
+                                            {data.latest_transcription_job.writeback_error ? ` · ${data.latest_transcription_job.writeback_error}` : ''}
+                                        </p>
+                                    )}
                                     {(data.latest_transcription_job.error_message || data.latest_transcription_job.skip_reason) && (
                                         <p className="line-clamp-2">
                                             {data.latest_transcription_job.error_message || data.latest_transcription_job.skip_reason}
@@ -390,6 +518,7 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                                 currentMs={currentMs}
                                 onSeek={seek}
                                 onEditSegment={handleEditSegment}
+                                searchInputRef={transcriptSearchRef}
                             />
                         </div>
                     </div>
@@ -403,6 +532,85 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                 isPending={generate.isPending}
                 hasChapters={chapters.length > 0}
             />
+            <Dialog open={compareOpen} onOpenChange={setCompareOpen}>
+                <DialogContent className="max-w-5xl">
+                    <DialogHeader>
+                        <DialogTitle>Compare transcripts</DialogTitle>
+                        <DialogDescription>
+                            Review transcript sources side by side.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {compare.isLoading ? (
+                        <div className="flex h-48 items-center justify-center text-muted-foreground">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                        </div>
+                    ) : compare.data ? (
+                        <div className="space-y-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <input
+                                    value={compareQuery}
+                                    onChange={(event) => setCompareQuery(event.target.value)}
+                                    placeholder="Search comparison"
+                                    className="h-9 min-w-[220px] flex-1 rounded-md border bg-background px-3 text-sm"
+                                />
+                                {compare.data.candidates.length > 0 && (
+                                    <select
+                                        value={selectedCompareIndex}
+                                        onChange={(event) => setSelectedCompareIndex(Number(event.target.value))}
+                                        className="h-9 rounded-md border bg-background px-3 text-sm"
+                                    >
+                                        {compare.data.candidates.map((candidate, index) => (
+                                            <option key={candidate.id} value={index}>
+                                                {candidateLabel(candidate)} · {Math.round(candidate.similarity * 100)}%
+                                            </option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                            {compare.data.candidates.length === 0 ? (
+                                <div className="rounded-md border bg-muted/40 p-8 text-center text-sm text-muted-foreground">
+                                    No previous transcript or caption candidate is available for comparison.
+                                </div>
+                            ) : (
+                                <div className="grid gap-3 lg:grid-cols-2">
+                                    <CandidatePane candidate={compare.data.active} query={compareQuery} />
+                                    <CandidatePane
+                                        candidate={compare.data.candidates[Math.min(selectedCompareIndex, compare.data.candidates.length - 1)]}
+                                        query={compareQuery}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="rounded-md border bg-muted/40 p-8 text-center text-sm text-muted-foreground">
+                            Comparison is unavailable.
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+            <Dialog open={approveOpen} onOpenChange={setApproveOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Approve transcript</DialogTitle>
+                        <DialogDescription>
+                            Mark this transcript as reviewed.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Textarea
+                        value={approvalReason}
+                        onChange={(event) => setApprovalReason(event.target.value)}
+                        placeholder="Reason"
+                        rows={3}
+                    />
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setApproveOpen(false)}>Cancel</Button>
+                        <Button onClick={handleApprove} disabled={approveTranscript.isPending}>
+                            {approveTranscript.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                            Approve
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

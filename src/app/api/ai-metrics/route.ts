@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import type {
     AiMetricsSnapshot,
@@ -10,6 +11,7 @@ import type {
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const ACCESS_COOKIE = 'console_access_token';
 const PROBE_TIMEOUT_MS = 3000;
 
 // ── Prometheus text parsing ─────────────────────────────────
@@ -186,7 +188,14 @@ async function scrape(
     }
 }
 
-export async function GET(): Promise<NextResponse<AiMetricsSnapshot>> {
+export async function GET(): Promise<NextResponse<AiMetricsSnapshot | { message: string }>> {
+    // Require an authenticated console session — these are internal operational
+    // metrics, not public data, matching the other admin API routes.
+    const accessToken = (await cookies()).get(ACCESS_COOKIE)?.value;
+    if (!accessToken) {
+        return NextResponse.json({ message: 'Not authenticated' }, { status: 401 });
+    }
+
     const [mediaRes, enrichRes] = await Promise.all([
         scrape(process.env.MEDIA_BASE_URL),
         scrape(process.env.ENRICHMENT_BASE_URL),

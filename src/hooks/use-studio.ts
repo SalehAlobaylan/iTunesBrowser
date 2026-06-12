@@ -4,6 +4,9 @@ import {
     generateChapters,
     saveChapters,
     saveTranscript,
+    approveTranscript,
+    unapproveTranscript,
+    compareTranscripts,
 } from '@/lib/api/cms/studio';
 import type {
     GenerateChaptersRequest,
@@ -14,6 +17,7 @@ import { toast } from '@/components/ui/toast';
 
 export const studioKeys = {
     detail: (id: string) => ['studio', id] as const,
+    compare: (id: string) => ['studio', id, 'compare'] as const,
 };
 
 export function useStudio(id: string) {
@@ -59,5 +63,42 @@ export function useSaveTranscript(id: string) {
         onError: (error: Error) => {
             toast({ title: 'Failed to save transcript', description: error.message, variant: 'destructive' });
         },
+    });
+}
+
+export function useApproveTranscript(id: string) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (reason?: string) => approveTranscript(id, reason),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: studioKeys.detail(id) });
+            toast({ title: 'Transcript approved', variant: 'success' });
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Failed to approve transcript', description: error.message, variant: 'destructive' });
+        },
+    });
+}
+
+export function useUnapproveTranscript(id: string) {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: () => unapproveTranscript(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: studioKeys.detail(id) });
+            toast({ title: 'Transcript approval cleared', variant: 'success' });
+        },
+        onError: (error: Error) => {
+            toast({ title: 'Failed to clear approval', description: error.message, variant: 'destructive' });
+        },
+    });
+}
+
+export function useTranscriptCompare(id: string, enabled: boolean) {
+    return useQuery({
+        queryKey: studioKeys.compare(id),
+        queryFn: () => compareTranscripts(id),
+        enabled: !!id && enabled,
+        staleTime: 30_000,
     });
 }

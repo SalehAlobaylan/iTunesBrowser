@@ -49,6 +49,11 @@ export interface StudioTranscript {
     transcript_id: string;
     full_text: string;
     language?: string;
+    source?: string;
+    provider?: string;
+    approved_at?: string;
+    approved_by?: string;
+    approval_reason?: string;
     segments: StudioSegment[];
 }
 
@@ -64,6 +69,30 @@ export interface StudioData {
         last_at?: string;
         user_email?: string;
     } | null;
+}
+
+export interface TranscriptCompareCandidate {
+    id: string;
+    kind: 'active' | 'youtube_caption' | 'stt' | 'version' | 'transcript';
+    source?: string;
+    provider?: string;
+    language?: string;
+    created_at: string;
+    full_text: string;
+    segments: StudioSegment[];
+    word_count: number;
+    segment_count: number;
+    similarity: number;
+    difference_count: number;
+    quality?: TranscriptQualitySummary;
+    approved_at?: string;
+    approved_by?: string;
+    approval_reason?: string;
+}
+
+export interface TranscriptCompareResponse {
+    active: TranscriptCompareCandidate;
+    candidates: TranscriptCompareCandidate[];
 }
 
 export type GenerateMode = 'auto' | 'count' | 'duration';
