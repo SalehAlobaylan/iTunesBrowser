@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listContent,
   getContent,
+  getContentStats,
   getMediaSizeStats,
   updateContentStatus,
   getStatusCounts,
@@ -11,6 +12,7 @@ import {
 } from '@/lib/api/cms/content';
 import type {
   ContentItem,
+  ContentStats,
   ListContentParams,
   MediaSizeStats,
   ContentStatus,
@@ -29,6 +31,8 @@ export const contentKeys = {
   statusCounts: () => [...contentKeys.all, 'status-counts'] as const,
   mediaSizeStats: (params: ListContentParams) =>
     [...contentKeys.all, 'media-size-stats', params] as const,
+  stats: (params: ListContentParams) =>
+    [...contentKeys.all, 'stats', params] as const,
 };
 
 /**
@@ -73,6 +77,25 @@ export function useMediaSizeStats(
   return useQuery<MediaSizeStats>({
     queryKey: contentKeys.mediaSizeStats(params),
     queryFn: () => getMediaSizeStats(params),
+    staleTime: CACHE_CONFIG.lists.staleTime,
+    gcTime: CACHE_CONFIG.lists.gcTime,
+    refetchInterval: paused ? false : 60_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * Filter-scoped analytics aggregates for the content-monitoring dashboard.
+ * Scope to a domain by passing a `type` filter (e.g. 'in:VIDEO,PODCAST').
+ */
+export function useContentStats(
+  params: ListContentParams = {},
+  options: { paused?: boolean } = {}
+) {
+  const { paused = false } = options;
+  return useQuery<ContentStats>({
+    queryKey: contentKeys.stats(params),
+    queryFn: () => getContentStats(params),
     staleTime: CACHE_CONFIG.lists.staleTime,
     gcTime: CACHE_CONFIG.lists.gcTime,
     refetchInterval: paused ? false : 60_000,

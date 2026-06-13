@@ -86,7 +86,7 @@ export function PipelineOverview({ onSwitchTab }: PipelineOverviewProps) {
 
                     if (card.action === 'content') {
                         return (
-                            <Link key={card.key} href="/platform/content?status=READY">
+                            <Link key={card.key} href="/platform/content">
                                 {inner}
                             </Link>
                         );

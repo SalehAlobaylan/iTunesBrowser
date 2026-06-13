@@ -1,6 +1,7 @@
 import { cmsClient } from '@/lib/api/client';
 import type {
     ContentItem,
+    ContentStats,
     ContentStatus,
     ListContentParams,
     ListContentResponse,
@@ -22,6 +23,16 @@ export async function listContent(params?: ListContentParams): Promise<ListConte
  */
 export async function getMediaSizeStats(params?: ListContentParams): Promise<MediaSizeStats> {
     return cmsClient.get<MediaSizeStats>('/admin/content/media-size-stats', params);
+}
+
+/**
+ * Filter-scoped analytics aggregates for the content-monitoring dashboard.
+ * Honors the same filters as the content list (type/status/source_name) plus
+ * `range_days` for the daily-series window.
+ * GET /admin/content/stats
+ */
+export async function getContentStats(params?: ListContentParams): Promise<ContentStats> {
+    return cmsClient.get<ContentStats>('/admin/content/stats', params);
 }
 
 /**

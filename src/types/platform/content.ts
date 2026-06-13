@@ -152,6 +152,8 @@ export interface ListContentParams {
     // comma-separated list for multi-field sort, e.g. sort=source_name,published_at).
     sort?: string;
     order?: string;
+    // Daily-series window for the analytics stats endpoint only (default 30, cap 90).
+    range_days?: number;
 }
 
 export interface MediaSizeAggregate {
@@ -193,6 +195,63 @@ export interface ListContentResponse {
     page: number;
     limit: number;
     total_pages: number;
+}
+
+// Analytics aggregates for the content-monitoring dashboard.
+// GET /admin/content/stats — filter-scoped (type/status/source_name) so a single
+// endpoint can be scoped to All / News / Media domains.
+export interface ContentDailyPoint {
+    /** ISO date (YYYY-MM-DD), one bucket per day in the window. */
+    day: string;
+    count: number;
+    failed: number;
+}
+
+export interface ContentSourceStat {
+    source_name: string;
+    count: number;
+    ready: number;
+    failed: number;
+}
+
+export interface ContentEngagement {
+    likes: number;
+    views: number;
+    shares: number;
+}
+
+export interface ContentFailureReason {
+    reason: string;
+    count: number;
+}
+
+export interface ContentFreshness {
+    /** created_at of the oldest PENDING/PROCESSING item (ISO), or null if none. */
+    oldest_unprocessed: string | null;
+    /** Count of PENDING/PROCESSING items older than `stuck_threshold_hours`. */
+    stuck_count: number;
+    stuck_threshold_hours: number;
+}
+
+export interface ContentStats {
+    total: number;
+    /** Status → count, always zero-filled for all five statuses. */
+    by_status: Record<string, number>;
+    /** Type → count, always zero-filled for all six types. */
+    by_type: Record<string, number>;
+    /** Type → status → count matrix. */
+    by_type_status: Record<string, Record<string, number>>;
+    /** Caption-state → count (media transcript coverage). */
+    by_caption_state: Record<string, number>;
+    /** Daily ingestion velocity (by created_at) over `range_days`. */
+    daily: ContentDailyPoint[];
+    /** Top sources by item count (max 10). */
+    top_sources: ContentSourceStat[];
+    /** Top failure reasons among FAILED items (max 6). */
+    failure_reasons: ContentFailureReason[];
+    engagement: ContentEngagement;
+    freshness: ContentFreshness;
+    range_days: number;
 }
 
 export interface UpdateContentStatusRequest {
