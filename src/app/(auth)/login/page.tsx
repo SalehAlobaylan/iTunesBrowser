@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
     Card,
@@ -12,6 +11,24 @@ import {
 import { LoginForm } from '@/components/auth';
 import { useAuthStore } from '@/lib/stores/auth';
 import { toast } from '@/components/ui/toast';
+
+function WahbLoginMark() {
+    return (
+        <>
+            <span
+                aria-hidden="true"
+                className="block h-8 w-8 rounded-lg bg-cover bg-center dark:hidden"
+                style={{ backgroundImage: "url('/images/wahb_favicon_white_bg.png')" }}
+            />
+            <span
+                aria-hidden="true"
+                className="hidden h-8 w-8 rounded-lg bg-cover bg-center dark:block"
+                style={{ backgroundImage: "url('/images/wahb_favicon_dark_bg.png')" }}
+            />
+            <span className="sr-only">Wahb</span>
+        </>
+    );
+}
 
 export default function LoginPage() {
     const router = useRouter();
@@ -46,8 +63,7 @@ export default function LoginPage() {
                     className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 shadow-sm transition-transform hover:scale-110 active:scale-95 cursor-pointer"
                     title="Quick sign in"
                 >
-                    <Image src="/images/wahb_logo_transparent_dark.png" alt="Wahb" width={28} height={28} className="dark:hidden object-contain" />
-                    <Image src="/images/wahb_logo_transparent_light.png" alt="Wahb" width={28} height={28} className="hidden dark:block object-contain" />
+                    <WahbLoginMark />
                 </button>
                 <div className="text-center">
                     <h1 className="text-xl font-semibold tracking-tight">Platform Console</h1>

@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Menu, X, PanelLeftClose, PanelLeft } from 'lucide-react';
 
@@ -13,6 +12,29 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 interface SidebarProps {
   className?: string;
+}
+
+function WahbSidebarMark({ size = 26 }: { size?: 24 | 26 }) {
+  const className =
+    size === 24
+      ? 'h-6 w-6 rounded-md bg-cover bg-center'
+      : 'h-[26px] w-[26px] rounded-md bg-cover bg-center';
+
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        className={cn('block dark:hidden', className)}
+        style={{ backgroundImage: "url('/images/wahb_favicon_white_bg.png')" }}
+      />
+      <span
+        aria-hidden="true"
+        className={cn('hidden dark:block', className)}
+        style={{ backgroundImage: "url('/images/wahb_favicon_dark_bg.png')" }}
+      />
+      <span className="sr-only">Wahb</span>
+    </>
+  );
 }
 
 export function Sidebar({ className }: SidebarProps) {
@@ -42,14 +64,12 @@ export function Sidebar({ className }: SidebarProps) {
       >
         {mobile || !sidebarCollapsed ? (
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/images/wahb_logo_transparent_dark.png" alt="Wahb" width={26} height={26} className="dark:hidden object-contain" />
-            <Image src="/images/wahb_logo_transparent_light.png" alt="Wahb" width={26} height={26} className="hidden dark:block object-contain" />
+            <WahbSidebarMark />
             <span className="text-sm font-semibold tracking-tight">Platform Console</span>
           </Link>
         ) : (
           <Link href="/" className="mx-auto flex items-center justify-center">
-            <Image src="/images/wahb_logo_transparent_dark.png" alt="Wahb" width={24} height={24} className="dark:hidden object-contain" />
-            <Image src="/images/wahb_logo_transparent_light.png" alt="Wahb" width={24} height={24} className="hidden dark:block object-contain" />
+            <WahbSidebarMark size={24} />
           </Link>
         )}
         {mobile && (
