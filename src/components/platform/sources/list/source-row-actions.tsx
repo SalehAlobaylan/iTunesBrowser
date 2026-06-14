@@ -9,6 +9,8 @@ import {
     Power,
     Trash2,
     Loader2,
+    Newspaper,
+    Video,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -95,6 +97,25 @@ export function SourceRowActions({ source, onDelete }: SourceRowActionsProps) {
                     ) : (
                         <>
                             <Power className="mr-2 h-4 w-4" /> Enable
+                        </>
+                    )}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    onClick={() =>
+                        updateMutation.mutate({
+                            id: source.id,
+                            data: { category: source.category === 'media' ? 'news' : 'media' },
+                        })
+                    }
+                    disabled={updateMutation.isPending}
+                >
+                    {source.category === 'media' ? (
+                        <>
+                            <Newspaper className="mr-2 h-4 w-4" /> Move to News
+                        </>
+                    ) : (
+                        <>
+                            <Video className="mr-2 h-4 w-4" /> Move to Media
                         </>
                     )}
                 </DropdownMenuItem>

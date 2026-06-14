@@ -21,6 +21,7 @@ import { AddNewsSheet } from '@/components/platform/news/add-news-sheet';
 import { PullFreshButton } from '@/components/platform/news/run-source-dialog';
 import { RecclusterDialog } from '@/components/platform/news/recluster-dialog';
 import { FeedsManager } from '@/components/platform/news/feeds-manager';
+import { NewsSectionNav } from '@/components/platform/news/news-section-nav';
 import { useReclassify } from '@/hooks/use-news';
 import { CONTENT_STATUS_LABELS } from '@/types/platform/content';
 import type { ContentStatus } from '@/types/platform/content';
@@ -158,6 +159,8 @@ export default function NewsPage() {
                     </DropdownMenu>
                 </div>
             </div>
+
+            <NewsSectionNav />
 
             {/* View switcher */}
             <Tabs value={view} onValueChange={(v) => setView(v as NewsViewTab)}>

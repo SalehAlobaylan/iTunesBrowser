@@ -1,10 +1,10 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { SearchInput } from '../../shared/search-input';
+import { SearchInput } from '../shared/search-input';
 
 // Mock the useDebounce hook to avoid timing issues in tests
-jest.mock('../../hooks/use-debounce', () => ({
+jest.mock('@/lib/hooks/use-debounce', () => ({
   useDebounce: (value: string) => value,
 }));
 

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ConfirmDialog } from '../../shared/confirm-dialog';
+import { ConfirmDialog } from '../shared/confirm-dialog';
 
 describe('ConfirmDialog', () => {
   const defaultProps = {

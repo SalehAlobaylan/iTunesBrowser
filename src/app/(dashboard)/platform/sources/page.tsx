@@ -83,7 +83,14 @@ export default function SourcesPage() {
         setSelected(new Set());
     }, [state.page, state.search, state.status, state.type]);
 
-    const sources: ContentSource[] = useMemo(() => data?.data ?? [], [data]);
+    // News sources are managed in News → Feeds Finding. This page owns media
+    // sources (For You). A source's `category` decides ownership — so a Telegram
+    // channel shows in exactly one place. An explicit type filter shows all.
+    const sources: ContentSource[] = useMemo(() => {
+        const all = data?.data ?? [];
+        if (state.type !== 'all') return all;
+        return all.filter((s) => s.category === 'media');
+    }, [data, state.type]);
 
     const summary = useMemo(() => {
         let active = 0;

@@ -9,6 +9,10 @@ jest.mock('@/lib/api/cms/sources', () => ({
 }));
 
 import { listSources, getSource } from '@/lib/api/cms/sources';
+import type {
+  ContentSource,
+  ListSourcesResponse,
+} from '@/types/platform/source';
 import { useSources, useSource, sourceKeys } from '../use-sources';
 
 const mockListSources = listSources as jest.MockedFunction<typeof listSources>;
@@ -37,10 +41,26 @@ describe('useSources hook', () => {
   });
 
   it('should fetch sources list successfully', async () => {
-    const mockData = {
+    const mockData: ListSourcesResponse = {
       data: [
-        { id: '1', name: 'Source 1', type: 'RSS', is_active: true },
-        { id: '2', name: 'Source 2', type: 'PODCAST', is_active: false },
+        {
+          id: '1',
+          name: 'Source 1',
+          type: 'RSS',
+          is_active: true,
+          fetch_interval_minutes: 60,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          id: '2',
+          name: 'Source 2',
+          type: 'PODCAST',
+          is_active: false,
+          fetch_interval_minutes: 60,
+          created_at: '2024-01-01T00:00:00Z',
+          updated_at: '2024-01-01T00:00:00Z',
+        },
       ],
       total: 2,
       page: 1,
@@ -95,7 +115,7 @@ describe('useSource hook', () => {
   });
 
   it('should fetch single source successfully', async () => {
-    const mockSource = {
+    const mockSource: ContentSource = {
       id: '1',
       name: 'Test Source',
       type: 'RSS',

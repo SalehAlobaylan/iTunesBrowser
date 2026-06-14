@@ -4,7 +4,7 @@ import {
   formatDate,
   formatCurrency,
   formatNumber,
-} from './format';
+} from '../format';
 
 // Mock date-fns
 jest.mock('date-fns', () => ({

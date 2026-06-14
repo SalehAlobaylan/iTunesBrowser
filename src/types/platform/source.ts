@@ -2,10 +2,13 @@
 
 export type SourceType = 'RSS' | 'PODCAST' | 'YOUTUBE' | 'TWITTER' | 'REDDIT' | 'TELEGRAM' | 'MANUAL';
 
+export type SourceCategory = 'news' | 'media';
+
 export interface ContentSource {
     id: string;
     name: string;
     type: SourceType;
+    category?: SourceCategory;
     feed_url?: string;
     image_url?: string;
     api_config?: Record<string, unknown>;
@@ -36,6 +39,7 @@ export interface ListSourcesResponse {
 export interface CreateSourceRequest {
     name: string;
     type: SourceType;
+    category?: SourceCategory;
     feed_url?: string;
     image_url?: string;
     api_config?: Record<string, unknown>;
@@ -46,6 +50,7 @@ export interface CreateSourceRequest {
 export interface UpdateSourceRequest {
     name?: string;
     type?: SourceType;
+    category?: SourceCategory;
     feed_url?: string;
     image_url?: string;
     api_config?: Record<string, unknown>;
