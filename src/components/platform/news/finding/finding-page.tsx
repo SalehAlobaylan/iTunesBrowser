@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
     Plus, Play, Pencil, Trash2, Loader2, Radar, Check, X, Eye, Lightbulb, Filter,
-    Settings, Inbox, Rss, Clock, CheckCircle2, Sparkles, ChevronRight,
+    CheckCircle2, ChevronRight, Network,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,7 @@ import type { DiscoveryProfile, NewsSource, SourceSuggestion } from '@/types/pla
 import { NewsSectionNav } from '@/components/platform/news/news-section-nav';
 import { ProfileDialog } from './profile-dialog';
 import { DiscoverySettingsDialog } from './discovery-settings-dialog';
+import { DiscoveryEnginePanel } from './discovery-engine-panel';
 
 const ALL = '__all__';
 const LOW_RELEVANCE = 0.1;
@@ -152,7 +153,6 @@ export function FindingPage() {
     };
 
     const pendingIds = useMemo(() => scopedSuggestions.map((s) => s.id), [scopedSuggestions]);
-    const automationOn = discoveryConfig?.automation_enabled ?? false;
 
     return (
         <div className="space-y-5">
@@ -163,31 +163,20 @@ export function FindingPage() {
                     <h1 className="font-editorial text-3xl font-bold tracking-tight">Feeds Finding</h1>
                     <p className="text-muted-foreground">Define interests, review discovered sources, and manage your live feeds.</p>
                 </div>
-                <div className="flex flex-shrink-0 items-center gap-2">
-                    <Button variant="outline" onClick={() => setSettingsOpen(true)}>
-                        <Settings className="mr-2 h-4 w-4" /> Settings
-                    </Button>
-                    <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
-                        <Plus className="mr-2 h-4 w-4" /> New interest
-                    </Button>
-                </div>
+                <Button className="flex-shrink-0" onClick={() => { setEditing(null); setDialogOpen(true); }}>
+                    <Plus className="mr-2 h-4 w-4" /> New interest
+                </Button>
             </div>
 
             <NewsSectionNav />
 
-            {/* Summary */}
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatCard icon={<Inbox className="h-5 w-5" />} label="To review" value={allSuggestions.length} tone="news" />
-                <StatCard icon={<Rss className="h-5 w-5" />} label="Active sources" value={allSources.length} />
-                <StatCard icon={<Sparkles className="h-5 w-5" />} label="Interests" value={profiles.length} />
-                <StatCard
-                    icon={<Clock className="h-5 w-5" />}
-                    label="Automation"
-                    value={automationOn ? `Every ${discoveryConfig?.sweep_interval_hours}h` : 'Off'}
-                    tone={automationOn ? 'success' : 'muted'}
-                    onClick={() => setSettingsOpen(true)}
-                />
-            </div>
+            {/* Discovery engine — automation + source intelligence control panel */}
+            <DiscoveryEnginePanel
+                pending={allSuggestions.length}
+                sources={allSources.length}
+                interests={profiles.length}
+                onOpenSettings={() => setSettingsOpen(true)}
+            />
 
             {/* First-run / empty state */}
             {!profilesLoading && profiles.length === 0 ? (
@@ -279,16 +268,6 @@ export function FindingPage() {
                                     </Button>
                                 </CardContent>
                             </Card>
-                        )}
-
-                        {/* Automation hint */}
-                        {!automationOn && selected === ALL && (
-                            <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                                <Clock className="h-4 w-4 shrink-0" />
-                                Discovery runs manually. Turn on automation in
-                                <button className="font-medium text-foreground underline" onClick={() => setSettingsOpen(true)}>Settings</button>
-                                to fill the review queue on a schedule.
-                            </div>
                         )}
 
                         {/* Tabs */}
@@ -405,24 +384,6 @@ function CountBadge({ children, className }: { children: React.ReactNode; classN
     );
 }
 
-function StatCard({ icon, label, value, tone = 'default', onClick }: {
-    icon: React.ReactNode; label: string; value: React.ReactNode;
-    tone?: 'default' | 'news' | 'success' | 'muted'; onClick?: () => void;
-}) {
-    const toneCls = tone === 'news' ? 'text-news' : tone === 'success' ? 'text-success' : tone === 'muted' ? 'text-muted-foreground' : 'text-foreground';
-    return (
-        <Card className={cn(onClick && 'cursor-pointer transition-colors hover:bg-muted/40')} onClick={onClick}>
-            <CardContent className="flex items-center gap-3 p-4">
-                <div className={cn('rounded-md bg-muted p-2', toneCls)}>{icon}</div>
-                <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                    <p className={cn('truncate text-xl font-semibold', toneCls)}>{value}</p>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
 function RailItem({ label, active, pending, sources, disabled, onClick }: {
     label: string; active: boolean; pending: number; sources: number; disabled?: boolean; onClick: () => void;
 }) {
@@ -445,6 +406,35 @@ function RailItem({ label, active, pending, sources, disabled, onClick }: {
             {pending > 0 && <CountBadge className="shrink-0">{pending}</CountBadge>}
             <ChevronRight className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-opacity', active ? 'opacity-100' : 'opacity-0 group-hover:opacity-60')} />
         </button>
+    );
+}
+
+function provenanceLabel(via?: string): string {
+    if (via === 'graph' || via === 'corpus' || via === 'linkgraph') return 'From your network';
+    if (via === 'tavily' || via === 'crawl' || via === 'auto') return 'Web search';
+    return '';
+}
+
+function EvidenceLine({ suggestion }: { suggestion: SourceSuggestion }) {
+    const ev = suggestion.evidence;
+    const prov = provenanceLabel(suggestion.discovered_via);
+    const facts: string[] = [];
+    if (ev?.citation_count) facts.push(`Cited ${ev.citation_count}×`);
+    if (ev?.cocitation_count) facts.push(`Linked by ${ev.cocitation_count} source${ev.cocitation_count === 1 ? '' : 's'}`);
+    if (typeof ev?.authority === 'number' && ev.authority > 0) facts.push(`Authority ${ev.authority.toFixed(2)}`);
+    if (ev?.trend === 'rising') facts.push('↑ Rising');
+    if (!prov && facts.length === 0) return null;
+    return (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            {prov && (
+                <span className="inline-flex items-center gap-1 rounded bg-news/10 px-1.5 py-0.5 text-news">
+                    <Network className="h-3 w-3" /> {prov}
+                </span>
+            )}
+            {facts.map((f, i) => (
+                <span key={i} className="rounded bg-muted px-1.5 py-0.5">{f}</span>
+            ))}
+        </div>
     );
 }
 
@@ -474,6 +464,8 @@ function SuggestionCard({ suggestion, onApprove, onReject, onPreview, busy }: {
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div className={cn('h-full rounded-full', rel.bar)} style={{ width: `${rel.pct}%` }} />
                 </div>
+
+                <EvidenceLine suggestion={suggestion} />
 
                 {/* Sample headlines — the value: see what it actually produces */}
                 {sample.length > 0 && (

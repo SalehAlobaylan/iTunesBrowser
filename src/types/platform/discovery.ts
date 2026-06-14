@@ -38,6 +38,16 @@ export interface SuggestionHealth {
 
 export type SuggestionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
+export interface SuggestionEvidence {
+    citation_count?: number;
+    cocitation_count?: number;
+    authority?: number;
+    relevance?: number;
+    composite?: number;
+    trend?: string;
+    via?: string[];
+}
+
 export interface SourceSuggestion {
     id: string;
     profile_id?: string;
@@ -51,6 +61,7 @@ export interface SourceSuggestion {
     relevance_score?: number;
     health?: SuggestionHealth;
     sample_items?: SuggestionSampleItem[];
+    evidence?: SuggestionEvidence;
     discovered_via?: string;
     status: SuggestionStatus;
     reject_reason?: string;
@@ -95,8 +106,27 @@ export interface DiscoveryConfig {
     recency_window_days: number;
     max_candidates_per_profile: number;
     search_provider: 'auto' | 'tavily' | 'crawl';
+    // Source Intelligence Graph
+    intelligence_enabled: boolean;
+    graph_build_interval_hours: number;
+    promotion_threshold: number;
+    weight_citation: number;
+    weight_cocitation: number;
+    weight_authority: number;
+    weight_relevance: number;
+    weight_health: number;
+    weight_novelty: number;
     created_at?: string;
     updated_at?: string;
+}
+
+export interface NetworkAuthority {
+    domain: string;
+    authority: number;
+    citation_count: number;
+    cocitation_count: number;
+    feed_valid: boolean;
+    status: string;
 }
 
 export interface ListResponse<T> {

@@ -14,6 +14,9 @@ import {
     suggestProfiles,
     getDiscoveryConfig,
     updateDiscoveryConfig,
+    sweepNow,
+    buildGraph,
+    getAuthorities,
 } from '@/lib/api/cms/discovery';
 import type { CreateProfileRequest, UpdateProfileRequest, DiscoveryConfig } from '@/types/platform/discovery';
 import { toast } from '@/components/ui/toast';
@@ -46,6 +49,31 @@ export function useUpdateDiscoveryConfig() {
             toast({ title: 'Discovery settings saved', variant: 'success' });
         },
         onError: (e) => toast({ title: 'Failed to save settings', description: String(e), variant: 'destructive' }),
+    });
+}
+
+export function useSweepNow() {
+    return useMutation({
+        mutationFn: sweepNow,
+        onSuccess: (r) => toast({ title: 'Discovery started', description: r.message ?? 'Sweeping all interests — suggestions will appear shortly.', variant: 'success' }),
+        onError: (e) => toast({ title: 'Failed to start discovery', description: String(e), variant: 'destructive' }),
+    });
+}
+
+export function useBuildGraph() {
+    return useMutation({
+        mutationFn: buildGraph,
+        onSuccess: (r) => toast({ title: 'Building source graph', description: r.message ?? 'Mapping your network — new sources will surface shortly.', variant: 'success' }),
+        onError: (e) => toast({ title: 'Failed to build graph', description: String(e), variant: 'destructive' }),
+    });
+}
+
+export function useAuthorities() {
+    return useQuery({
+        queryKey: [...discoveryKeys.all, 'authorities'] as const,
+        queryFn: getAuthorities,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
     });
 }
 

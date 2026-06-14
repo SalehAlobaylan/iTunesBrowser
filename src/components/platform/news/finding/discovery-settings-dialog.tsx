@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronDown, Loader2, Zap, SlidersHorizontal, Globe } from 'lucide-react';
+import { ChevronDown, Loader2, Zap, SlidersHorizontal, Globe, Network } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -27,6 +27,15 @@ const DEFAULTS: DiscoveryConfig = {
     recency_window_days: 30,
     max_candidates_per_profile: 15,
     search_provider: 'auto',
+    intelligence_enabled: false,
+    graph_build_interval_hours: 24,
+    promotion_threshold: 0.5,
+    weight_citation: 0.2,
+    weight_cocitation: 0.2,
+    weight_authority: 0.2,
+    weight_relevance: 0.25,
+    weight_health: 0.1,
+    weight_novelty: 0.05,
 };
 
 const PROVIDERS = [
@@ -136,6 +145,27 @@ export function DiscoverySettingsDialog({ open, onClose }: { open: boolean; onCl
                         )}
                     </div>
 
+                    {/* Source intelligence */}
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-2">
+                                <Network className="mt-0.5 h-4 w-4 text-news" />
+                                <div>
+                                    <p className="text-sm font-semibold leading-none">Source intelligence</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">Build a graph of your trusted news ecosystem and auto-surface high-authority sources you don&apos;t track yet — with evidence.</p>
+                                </div>
+                            </div>
+                            <Toggle on={form.intelligence_enabled} onChange={() => set('intelligence_enabled', !form.intelligence_enabled)} />
+                        </div>
+                        {form.intelligence_enabled && (
+                            <div className="mt-3 flex items-center gap-2 border-t pt-3">
+                                <Label className="text-sm">Rebuild every</Label>
+                                <Input type="number" min={1} value={form.graph_build_interval_hours} onChange={numInput('graph_build_interval_hours')} className="h-8 w-20" />
+                                <span className="text-sm text-muted-foreground">hours</span>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Quality */}
                     <Section icon={<SlidersHorizontal className="h-4 w-4" />} title="Quality filters" desc="How strict the review queue is.">
                         <SliderField
@@ -213,6 +243,26 @@ export function DiscoverySettingsDialog({ open, onClose }: { open: boolean; onCl
                                     value={form.dup_penalty} onChange={(v) => set('dup_penalty', v)}
                                     min={0.1} max={1} step={0.05} display={`×${form.dup_penalty.toFixed(2)}`}
                                 />
+
+                                <div className="border-t pt-3">
+                                    <p className="mb-3 text-xs font-medium text-muted-foreground">Source-graph ranking — how candidates are scored for auto-promotion.</p>
+                                    <div className="space-y-4">
+                                        <SliderField label="Auto-promote above" help="Composite score a candidate must reach to enter the review queue."
+                                            value={form.promotion_threshold} onChange={(v) => set('promotion_threshold', v)} min={0} max={1} step={0.05} display={`${Math.round(form.promotion_threshold * 100)}%`} />
+                                        <SliderField label="Citation weight" help="How often your own content cites the domain."
+                                            value={form.weight_citation} onChange={(v) => set('weight_citation', v)} min={0} max={1} step={0.05} display={form.weight_citation.toFixed(2)} />
+                                        <SliderField label="Co-citation weight" help="How many of your sources link to it."
+                                            value={form.weight_cocitation} onChange={(v) => set('weight_cocitation', v)} min={0} max={1} step={0.05} display={form.weight_cocitation.toFixed(2)} />
+                                        <SliderField label="Authority weight" help="PageRank standing in your trusted neighborhood."
+                                            value={form.weight_authority} onChange={(v) => set('weight_authority', v)} min={0} max={1} step={0.05} display={form.weight_authority.toFixed(2)} />
+                                        <SliderField label="Relevance weight" help="Semantic match to the interest."
+                                            value={form.weight_relevance} onChange={(v) => set('weight_relevance', v)} min={0} max={1} step={0.05} display={form.weight_relevance.toFixed(2)} />
+                                        <SliderField label="Feed health weight" help="Liveness + recency of the feed."
+                                            value={form.weight_health} onChange={(v) => set('weight_health', v)} min={0} max={1} step={0.05} display={form.weight_health.toFixed(2)} />
+                                        <SliderField label="Novelty weight" help="Rewards feeds that aren't mirrors of content you already have."
+                                            value={form.weight_novelty} onChange={(v) => set('weight_novelty', v)} min={0} max={1} step={0.05} display={form.weight_novelty.toFixed(2)} />
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>

@@ -8,6 +8,7 @@ import type {
     SuggestionsResponse,
     SuggestedProfileDraft,
     DiscoveryConfig,
+    NetworkAuthority,
 } from '@/types/platform/discovery';
 
 // ---------- Profiles ----------
@@ -80,4 +81,16 @@ export async function getDiscoveryConfig(): Promise<DiscoveryConfig> {
 
 export async function updateDiscoveryConfig(data: DiscoveryConfig): Promise<DiscoveryConfig> {
     return cmsClient.put<DiscoveryConfig>('/admin/discovery/config', data);
+}
+
+export async function sweepNow(): Promise<{ message?: string }> {
+    return cmsClient.post<{ message?: string }>('/admin/discovery/sweep-now');
+}
+
+export async function buildGraph(): Promise<{ message?: string }> {
+    return cmsClient.post<{ message?: string }>('/admin/discovery/build-graph');
+}
+
+export async function getAuthorities(): Promise<ListResponse<NetworkAuthority>> {
+    return cmsClient.get<ListResponse<NetworkAuthority>>('/admin/discovery/authorities');
 }
