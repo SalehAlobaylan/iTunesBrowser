@@ -2,23 +2,20 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Play, Pencil, Trash2, Loader2, Radar, Check, X, Eye, Lightbulb, Filter } from 'lucide-react';
+import {
+    Plus, Play, Pencil, Trash2, Loader2, Radar, Check, X, Eye, Lightbulb, Filter,
+    Settings, Inbox, Rss, Clock, CheckCircle2, Sparkles, ChevronRight,
+} from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
+    Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useRunSource, useDeleteSource } from '@/hooks/use-sources';
@@ -38,22 +35,37 @@ import {
     useRejectSuggestion,
     useBulkApprove,
     useBulkReject,
+    useDiscoveryConfig,
     discoveryKeys,
 } from '@/hooks/use-discovery';
 import type { DiscoveryProfile, NewsSource, SourceSuggestion } from '@/types/platform/discovery';
 import { NewsSectionNav } from '@/components/platform/news/news-section-nav';
 import { ProfileDialog } from './profile-dialog';
+import { DiscoverySettingsDialog } from './discovery-settings-dialog';
 
 const ALL = '__all__';
-// Cross-Arabic-news cosine has a high baseline, so on-topic relevance lands in
-// the ~0.12–0.25 band; the "hide low" filter trims clearly off-topic candidates.
 const LOW_RELEVANCE = 0.1;
 
 function formatDate(iso?: string | null): string {
     if (!iso) return '—';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function timeAgo(iso?: string | null): string {
+    if (!iso) return 'never';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (Number.isNaN(ms)) return '—';
+    const h = Math.floor(ms / 3_600_000);
+    if (h < 1) return 'just now';
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+}
+
+function domainOf(url?: string): string {
+    if (!url) return '';
+    try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; }
 }
 
 function sourceHealth(s: NewsSource): { label: string; variant: 'success' | 'warning' | 'secondary' | 'outline' } {
@@ -64,37 +76,66 @@ function sourceHealth(s: NewsSource): { label: string; variant: 'success' | 'war
     return { label: 'stale', variant: 'warning' };
 }
 
-function pctVariant(v: number): 'success' | 'warning' | 'secondary' {
-    if (v >= 0.7) return 'success';
-    if (v >= 0.5) return 'warning';
-    return 'secondary';
+// Cross-Arabic-news cosine peaks ~0.25, so map relevance onto a friendly,
+// labeled strength meter rather than showing a confusing low raw number.
+function relevanceMeta(r?: number | null): {
+    label: string;
+    variant: 'success' | 'info' | 'warning' | 'secondary';
+    bar: string;
+    pct: number;
+} {
+    if (r == null) return { label: 'Unscored', variant: 'secondary', bar: 'bg-muted-foreground/30', pct: 0 };
+    const pct = Math.max(6, Math.min(100, Math.round((r / 0.25) * 100)));
+    if (r >= 0.18) return { label: 'Strong match', variant: 'success', bar: 'bg-success', pct };
+    if (r >= 0.12) return { label: 'Good match', variant: 'info', bar: 'bg-info', pct };
+    if (r >= 0.07) return { label: 'Fair match', variant: 'warning', bar: 'bg-warning', pct };
+    return { label: 'Weak match', variant: 'secondary', bar: 'bg-muted-foreground/40', pct };
 }
 
 export function FindingPage() {
     const qc = useQueryClient();
     const { data: profilesData, isLoading: profilesLoading } = useProfiles();
     const profiles = profilesData?.data ?? [];
+    const { data: discoveryConfig } = useDiscoveryConfig();
 
     const [selected, setSelected] = useState<string>(ALL);
+    const [tab, setTab] = useState<'suggestions' | 'sources'>('suggestions');
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<DiscoveryProfile | null>(null);
     const [hideLow, setHideLow] = useState(false);
     const [previewTarget, setPreviewTarget] = useState<SourceSuggestion | null>(null);
     const [suggestOpen, setSuggestOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
 
-    const profileId = selected === ALL ? undefined : selected;
-    const selectedProfile = profiles.find((p) => p.id === selected) ?? null;
-
-    const { data: sourcesData, isLoading: sourcesLoading } = useNewsSources(profileId);
-    const { data: suggestionsData, isLoading: suggestionsLoading } = useSuggestions(profileId, 'PENDING');
-
-    const sources = sourcesData?.data ?? [];
+    // Fetch ALL pending suggestions + ALL news sources once, then derive the
+    // per-profile views + rail counts client-side.
+    const { data: suggestionsData, isLoading: suggestionsLoading } = useSuggestions(undefined, 'PENDING');
+    const { data: sourcesData, isLoading: sourcesLoading } = useNewsSources(undefined);
     const allSuggestions = suggestionsData?.data ?? [];
+    const allSources = sourcesData?.data ?? [];
 
-    // Treat unscored (null relevance — Enrichment was down) as visible.
-    const suggestions = useMemo(
-        () => (hideLow ? allSuggestions.filter((s) => (s.relevance_score ?? 1) >= LOW_RELEVANCE) : allSuggestions),
-        [allSuggestions, hideLow]
+    const suggCountByProfile = useMemo(() => {
+        const m: Record<string, number> = {};
+        for (const s of allSuggestions) if (s.profile_id) m[s.profile_id] = (m[s.profile_id] ?? 0) + 1;
+        return m;
+    }, [allSuggestions]);
+    const srcCountByProfile = useMemo(() => {
+        const m: Record<string, number> = {};
+        for (const s of allSources) if (s.discovery_profile_id) m[s.discovery_profile_id] = (m[s.discovery_profile_id] ?? 0) + 1;
+        return m;
+    }, [allSources]);
+
+    const selectedProfile = profiles.find((p) => p.id === selected) ?? null;
+    const lowThreshold = discoveryConfig?.min_relevance ?? LOW_RELEVANCE;
+
+    const scopedSuggestions = useMemo(() => {
+        const base = selected === ALL ? allSuggestions : allSuggestions.filter((s) => s.profile_id === selected);
+        const filtered = hideLow ? base.filter((s) => (s.relevance_score ?? 1) >= lowThreshold) : base;
+        return [...filtered].sort((a, b) => (b.relevance_score ?? -1) - (a.relevance_score ?? -1));
+    }, [allSuggestions, selected, hideLow, lowThreshold]);
+    const scopedSources = useMemo(
+        () => (selected === ALL ? allSources : allSources.filter((s) => s.discovery_profile_id === selected)),
+        [allSources, selected]
     );
 
     const runProfile = useRunProfile();
@@ -107,12 +148,11 @@ export function FindingPage() {
     const deleteSourceHook = useDeleteSource();
     const handleDeleteSource = (id: string, name: string) => {
         if (!confirm(`Remove source "${name}"?`)) return;
-        deleteSourceHook.mutate(id, {
-            onSuccess: () => qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'sources'] }),
-        });
+        deleteSourceHook.mutate(id, { onSuccess: () => qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'sources'] }) });
     };
 
-    const pendingIds = useMemo(() => suggestions.map((s) => s.id), [suggestions]);
+    const pendingIds = useMemo(() => scopedSuggestions.map((s) => s.id), [scopedSuggestions]);
+    const automationOn = discoveryConfig?.automation_enabled ?? false;
 
     return (
         <div className="space-y-5">
@@ -121,145 +161,191 @@ export function FindingPage() {
                 <div>
                     <span className="brand-overline text-news">News Center</span>
                     <h1 className="font-editorial text-3xl font-bold tracking-tight">Feeds Finding</h1>
-                    <p className="text-muted-foreground">
-                        Auto-discover news sources by interest, review suggestions, and manage your live feeds.
-                    </p>
+                    <p className="text-muted-foreground">Define interests, review discovered sources, and manage your live feeds.</p>
                 </div>
-                <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    New profile
-                </Button>
+                <div className="flex flex-shrink-0 items-center gap-2">
+                    <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+                        <Settings className="mr-2 h-4 w-4" /> Settings
+                    </Button>
+                    <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
+                        <Plus className="mr-2 h-4 w-4" /> New interest
+                    </Button>
+                </div>
             </div>
 
             <NewsSectionNav />
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[240px_1fr]">
-                {/* Profiles rail */}
-                <aside className="space-y-1">
-                    <button
-                        type="button"
-                        onClick={() => setSelected(ALL)}
-                        className={cn(
-                            'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm',
-                            selected === ALL ? 'bg-accent font-medium' : 'hover:bg-muted'
+            {/* Summary */}
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <StatCard icon={<Inbox className="h-5 w-5" />} label="To review" value={allSuggestions.length} tone="news" />
+                <StatCard icon={<Rss className="h-5 w-5" />} label="Active sources" value={allSources.length} />
+                <StatCard icon={<Sparkles className="h-5 w-5" />} label="Interests" value={profiles.length} />
+                <StatCard
+                    icon={<Clock className="h-5 w-5" />}
+                    label="Automation"
+                    value={automationOn ? `Every ${discoveryConfig?.sweep_interval_hours}h` : 'Off'}
+                    tone={automationOn ? 'success' : 'muted'}
+                    onClick={() => setSettingsOpen(true)}
+                />
+            </div>
+
+            {/* First-run / empty state */}
+            {!profilesLoading && profiles.length === 0 ? (
+                <Card>
+                    <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                        <div className="rounded-full bg-news/10 p-3 text-news"><Radar className="h-7 w-7" /></div>
+                        <div>
+                            <h3 className="text-lg font-semibold">Start discovering sources</h3>
+                            <p className="mx-auto max-w-md text-sm text-muted-foreground">
+                                Create an interest (e.g. “Saudi economy”) with a few keywords. Wahb hunts the web for
+                                matching Arabic news feeds and ranks them for you to approve.
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
+                                <Plus className="mr-2 h-4 w-4" /> New interest
+                            </Button>
+                            <Button variant="outline" onClick={() => setSuggestOpen(true)}>
+                                <Lightbulb className="mr-2 h-4 w-4" /> Suggest from topics
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            ) : (
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_1fr]">
+                    {/* Interests rail */}
+                    <aside className="space-y-1.5">
+                        <RailItem
+                            label="All interests"
+                            active={selected === ALL}
+                            pending={allSuggestions.length}
+                            sources={allSources.length}
+                            onClick={() => setSelected(ALL)}
+                        />
+                        {profilesLoading && <p className="px-3 py-2 text-sm text-muted-foreground">Loading…</p>}
+                        {profiles.map((p) => (
+                            <RailItem
+                                key={p.id}
+                                label={p.name}
+                                active={selected === p.id}
+                                pending={suggCountByProfile[p.id] ?? 0}
+                                sources={srcCountByProfile[p.id] ?? 0}
+                                disabled={!p.enabled}
+                                onClick={() => setSelected(p.id)}
+                            />
+                        ))}
+                        <Button variant="ghost" size="sm" className="mt-2 w-full justify-start text-muted-foreground" onClick={() => setSuggestOpen(true)}>
+                            <Lightbulb className="mr-2 h-4 w-4" /> Suggest from topics
+                        </Button>
+                    </aside>
+
+                    {/* Main */}
+                    <div className="space-y-4">
+                        {/* Selected interest header */}
+                        {selectedProfile && (
+                            <Card>
+                                <CardContent className="flex flex-wrap items-center gap-3 p-4">
+                                    <div className="mr-auto min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="truncate text-lg font-semibold">{selectedProfile.name}</h2>
+                                            {!selectedProfile.enabled && <Badge variant="secondary">disabled</Badge>}
+                                        </div>
+                                        <div className="mt-1 flex flex-wrap gap-1">
+                                            {selectedProfile.keywords.slice(0, 6).map((k) => (
+                                                <span key={k} className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{k}</span>
+                                            ))}
+                                            <span className="px-1 text-xs text-muted-foreground">· last run {timeAgo(selectedProfile.last_run_at)}</span>
+                                        </div>
+                                    </div>
+                                    <Button onClick={() => runProfile.mutate(selectedProfile.id)} disabled={runProfile.isPending}>
+                                        {runProfile.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                                        Run discovery
+                                    </Button>
+                                    <Button variant="outline" size="icon" title="Edit" onClick={() => { setEditing(selectedProfile); setDialogOpen(true); }}>
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        title="Delete"
+                                        onClick={() => {
+                                            if (confirm(`Delete interest "${selectedProfile.name}"? Its sources stay, just ungrouped.`)) {
+                                                deleteProfile.mutate(selectedProfile.id);
+                                                setSelected(ALL);
+                                            }
+                                        }}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </CardContent>
+                            </Card>
                         )}
-                    >
-                        <span>All news sources</span>
-                    </button>
-                    {profilesLoading && <p className="px-3 py-2 text-sm text-muted-foreground">Loading…</p>}
-                    {profiles.map((p) => (
-                        <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => setSelected(p.id)}
-                            className={cn(
-                                'flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm',
-                                selected === p.id ? 'bg-accent font-medium' : 'hover:bg-muted'
-                            )}
-                        >
-                            <span className="truncate">{p.name}</span>
-                            {!p.enabled && <Badge variant="secondary" className="shrink-0">off</Badge>}
-                        </button>
-                    ))}
-                    {!profilesLoading && profiles.length === 0 && (
-                        <p className="px-3 py-2 text-sm text-muted-foreground">
-                            No profiles yet. Create one to start discovering sources.
-                        </p>
-                    )}
-                    <Button variant="ghost" size="sm" className="mt-2 w-full justify-start" onClick={() => setSuggestOpen(true)}>
-                        <Lightbulb className="mr-2 h-4 w-4" />
-                        Suggest from topics
-                    </Button>
-                </aside>
 
-                {/* Main column */}
-                <div className="space-y-6">
-                    {/* Profile actions */}
-                    {selectedProfile && (
-                        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-card p-3">
-                            <div className="mr-auto">
-                                <p className="font-medium">{selectedProfile.name}</p>
-                                <p className="text-sm text-muted-foreground">
-                                    {selectedProfile.keywords.length > 0 ? selectedProfile.keywords.join(', ') : 'No keywords'}
-                                    {selectedProfile.last_run_at ? ` · last run ${formatDate(selectedProfile.last_run_at)}` : ''}
-                                </p>
+                        {/* Automation hint */}
+                        {!automationOn && selected === ALL && (
+                            <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                                <Clock className="h-4 w-4 shrink-0" />
+                                Discovery runs manually. Turn on automation in
+                                <button className="font-medium text-foreground underline" onClick={() => setSettingsOpen(true)}>Settings</button>
+                                to fill the review queue on a schedule.
                             </div>
-                            <Button onClick={() => runProfile.mutate(selectedProfile.id)} disabled={runProfile.isPending}>
-                                {runProfile.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-                                Run discovery
-                            </Button>
-                            <Button variant="outline" onClick={() => { setEditing(selectedProfile); setDialogOpen(true); }}>
-                                <Pencil className="mr-2 h-4 w-4" />
-                                Edit
-                            </Button>
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    if (confirm(`Delete profile "${selectedProfile.name}"? Its active sources stay, just ungrouped.`)) {
-                                        deleteProfile.mutate(selectedProfile.id);
-                                        setSelected(ALL);
-                                    }
-                                }}
-                            >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                            </Button>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Suggestions */}
-                    <section className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <h2 className="flex items-center gap-2 text-lg font-semibold">
-                                <Radar className="h-4 w-4 text-news" />
-                                Suggestions
-                                {suggestions.length > 0 && <Badge variant="info">{suggestions.length}</Badge>}
-                            </h2>
-                            <div className="flex gap-2">
-                                <Button
-                                    size="sm"
-                                    variant={hideLow ? 'default' : 'outline'}
-                                    onClick={() => setHideLow((v) => !v)}
-                                    title="Hide suggestions below 25% relevance"
-                                >
-                                    <Filter className="mr-1 h-3.5 w-3.5" />
-                                    {hideLow ? 'Showing strong' : 'Hide low relevance'}
-                                </Button>
-                                {suggestions.length > 0 && (
-                                    <>
-                                        <Button size="sm" variant="outline" onClick={() => bulkApprove.mutate(pendingIds)} disabled={bulkApprove.isPending}>
-                                            Approve all
+                        {/* Tabs */}
+                        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+                            <TabsList>
+                                <TabsTrigger value="suggestions">
+                                    Suggestions
+                                    {scopedSuggestions.length > 0 && <CountBadge className="ml-2">{scopedSuggestions.length}</CountBadge>}
+                                </TabsTrigger>
+                                <TabsTrigger value="sources">
+                                    Active sources
+                                    {scopedSources.length > 0 && <span className="ml-2 text-muted-foreground">{scopedSources.length}</span>}
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+
+                        {tab === 'suggestions' && (
+                            <div className="space-y-3">
+                                {scopedSuggestions.length > 0 && (
+                                    <div className="flex items-center justify-between">
+                                        <Button size="sm" variant={hideLow ? 'default' : 'outline'} onClick={() => setHideLow((v) => !v)}>
+                                            <Filter className="mr-1 h-3.5 w-3.5" />
+                                            {hideLow ? 'Showing strong only' : 'Hide weak matches'}
                                         </Button>
-                                        <Button size="sm" variant="outline" onClick={() => bulkReject.mutate(pendingIds)} disabled={bulkReject.isPending}>
-                                            Reject all
-                                        </Button>
-                                    </>
+                                        <div className="flex gap-2">
+                                            <Button size="sm" variant="outline" onClick={() => bulkApprove.mutate(pendingIds)} disabled={bulkApprove.isPending}>
+                                                <Check className="mr-1 h-3.5 w-3.5" /> Approve all
+                                            </Button>
+                                            <Button size="sm" variant="ghost" onClick={() => bulkReject.mutate(pendingIds)} disabled={bulkReject.isPending}>
+                                                Dismiss all
+                                            </Button>
+                                        </div>
+                                    </div>
                                 )}
-                            </div>
-                        </div>
-                        <div className="rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Source</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Relevance</TableHead>
-                                        <TableHead>Confidence</TableHead>
-                                        <TableHead>Items</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {suggestionsLoading && (
-                                        <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>
-                                    )}
-                                    {!suggestionsLoading && suggestions.length === 0 && (
-                                        <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">
-                                            No pending suggestions. {selectedProfile ? 'Run discovery to find sources.' : ''}
-                                        </TableCell></TableRow>
-                                    )}
-                                    {suggestions.map((s) => (
-                                        <SuggestionRow
+
+                                {suggestionsLoading && <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>}
+
+                                {!suggestionsLoading && scopedSuggestions.length === 0 && (
+                                    <Card>
+                                        <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+                                            <CheckCircle2 className="h-8 w-8 text-success" />
+                                            <p className="font-medium">Nothing to review</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {selectedProfile ? 'Run discovery to find new sources for this interest.' : 'All caught up — approved or dismissed everything.'}
+                                            </p>
+                                            {selectedProfile && (
+                                                <Button className="mt-1" onClick={() => runProfile.mutate(selectedProfile.id)} disabled={runProfile.isPending}>
+                                                    <Play className="mr-2 h-4 w-4" /> Run discovery
+                                                </Button>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                )}
+
+                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                    {scopedSuggestions.map((s) => (
+                                        <SuggestionCard
                                             key={s.id}
                                             suggestion={s}
                                             onApprove={() => approve.mutate(s.id)}
@@ -268,54 +354,149 @@ export function FindingPage() {
                                             busy={approve.isPending || reject.isPending}
                                         />
                                     ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </section>
+                                </div>
+                            </div>
+                        )}
 
-                    {/* Active sources */}
-                    <section className="space-y-2">
-                        <h2 className="text-lg font-semibold">Active sources {sources.length > 0 && <span className="text-muted-foreground">({sources.length})</span>}</h2>
-                        <div className="rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Source</TableHead>
-                                        <TableHead>Type</TableHead>
-                                        <TableHead>Category</TableHead>
-                                        <TableHead className="text-right">Items</TableHead>
-                                        <TableHead className="text-right">Failed</TableHead>
-                                        <TableHead>Last item</TableHead>
-                                        <TableHead className="text-right">Engagement</TableHead>
-                                        <TableHead>Health</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {sourcesLoading && (
-                                        <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>
-                                    )}
-                                    {!sourcesLoading && sources.length === 0 && (
-                                        <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">No active sources yet — approve a suggestion to add one.</TableCell></TableRow>
-                                    )}
-                                    {sources.map((s) => (
-                                        <ActiveSourceRow
-                                            key={s.id}
-                                            source={s}
-                                            onDelete={() => handleDeleteSource(s.id, s.name)}
-                                        />
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </section>
+                        {tab === 'sources' && (
+                            <div className="rounded-md border">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Source</TableHead>
+                                            <TableHead className="text-right">Items</TableHead>
+                                            <TableHead className="text-right">Failed</TableHead>
+                                            <TableHead>Last item</TableHead>
+                                            <TableHead>Health</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {sourcesLoading && (
+                                            <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>
+                                        )}
+                                        {!sourcesLoading && scopedSources.length === 0 && (
+                                            <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No active sources yet — approve a suggestion to add one.</TableCell></TableRow>
+                                        )}
+                                        {scopedSources.map((s) => (
+                                            <ActiveSourceRow key={s.id} source={s} onDelete={() => handleDeleteSource(s.id, s.name)} />
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             <ProfileDialog open={dialogOpen} onClose={() => setDialogOpen(false)} profile={editing} />
             {previewTarget && <PreviewDialog suggestion={previewTarget} onClose={() => setPreviewTarget(null)} />}
             {suggestOpen && <SuggestProfilesDialog onClose={() => setSuggestOpen(false)} />}
+            <DiscoverySettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         </div>
+    );
+}
+
+function CountBadge({ children, className }: { children: React.ReactNode; className?: string }) {
+    return (
+        <span className={cn('inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-news px-1.5 text-xs font-medium text-news-foreground', className)}>
+            {children}
+        </span>
+    );
+}
+
+function StatCard({ icon, label, value, tone = 'default', onClick }: {
+    icon: React.ReactNode; label: string; value: React.ReactNode;
+    tone?: 'default' | 'news' | 'success' | 'muted'; onClick?: () => void;
+}) {
+    const toneCls = tone === 'news' ? 'text-news' : tone === 'success' ? 'text-success' : tone === 'muted' ? 'text-muted-foreground' : 'text-foreground';
+    return (
+        <Card className={cn(onClick && 'cursor-pointer transition-colors hover:bg-muted/40')} onClick={onClick}>
+            <CardContent className="flex items-center gap-3 p-4">
+                <div className={cn('rounded-md bg-muted p-2', toneCls)}>{icon}</div>
+                <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className={cn('truncate text-xl font-semibold', toneCls)}>{value}</p>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function RailItem({ label, active, pending, sources, disabled, onClick }: {
+    label: string; active: boolean; pending: number; sources: number; disabled?: boolean; onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+                'group flex w-full items-center gap-2 rounded-md border px-3 py-2.5 text-left transition-colors',
+                active ? 'border-news/40 bg-news/5' : 'border-transparent hover:bg-muted'
+            )}
+        >
+            <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                    <span className={cn('truncate text-sm', active && 'font-medium', disabled && 'text-muted-foreground')}>{label}</span>
+                    {disabled && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" title="disabled" />}
+                </div>
+                <span className="text-xs text-muted-foreground">{sources} source{sources === 1 ? '' : 's'}</span>
+            </div>
+            {pending > 0 && <CountBadge className="shrink-0">{pending}</CountBadge>}
+            <ChevronRight className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-opacity', active ? 'opacity-100' : 'opacity-0 group-hover:opacity-60')} />
+        </button>
+    );
+}
+
+function SuggestionCard({ suggestion, onApprove, onReject, onPreview, busy }: {
+    suggestion: SourceSuggestion; onApprove: () => void; onReject: () => void; onPreview: () => void; busy: boolean;
+}) {
+    const sample = suggestion.sample_items ?? [];
+    const rel = relevanceMeta(suggestion.relevance_score);
+    return (
+        <Card className="flex flex-col">
+            <CardContent className="flex flex-1 flex-col gap-3 p-4">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                            <span className="truncate font-semibold" dir="auto">{suggestion.name}</span>
+                            <Badge variant="outline" className="shrink-0">{suggestion.type}</Badge>
+                        </div>
+                        <a href={suggestion.feed_url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:underline">
+                            {domainOf(suggestion.feed_url)}
+                            {suggestion.health?.items_count ? ` · ${suggestion.health.items_count} items` : ''}
+                        </a>
+                    </div>
+                    <Badge variant={rel.variant} className="shrink-0">{rel.label}</Badge>
+                </div>
+
+                {/* Relevance meter */}
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className={cn('h-full rounded-full', rel.bar)} style={{ width: `${rel.pct}%` }} />
+                </div>
+
+                {/* Sample headlines — the value: see what it actually produces */}
+                {sample.length > 0 && (
+                    <ul className="space-y-1">
+                        {sample.slice(0, 3).map((it, i) => (
+                            <li key={i} className="truncate text-sm text-muted-foreground" dir="auto" title={it.title}>· {it.title}</li>
+                        ))}
+                    </ul>
+                )}
+
+                <div className="mt-auto flex items-center gap-2 pt-1">
+                    <Button size="sm" className="flex-1" onClick={onApprove} disabled={busy}>
+                        <Check className="mr-1 h-4 w-4" /> Approve
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={onPreview}>
+                        <Eye className="mr-1 h-4 w-4" /> Preview
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={onReject} disabled={busy} title="Dismiss">
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 
@@ -325,13 +506,13 @@ function ActiveSourceRow({ source, onDelete }: { source: NewsSource; onDelete: (
     const running = run.isPending && run.variables === source.id;
     return (
         <TableRow>
-            <TableCell className="font-medium">{source.name}</TableCell>
-            <TableCell><Badge variant="outline">{source.type}</Badge></TableCell>
-            <TableCell><Badge variant={source.category === 'media' ? 'info' : 'outline'}>{source.category ?? 'news'}</Badge></TableCell>
+            <TableCell>
+                <div className="font-medium" dir="auto">{source.name}</div>
+                <div className="text-xs text-muted-foreground">{domainOf(source.feed_url)}</div>
+            </TableCell>
             <TableCell className="text-right">{source.items_count}</TableCell>
             <TableCell className={cn('text-right', source.failed > 0 && 'text-destructive')}>{source.failed}</TableCell>
             <TableCell>{formatDate(source.last_item_at)}</TableCell>
-            <TableCell className="text-right">{source.engagement}</TableCell>
             <TableCell><Badge variant={health.variant}>{health.label}</Badge></TableCell>
             <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
@@ -340,62 +521,6 @@ function ActiveSourceRow({ source, onDelete }: { source: NewsSource; onDelete: (
                         Run
                     </Button>
                     <SourceRowActions source={source as unknown as ContentSource} onDelete={onDelete} />
-                </div>
-            </TableCell>
-        </TableRow>
-    );
-}
-
-function SuggestionRow({
-    suggestion,
-    onApprove,
-    onReject,
-    onPreview,
-    busy,
-}: {
-    suggestion: SourceSuggestion;
-    onApprove: () => void;
-    onReject: () => void;
-    onPreview: () => void;
-    busy: boolean;
-}) {
-    const sample = suggestion.sample_items ?? [];
-    const rel = suggestion.relevance_score;
-    return (
-        <TableRow>
-            <TableCell>
-                <div className="font-medium">{suggestion.name}</div>
-                <a href={suggestion.feed_url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:underline">
-                    {suggestion.feed_url}
-                </a>
-                {sample.length > 0 && (
-                    <div className="mt-1 max-w-md truncate text-xs text-muted-foreground" title={sample.map((i) => i.title).join('\n')}>
-                        {sample[0].title}
-                        {sample.length > 1 ? ` · +${sample.length - 1} more` : ''}
-                    </div>
-                )}
-            </TableCell>
-            <TableCell><Badge variant="outline">{suggestion.type}</Badge></TableCell>
-            <TableCell>
-                {rel == null ? (
-                    <span className="text-xs text-muted-foreground">—</span>
-                ) : (
-                    <Badge variant={pctVariant(rel)}>{Math.round(rel * 100)}%</Badge>
-                )}
-            </TableCell>
-            <TableCell><Badge variant={pctVariant(suggestion.confidence)}>{Math.round(suggestion.confidence * 100)}%</Badge></TableCell>
-            <TableCell>{suggestion.health?.items_count ?? '—'}</TableCell>
-            <TableCell className="text-right">
-                <div className="flex justify-end gap-1">
-                    <Button size="icon" variant="ghost" title="Preview items" onClick={onPreview}>
-                        <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button size="icon" variant="ghost" title="Approve" onClick={onApprove} disabled={busy}>
-                        <Check className="h-4 w-4 text-success" />
-                    </Button>
-                    <Button size="icon" variant="ghost" title="Reject" onClick={onReject} disabled={busy}>
-                        <X className="h-4 w-4 text-destructive" />
-                    </Button>
                 </div>
             </TableCell>
         </TableRow>
@@ -416,7 +541,7 @@ function PreviewDialog({ suggestion, onClose }: { suggestion: SourceSuggestion; 
         <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
             <DialogContent className="max-w-3xl">
                 <DialogHeader>
-                    <DialogTitle>Preview — {suggestion.name}</DialogTitle>
+                    <DialogTitle dir="auto">Preview — {suggestion.name}</DialogTitle>
                 </DialogHeader>
                 {preview.isPending && <p className="py-6 text-center text-sm text-muted-foreground">Fetching recent items…</p>}
                 {!preview.isPending && items && items.length > 0 && <PreviewTable items={items} />}
@@ -424,7 +549,7 @@ function PreviewDialog({ suggestion, onClose }: { suggestion: SourceSuggestion; 
                     <div className="space-y-1">
                         {sample.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No items to preview.</p>}
                         {sample.map((it, i) => (
-                            <div key={i} className="border-b py-1 text-sm last:border-0">{it.title}</div>
+                            <div key={i} className="border-b py-1 text-sm last:border-0" dir="auto">{it.title}</div>
                         ))}
                     </div>
                 )}
@@ -449,7 +574,7 @@ function SuggestProfilesDialog({ onClose }: { onClose: () => void }) {
         <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
             <DialogContent className="max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Suggested profiles from topics</DialogTitle>
+                    <DialogTitle>Suggested interests from your topics</DialogTitle>
                 </DialogHeader>
                 {suggest.isPending && <p className="py-6 text-center text-sm text-muted-foreground">Reading your topics…</p>}
                 {!suggest.isPending && drafts.length === 0 && (
@@ -459,22 +584,15 @@ function SuggestProfilesDialog({ onClose }: { onClose: () => void }) {
                     {drafts.map((d) => (
                         <div key={d.name} className="flex items-center justify-between gap-3 rounded-md border p-2">
                             <div className="min-w-0">
-                                <p className="truncate font-medium">{d.name}</p>
-                                <p className="truncate text-xs text-muted-foreground">
-                                    {d.keywords.join(', ') || '—'} · {d.article_count} articles
-                                </p>
+                                <p className="truncate font-medium" dir="auto">{d.name}</p>
+                                <p className="truncate text-xs text-muted-foreground" dir="auto">{d.keywords.join(', ') || '—'} · {d.article_count} articles</p>
                             </div>
                             <Button
                                 size="sm"
                                 variant="outline"
                                 disabled={added.has(d.name) || create.isPending}
                                 onClick={async () => {
-                                    await create.mutateAsync({
-                                        name: d.name,
-                                        description: d.description,
-                                        keywords: d.keywords,
-                                        languages: ['ar', 'en'],
-                                    });
+                                    await create.mutateAsync({ name: d.name, description: d.description, keywords: d.keywords, languages: ['ar', 'en'] });
                                     setAdded((p) => new Set(p).add(d.name));
                                 }}
                             >

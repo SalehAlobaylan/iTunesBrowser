@@ -85,6 +85,20 @@ export interface NewsSource {
     engagement: number;
 }
 
+export interface DiscoveryConfig {
+    automation_enabled: boolean;
+    sweep_interval_hours: number;
+    min_confidence: number;
+    min_relevance: number;
+    dup_threshold: number;
+    dup_penalty: number;
+    recency_window_days: number;
+    max_candidates_per_profile: number;
+    search_provider: 'auto' | 'tavily' | 'crawl';
+    created_at?: string;
+    updated_at?: string;
+}
+
 export interface ListResponse<T> {
     data: T[];
     total?: number;

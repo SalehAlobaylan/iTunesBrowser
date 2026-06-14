@@ -7,6 +7,7 @@ import type {
     ListResponse,
     SuggestionsResponse,
     SuggestedProfileDraft,
+    DiscoveryConfig,
 } from '@/types/platform/discovery';
 
 // ---------- Profiles ----------
@@ -69,4 +70,14 @@ export async function listNewsSources(profileId?: string): Promise<ListResponse<
         '/admin/discovery/sources',
         profileId ? { profile_id: profileId } : undefined
     );
+}
+
+// ---------- Config (tuning + scheduling) ----------
+
+export async function getDiscoveryConfig(): Promise<DiscoveryConfig> {
+    return cmsClient.get<DiscoveryConfig>('/admin/discovery/config');
+}
+
+export async function updateDiscoveryConfig(data: DiscoveryConfig): Promise<DiscoveryConfig> {
+    return cmsClient.put<DiscoveryConfig>('/admin/discovery/config', data);
 }

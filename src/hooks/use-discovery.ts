@@ -12,8 +12,10 @@ import {
     bulkRejectSuggestions,
     listNewsSources,
     suggestProfiles,
+    getDiscoveryConfig,
+    updateDiscoveryConfig,
 } from '@/lib/api/cms/discovery';
-import type { CreateProfileRequest, UpdateProfileRequest } from '@/types/platform/discovery';
+import type { CreateProfileRequest, UpdateProfileRequest, DiscoveryConfig } from '@/types/platform/discovery';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
 
@@ -23,7 +25,29 @@ export const discoveryKeys = {
     suggestions: (profileId?: string, status?: string) =>
         [...discoveryKeys.all, 'suggestions', profileId ?? 'all', status ?? 'PENDING'] as const,
     sources: (profileId?: string) => [...discoveryKeys.all, 'sources', profileId ?? 'all'] as const,
+    config: () => [...discoveryKeys.all, 'config'] as const,
 };
+
+export function useDiscoveryConfig() {
+    return useQuery({
+        queryKey: discoveryKeys.config(),
+        queryFn: getDiscoveryConfig,
+        staleTime: CACHE_CONFIG.details.staleTime,
+        gcTime: CACHE_CONFIG.details.gcTime,
+    });
+}
+
+export function useUpdateDiscoveryConfig() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (data: DiscoveryConfig) => updateDiscoveryConfig(data),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: discoveryKeys.config() });
+            toast({ title: 'Discovery settings saved', variant: 'success' });
+        },
+        onError: (e) => toast({ title: 'Failed to save settings', description: String(e), variant: 'destructive' }),
+    });
+}
 
 export function useProfiles() {
     return useQuery({
