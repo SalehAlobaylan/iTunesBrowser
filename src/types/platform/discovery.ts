@@ -46,6 +46,7 @@ export interface SuggestionEvidence {
     composite?: number;
     trend?: string;
     via?: string[];
+    subscribers?: number;
 }
 
 export interface SourceSuggestion {
@@ -108,6 +109,7 @@ export interface DiscoveryConfig {
     search_provider: 'auto' | 'tavily' | 'crawl';
     // Source Intelligence Graph
     intelligence_enabled: boolean;
+    telegram_discovery_enabled: boolean;
     graph_build_interval_hours: number;
     promotion_threshold: number;
     weight_citation: number;

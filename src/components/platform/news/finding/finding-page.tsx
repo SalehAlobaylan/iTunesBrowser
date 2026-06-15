@@ -410,15 +410,24 @@ function RailItem({ label, active, pending, sources, disabled, onClick }: {
 }
 
 function provenanceLabel(via?: string): string {
+    if (via === 'telegram-forward') return 'From your channels';
+    if (via === 'telegram-mention') return 'Mentioned by your network';
+    if (via === 'telegram-graph' || via === 'telegram-search') return 'From your channels';
     if (via === 'graph' || via === 'corpus' || via === 'linkgraph') return 'From your network';
     if (via === 'tavily' || via === 'crawl' || via === 'auto') return 'Web search';
     return '';
+}
+
+function formatSubscribers(n: number): string {
+    if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+    return String(n);
 }
 
 function EvidenceLine({ suggestion }: { suggestion: SourceSuggestion }) {
     const ev = suggestion.evidence;
     const prov = provenanceLabel(suggestion.discovered_via);
     const facts: string[] = [];
+    if (ev?.subscribers) facts.push(`${formatSubscribers(ev.subscribers)} subscribers`);
     if (ev?.citation_count) facts.push(`Cited ${ev.citation_count}×`);
     if (ev?.cocitation_count) facts.push(`Linked by ${ev.cocitation_count} source${ev.cocitation_count === 1 ? '' : 's'}`);
     if (typeof ev?.authority === 'number' && ev.authority > 0) facts.push(`Authority ${ev.authority.toFixed(2)}`);
@@ -520,9 +529,11 @@ function ActiveSourceRow({ source, onDelete }: { source: NewsSource; onDelete: (
 }
 
 function PreviewDialog({ suggestion, onClose }: { suggestion: SourceSuggestion; onClose: () => void }) {
+    const isTelegram = suggestion.type === 'TELEGRAM';
     const preview = usePreviewSource();
     useEffect(() => {
-        preview.mutate({ sourceType: 'RSS', url: suggestion.feed_url });
+        // Telegram channels have no RSS feed — show the stored sample messages.
+        if (!isTelegram) preview.mutate({ sourceType: 'RSS', url: suggestion.feed_url });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [suggestion.feed_url]);
 
@@ -535,15 +546,27 @@ function PreviewDialog({ suggestion, onClose }: { suggestion: SourceSuggestion; 
                 <DialogHeader>
                     <DialogTitle dir="auto">Preview — {suggestion.name}</DialogTitle>
                 </DialogHeader>
-                {preview.isPending && <p className="py-6 text-center text-sm text-muted-foreground">Fetching recent items…</p>}
-                {!preview.isPending && items && items.length > 0 && <PreviewTable items={items} />}
-                {!preview.isPending && (!items || items.length === 0) && (
+                {isTelegram ? (
                     <div className="space-y-1">
-                        {sample.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No items to preview.</p>}
+                        <p className="pb-1 text-xs text-muted-foreground">Recent messages from this channel</p>
+                        {sample.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No messages captured.</p>}
                         {sample.map((it, i) => (
-                            <div key={i} className="border-b py-1 text-sm last:border-0" dir="auto">{it.title}</div>
+                            <div key={i} className="border-b py-1.5 text-sm last:border-0" dir="auto">{it.title}</div>
                         ))}
                     </div>
+                ) : (
+                    <>
+                        {preview.isPending && <p className="py-6 text-center text-sm text-muted-foreground">Fetching recent items…</p>}
+                        {!preview.isPending && items && items.length > 0 && <PreviewTable items={items} />}
+                        {!preview.isPending && (!items || items.length === 0) && (
+                            <div className="space-y-1">
+                                {sample.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No items to preview.</p>}
+                                {sample.map((it, i) => (
+                                    <div key={i} className="border-b py-1 text-sm last:border-0" dir="auto">{it.title}</div>
+                                ))}
+                            </div>
+                        )}
+                    </>
                 )}
             </DialogContent>
         </Dialog>

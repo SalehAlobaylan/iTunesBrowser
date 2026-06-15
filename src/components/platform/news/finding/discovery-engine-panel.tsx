@@ -1,6 +1,6 @@
 'use client';
 
-import { Zap, Network, Play, Loader2, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { Zap, Network, Play, Loader2, Sparkles, SlidersHorizontal, Send } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -59,7 +59,8 @@ export function DiscoveryEnginePanel({ pending, sources, interests, onOpenSettin
 
     const auto = cfg?.automation_enabled ?? false;
     const intel = cfg?.intelligence_enabled ?? false;
-    const toggle = (key: 'automation_enabled' | 'intelligence_enabled') => {
+    const telegram = cfg?.telegram_discovery_enabled ?? false;
+    const toggle = (key: 'automation_enabled' | 'intelligence_enabled' | 'telegram_discovery_enabled') => {
         if (!cfg) return;
         update.mutate({ ...cfg, [key]: !(cfg[key] as boolean) } as DiscoveryConfig);
     };
@@ -98,6 +99,24 @@ export function DiscoveryEnginePanel({ pending, sources, interests, onOpenSettin
                             </Button>
                         }
                     />
+                </div>
+
+                {/* Telegram discovery — extends source intelligence to channels */}
+                <div className={cn('flex items-center gap-3 border-t px-4 py-3', !intel && 'opacity-60')}>
+                    <div className={cn('rounded-md p-1.5', telegram ? 'bg-news/10 text-news' : 'bg-muted text-muted-foreground')}>
+                        <Send className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium leading-none">Telegram discovery</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {intel
+                                ? telegram
+                                    ? 'On · finds channels your approved + trusted channels forward and link to'
+                                    : 'Off — discover channels from the public previews of channels you trust'
+                                : 'Turn on Source intelligence first'}
+                        </p>
+                    </div>
+                    <Toggle on={telegram} onChange={() => toggle('telegram_discovery_enabled')} disabled={update.isPending || !intel} />
                 </div>
 
                 {/* Footer: stats + network insight + advanced */}

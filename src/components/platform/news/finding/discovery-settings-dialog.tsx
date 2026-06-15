@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronDown, Loader2, Zap, SlidersHorizontal, Globe, Network } from 'lucide-react';
+import { ChevronDown, Loader2, Zap, SlidersHorizontal, Globe, Network, Send } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -28,6 +28,7 @@ const DEFAULTS: DiscoveryConfig = {
     max_candidates_per_profile: 15,
     search_provider: 'auto',
     intelligence_enabled: false,
+    telegram_discovery_enabled: false,
     graph_build_interval_hours: 24,
     promotion_threshold: 0.5,
     weight_citation: 0.2,
@@ -158,10 +159,22 @@ export function DiscoverySettingsDialog({ open, onClose }: { open: boolean; onCl
                             <Toggle on={form.intelligence_enabled} onChange={() => set('intelligence_enabled', !form.intelligence_enabled)} />
                         </div>
                         {form.intelligence_enabled && (
-                            <div className="mt-3 flex items-center gap-2 border-t pt-3">
-                                <Label className="text-sm">Rebuild every</Label>
-                                <Input type="number" min={1} value={form.graph_build_interval_hours} onChange={numInput('graph_build_interval_hours')} className="h-8 w-20" />
-                                <span className="text-sm text-muted-foreground">hours</span>
+                            <div className="mt-3 space-y-3 border-t pt-3">
+                                <div className="flex items-center gap-2">
+                                    <Label className="text-sm">Rebuild every</Label>
+                                    <Input type="number" min={1} value={form.graph_build_interval_hours} onChange={numInput('graph_build_interval_hours')} className="h-8 w-20" />
+                                    <span className="text-sm text-muted-foreground">hours</span>
+                                </div>
+                                <div className="flex items-start justify-between gap-3 border-t pt-3">
+                                    <div className="flex items-start gap-2">
+                                        <Send className="mt-0.5 h-4 w-4 text-news" />
+                                        <div>
+                                            <p className="text-sm font-semibold leading-none">Telegram discovery</p>
+                                            <p className="mt-1 text-xs text-muted-foreground">Extend the graph to Telegram — reads the public previews of channels you trust and surfaces the channels they forward and link to.</p>
+                                        </div>
+                                    </div>
+                                    <Toggle on={form.telegram_discovery_enabled} onChange={() => set('telegram_discovery_enabled', !form.telegram_discovery_enabled)} />
+                                </div>
                             </div>
                         )}
                     </div>
