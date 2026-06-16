@@ -110,6 +110,7 @@ export interface DiscoveryConfig {
     // Source Intelligence Graph
     intelligence_enabled: boolean;
     telegram_discovery_enabled: boolean;
+    twitter_discovery_enabled: boolean;
     graph_build_interval_hours: number;
     promotion_threshold: number;
     weight_citation: number;
@@ -124,6 +125,7 @@ export interface DiscoveryConfig {
 
 export interface NetworkAuthority {
     domain: string;
+    kind?: string;
     authority: number;
     citation_count: number;
     cocitation_count: number;

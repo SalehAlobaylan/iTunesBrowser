@@ -43,6 +43,7 @@ import { NewsSectionNav } from '@/components/platform/news/news-section-nav';
 import { ProfileDialog } from './profile-dialog';
 import { DiscoverySettingsDialog } from './discovery-settings-dialog';
 import { DiscoveryEnginePanel } from './discovery-engine-panel';
+import { TwitterCard } from './twitter-card';
 
 const ALL = '__all__';
 const LOW_RELEVANCE = 0.1;
@@ -177,6 +178,9 @@ export function FindingPage() {
                 interests={profiles.length}
                 onOpenSettings={() => setSettingsOpen(true)}
             />
+
+            {/* Twitter/X discovery + ingestion — its own advanced card */}
+            <TwitterCard />
 
             {/* First-run / empty state */}
             {!profilesLoading && profiles.length === 0 ? (
@@ -410,6 +414,9 @@ function RailItem({ label, active, pending, sources, disabled, onClick }: {
 }
 
 function provenanceLabel(via?: string): string {
+    if (via === 'x-retweet') return 'Retweeted by your network';
+    if (via === 'x-quote') return 'Quoted by your network';
+    if (via === 'x-mention' || via === 'x-graph') return 'Mentioned by your network';
     if (via === 'telegram-forward') return 'From your channels';
     if (via === 'telegram-mention') return 'Mentioned by your network';
     if (via === 'telegram-graph' || via === 'telegram-search') return 'From your channels';

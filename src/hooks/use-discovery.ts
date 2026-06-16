@@ -68,10 +68,10 @@ export function useBuildGraph() {
     });
 }
 
-export function useAuthorities() {
+export function useAuthorities(kind?: string) {
     return useQuery({
-        queryKey: [...discoveryKeys.all, 'authorities'] as const,
-        queryFn: getAuthorities,
+        queryKey: [...discoveryKeys.all, 'authorities', kind ?? 'all'] as const,
+        queryFn: () => getAuthorities(kind),
         staleTime: CACHE_CONFIG.lists.staleTime,
         gcTime: CACHE_CONFIG.lists.gcTime,
     });

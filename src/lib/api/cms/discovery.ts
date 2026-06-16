@@ -91,6 +91,7 @@ export async function buildGraph(): Promise<{ message?: string }> {
     return cmsClient.post<{ message?: string }>('/admin/discovery/build-graph');
 }
 
-export async function getAuthorities(): Promise<ListResponse<NetworkAuthority>> {
-    return cmsClient.get<ListResponse<NetworkAuthority>>('/admin/discovery/authorities');
+export async function getAuthorities(kind?: string): Promise<ListResponse<NetworkAuthority>> {
+    const q = kind ? `?kind=${encodeURIComponent(kind)}` : '';
+    return cmsClient.get<ListResponse<NetworkAuthority>>(`/admin/discovery/authorities${q}`);
 }
