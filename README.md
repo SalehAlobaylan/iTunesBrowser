@@ -1,37 +1,76 @@
 ![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
 ![Next JS](https://img.shields.io/badge/Next-black?style=for-the-badge&logo=next.js&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![Jest](https://img.shields.io/badge/-jest-%23C21325?style=for-the-badge&logo=jest&logoColor=white)
 
-# Platform Console
+# Platform-Console
 
-Admin dashboard for the Wahb platform. Manages content sources, ingested content, and the ranking algorithm.
+The internal admin / operations console for the Wahb platform. Operators manage content sources, moderate ingested content, tune the ranking engine, run news-discovery, edit transcripts (Media Studio), and watch system health — all by proxying to CMS, Aggregation, Enrichment, Media, and IAM.
 
-**Production:** https://wahb-console.salehspace.dev
+It is a thin **backend-for-frontend (BFF)**: it holds **no business logic and no direct DB or queue access**. Its own `/api/*` routes attach the operator's token server-side and forward to the right backend, so the browser never holds the token and never calls the backends directly.
 
-## Tech Stack
+**Port:** 3005 · **Production:** https://wahb-console.salehspace.dev · **Stack:** Next.js 15 (App Router), React 19, TypeScript, shadcn/ui, TanStack Query, Zustand, Recharts
 
-- **Framework:** Next.js 15 (App Router)
-- **Language:** TypeScript
-- **UI:** shadcn/ui + TailwindCSS
-- **State / Data fetching:** Zustand + TanStack Query (React Query)
-- **Charts:** Recharts 2.13
+> Full feature + architecture reference: [`../docs/platform-console.md`](../docs/platform-console.md). System overview: [`../docs/index.md`](../docs/index.md).
 
 ## Quick Start
 
 ```bash
 npm install
-npm run dev
+cp .env.example .env        # set the backend base URLs
+npm run dev                 # http://localhost:3005
 ```
 
-Runs on `http://localhost:3005`
+## Navigation
 
-## Environment Variables
+| Section | Route | Description |
+|---------|-------|-------------|
+| Dashboard | `/` | Operations overview |
+| Sources | `/platform/sources` | RSS / YouTube / X / Telegram source CRUD + run |
+| News / Finding | `/platform/news`, `/platform/news/finding` | News discovery + auto source-finding & tuning |
+| Content | `/platform/content` | Browse / moderate ingested content items |
+| **Intelligence** | `/platform/intelligence` | Ranking engine, flags, analytics, preview (see below) |
+| Enrichment | `/platform/enrichment` | Embedding / enrichment batches |
+| Media | `/platform/media` | Media items + transcription pipeline |
+| Media Studio | `/platform/media-studio` | Per-item transcript + chapter editor |
+| Pipeline | `/platform/pipeline` | Ingestion / processing state |
+| Quality | `/platform/quality` | Content quality profiles |
+| Storage | `/platform/storage` | Object-storage circulation / tiering |
+| System Health | `/platform/system-health` | Live backend health, migrations, AI metrics |
+| Users | `/admin`, `/admin/users` | Admin account / role / permission management (IAM) |
 
-```env
-NEXT_PUBLIC_CMS_URL=http://localhost:8080
-NEXT_PUBLIC_AGGREGATION_URL=http://localhost:5002
-```
+## Architecture (BFF)
+
+The browser only ever talks to the Console's own origin. Catch-all proxy routes forward to the backends with the access token attached server-side:
+
+| Console route | Forwards to |
+|---------------|-------------|
+| `/api/cms/[...path]` | `CMS_BASE_URL` |
+| `/api/iam/[...path]` | `IAM_BASE_URL` |
+| `/api/aggregation/[...path]` | `AGGREGATION_BASE_URL` |
+| `/api/ai-metrics` | scrapes Enrichment + Media `/metrics` (Prometheus) |
+| `/api/system-health` (+ `/migrations`, `/restart`) | aggregated backend health + ops |
+| `/api/auth/*` | IAM (login / refresh / me / logout) |
+
+By design there is **no direct DB or queue access** — tuning knobs live behind CMS config tables surfaced as admin pages, and jobs are triggered through CMS/Aggregation APIs.
+
+## Authentication
+
+Auth is delegated to **IAM**. `POST /api/auth/login` proxies to IAM, which returns an HS256 JWT; the access + refresh tokens are stored in httpOnly cookies (`console_access_token`, `console_refresh_token`). `middleware.ts` redirects any unauthenticated request (except `/login`) to the login page. Every BFF proxy reads the access cookie and attaches `Authorization: Bearer` server-side. `GET /api/auth/me` resolves the operator via IAM `/api/v1/roles/me`.
+
+## Configuration
+
+All backend URLs are server-side (the BFF reads them; they're never exposed to the browser). `scripts/log-service-connections.js` prints the resolved targets on `dev`/`build`/`start`.
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `CMS_BASE_URL` | yes | http://localhost:8080 | CMS backend (`/admin/*`, intelligence, storage, quality) |
+| `IAM_BASE_URL` | yes | http://localhost:4003 | IAM (auth, admin users) |
+| `AGGREGATION_BASE_URL` | yes | http://localhost:5002 | Source discovery / preview / run |
+| `ENRICHMENT_BASE_URL` | for AI metrics | http://localhost:5050 | Enrichment `/metrics` scrape |
+| `MEDIA_BASE_URL` | for AI metrics | http://localhost:5051 | Media `/metrics` scrape |
+| `ENRICHMENT_SERVICE_TOKEN` | for AI metrics | — | Bearer token for scraping |
+| `PLATFORM_BASE_URL` | no | http://localhost:3000 | Wahb-Platform origin (cross-links) |
+| `NEXT_PUBLIC_GRAFANA_URL` | no | — | Optional Grafana embed on system-health |
 
 ## Dev Commands
 
@@ -39,105 +78,50 @@ NEXT_PUBLIC_AGGREGATION_URL=http://localhost:5002
 |---------|---------|
 | `npm run dev` | Start dev server on :3005 |
 | `npm run build` | Production build |
+| `npm run start` | Serve the production build |
 | `npm run lint` | ESLint |
 | `npm run type-check` | `tsc --noEmit` |
-| `npm run test` | Jest unit tests |
 
-## Navigation
-
-| Section | Route | Description |
-|---------|-------|-------------|
-| Dashboard | `/` | Overview cards |
-| Sources | `/platform/sources` | Manage RSS/YouTube/X/Telegram sources |
-| Content | `/platform/content` | Browse and moderate ingested content items |
-| **Intelligence** | `/platform/intelligence` | Ranking engine, content flags, analytics |
-| Users | `/admin/users` | Admin user management |
+Jest (`jest.config.js`) and Playwright (`playwright.config.ts`, `e2e/`) configs are present for unit and end-to-end tests.
 
 ---
 
 ## Intelligence Tab
 
-The Intelligence tab gives full control over how content is ranked and distributed across feeds.
+Full control over how content is ranked and distributed across feeds — the UI for the per-tenant 7-signal ranking engine. Feeds stay chronological until ranking is activated.
 
-### Pages
+### Dashboard — `/platform/intelligence`
+Algorithm status (Active/Inactive), embedding coverage, flagged-item count, currently-trending count, a **Signal Health** radar (coverage % for all 7 signals), and a **Score Distribution** histogram across READY content.
 
-#### Dashboard — `/platform/intelligence`
-
-Overview of the ranking system:
-- **Algorithm Status** card — Active / Inactive, toggle lives in Ranking Config
-- **Embedding Coverage** — % of READY items with embeddings
-- **Flagged Items** — count of active editorial overrides
-- **Currently Trending** — count of items above the spike threshold
-- **Signal Health Radar** — coverage % for all 7 signals (Recharts RadarChart)
-- **Score Distribution** — histogram of ranking scores across all READY content (BarChart)
-
-#### Ranking Config — `/platform/intelligence/ranking`
-
-Configure and activate the 7-signal ranking engine:
+### Ranking Config — `/platform/intelligence/ranking`
 
 | Section | Controls |
 |---------|----------|
 | Algorithm Flow | Visual diagram: Signals → Weighted Sum → Flags → Diversity → Final Feed |
-| Weight Radar Chart | Live preview of the 7 weights as a radar polygon |
-| Weight Sliders | Per-signal sliders that **auto-normalize** to 1.0 as you drag |
+| Weight Radar / Sliders | Per-signal weights that **auto-normalize** to 1.0 as you drag |
 | Decay Settings | Freshness decay hours, velocity window hours, trending threshold multiplier |
 | Recirculation | Toggle + max age (days) for re-surfacing older content |
 | Activate / Deactivate | Master switch — feeds are chronological when inactive |
 
-> Weights are validated server-side (must sum to 1.0 ± 0.01). The sliders auto-normalize on the client so you never need to do mental arithmetic.
+> Weights are validated server-side (must sum to 1.0 ± 0.01); the sliders auto-normalize on the client.
 
-#### Content Flags — `/platform/intelligence/flags`
+### Content Flags — `/platform/intelligence/flags`
+Per-item editorial overrides (`content_flags` table): **Boost** (×multiplier), **Suppress** (bury), **Pin to Top**, **Exclude from Feed** — searchable, with a distribution pie chart, notes, and `set_by` attribution.
 
-Per-item editorial overrides stored in a separate `content_flags` table:
+### Analytics — `/platform/intelligence/analytics`
+Source performance (avg likes/views/shares), velocity leaderboard (top items by interaction rate), trending items (recent vs. average rate), topic clusters (bubble scatter), an embedding-coverage panel, and a **Similar Content** lookup (pgvector cosine neighbors by content ID).
 
-| Flag | Effect |
-|------|--------|
-| Boost | Multiply final score by `boost_multiplier` (default ×1.5) |
-| Suppress | Reduce score to near zero (item still in DB, just buried) |
-| Pin to Top | Force item to position 0 regardless of score |
-| Exclude from Feed | Remove item from all ranked feeds entirely |
-
-- Search flags by content title
-- Flag distribution pie chart (breakdown by flag type)
-- Add/edit/remove flags inline with a notes field and `set_by` attribution
-
-#### Analytics — `/platform/intelligence/analytics`
-
-Four sub-sections of charts:
-
-| Chart | Type | What it shows |
-|-------|------|---------------|
-| Source Performance | Grouped BarChart | Avg likes / views / shares per source |
-| Velocity Leaderboard | Horizontal BarChart | Top 10 items by interaction rate (rolling window) |
-| Trending Items | Grouped BarChart | Recent rate vs. average rate for trending items |
-| Topic Clusters | ScatterChart (bubble) | Topics plotted by avg engagement, sized by item count |
-
-Plus an **Embedding Coverage** stats panel and a **Similar Content** lookup (enter a content ID to fetch pgvector cosine neighbors).
-
-#### Feed Preview — `/platform/intelligence/preview`
-
-Test the ranking engine without touching production:
-
-- Toggle between **For You** and **News** previews
-- Override individual signal weights inline (temporary — not saved)
-- **Ranked feed list** — each item shows its total score + signal breakdown tooltip
-- **Score Waterfall** stacked bar chart — visualizes how each signal contributes to each item's score
-- Position change arrows (↑ / ↓ / —) vs. chronological order
-- **Apply to Production** button — saves the weight overrides to the active `RankingConfig`
-
----
+### Feed Preview — `/platform/intelligence/preview`
+Test ranking without touching production: toggle For You / News, override signal weights inline (temporary), see the ranked list with per-item score breakdown + a **Score Waterfall**, position-change arrows vs. chronological, and an **Apply to Production** button that saves overrides to the active `RankingConfig`.
 
 ## Data Flow
 
 ```
-Platform Console
-      │
+Platform Console (browser)
+      │  (own /api/* BFF — token attached server-side)
       ▼
-CMS Admin API (/admin/intelligence/*)
-      │
+CMS Admin API (/admin/*, /admin/intelligence/*)   IAM (/api/v1/auth, roles)   Aggregation (/admin/*)
       ├── RankingConfig (per-tenant, PostgreSQL)
-      ├── ContentFlags (per-item, separate table)
-      └── Analytics queries (pgvector, user_interactions)
+      ├── ContentFlags (per-item table)
+      └── Analytics (pgvector, user_interactions)
 ```
-
-Auth: JWT issued by CMS on `/admin/login`, stored in Zustand, attached as `Authorization: Bearer <token>` on every request via `cmsClient`.
