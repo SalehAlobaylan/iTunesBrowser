@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
     Twitter, Plus, Loader2, Eye, Check, X, Play, Trash2, Sparkles,
-    Settings2, Network, AlertTriangle,
+    Settings2, Network, AlertTriangle, ChevronDown, MessageSquare,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,6 +57,36 @@ function Toggle({ on, onChange, disabled }: { on: boolean; onChange: () => void;
             <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
                 on ? 'translate-x-[22px]' : 'translate-x-0.5')} />
         </button>
+    );
+}
+
+// Inline preview of an account's recent tweets — a compact, source-grounded
+// glance rendered directly under a row (no dialog). `loading`/`empty` cover the
+// lazy-fetch states for active accounts; discovered accounts pass cached samples.
+function InlineTweets({ items, loading, empty }: {
+    items: { title: string }[]; loading?: boolean; empty?: string;
+}) {
+    if (loading) {
+        return (
+            <div className="mt-1.5 flex items-center gap-1.5 rounded-md bg-muted/40 px-2 py-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading tweets…
+            </div>
+        );
+    }
+    if (!items || items.length === 0) {
+        return empty ? (
+            <div className="mt-1.5 rounded-md bg-muted/40 px-2 py-2 text-xs text-muted-foreground" dir="auto">{empty}</div>
+        ) : null;
+    }
+    return (
+        <ul className="mt-1.5 space-y-1 rounded-md bg-muted/40 p-2">
+            {items.slice(0, 4).map((it, i) => (
+                <li key={i} dir="auto" className="flex gap-1.5 text-xs text-muted-foreground leading-relaxed">
+                    <MessageSquare className="mt-0.5 h-3 w-3 shrink-0 text-news/60" />
+                    <span className="line-clamp-2">{it.title}</span>
+                </li>
+            ))}
+        </ul>
     );
 }
 
@@ -203,6 +233,7 @@ function DiscoveredAccounts({
     suggestions, onPreview,
 }: { suggestions: SourceSuggestion[]; onPreview: (s: SourceSuggestion) => void }) {
     const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [expanded, setExpanded] = useState<Set<string>>(new Set());
     const approve = useApproveSuggestion();
     const reject = useRejectSuggestion();
     const bulkApprove = useBulkApprove();
@@ -210,6 +241,9 @@ function DiscoveredAccounts({
 
     const allSelected = suggestions.length > 0 && selected.size === suggestions.length;
     const toggle = (id: string) => setSelected((p) => {
+        const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n;
+    });
+    const toggleExpand = (id: string) => setExpanded((p) => {
         const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n;
     });
     const clear = () => setSelected(new Set());
@@ -244,33 +278,51 @@ function DiscoveredAccounts({
             <div className="divide-y rounded-md border">
                 {suggestions.map((s) => {
                     const subs = s.evidence?.subscribers;
+                    const isOpen = expanded.has(s.id);
+                    const samples = s.sample_items ?? [];
                     return (
-                        <div key={s.id} className="flex items-center gap-3 p-2.5">
-                            <Checkbox checked={selected.has(s.id)} onCheckedChange={() => toggle(s.id)} />
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                    <span className="truncate text-sm font-medium" dir="auto">{s.name}</span>
-                                    <span className="inline-flex items-center gap-1 rounded bg-news/10 px-1.5 py-0.5 text-[11px] text-news">
-                                        {xProvenance(s.discovered_via)}
-                                    </span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
-                                    <span>@{xHandle(s.feed_url)}</span>
-                                    {subs ? <span>· {fmtFollowers(subs)} followers</span> : null}
-                                    {typeof s.relevance_score === 'number' && (
-                                        <span>· {Math.round(s.relevance_score * 100)}% match</span>
-                                    )}
-                                </div>
+                        <div key={s.id} className="p-2.5">
+                            <div className="flex items-center gap-3">
+                                <Checkbox checked={selected.has(s.id)} onCheckedChange={() => toggle(s.id)} />
+                                {/* Row body toggles the inline tweet preview (cached samples). */}
+                                <button
+                                    type="button"
+                                    onClick={() => toggleExpand(s.id)}
+                                    className="flex min-w-0 flex-1 items-center gap-2 text-start"
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="truncate text-sm font-medium" dir="auto">{s.name}</span>
+                                            <span className="inline-flex items-center gap-1 rounded bg-news/10 px-1.5 py-0.5 text-[11px] text-news">
+                                                {xProvenance(s.discovered_via)}
+                                            </span>
+                                        </div>
+                                        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                                            <span>@{xHandle(s.feed_url)}</span>
+                                            {subs ? <span>· {fmtFollowers(subs)} followers</span> : null}
+                                            {typeof s.relevance_score === 'number' && (
+                                                <span>· {Math.round(s.relevance_score * 100)}% match</span>
+                                            )}
+                                            {samples.length > 0 && (
+                                                <span className="inline-flex items-center gap-0.5 text-news/70">
+                                                    · <MessageSquare className="h-3 w-3" /> {samples.length}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
+                                </button>
+                                <Button size="sm" variant="ghost" title="Live preview" onClick={() => onPreview(s)}>
+                                    <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button size="sm" variant="ghost" disabled={reject.isPending} onClick={() => reject.mutate({ id: s.id })}>
+                                    <X className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(s.id)}>
+                                    <Check className="mr-1 h-3.5 w-3.5" /> Approve
+                                </Button>
                             </div>
-                            <Button size="sm" variant="ghost" onClick={() => onPreview(s)}>
-                                <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button size="sm" variant="ghost" disabled={reject.isPending} onClick={() => reject.mutate({ id: s.id })}>
-                                <X className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate(s.id)}>
-                                <Check className="mr-1 h-3.5 w-3.5" /> Approve
-                            </Button>
+                            {isOpen && <InlineTweets items={samples} empty="No sample tweets captured — use live preview." />}
                         </div>
                     );
                 })}
@@ -293,12 +345,22 @@ function ActiveAccounts({ sources }: { sources: NewsSource[] }) {
 
 function ActiveAccountRow({ source }: { source: NewsSource }) {
     const [open, setOpen] = useState(false);
+    const [showTweets, setShowTweets] = useState(false);
     const run = useRunSource();
     const del = useDeleteSource();
     const preview = usePreviewSource();
+    const tweetPreview = usePreviewSource();
     const [lastResult, setLastResult] = useState<{ ok: boolean; msg: string } | null>(null);
     const running = preview.isPending || (run.isPending && run.variables === source.id);
     const stale = source.failed > 0;
+
+    // Lazy inline preview: fetch the account's recent tweets the first time it's expanded.
+    const toggleTweets = () => {
+        setShowTweets((o) => !o);
+        if (!showTweets && !tweetPreview.data && !tweetPreview.isPending) {
+            tweetPreview.mutate({ sourceType: 'TWITTER', url: source.feed_url || `https://x.com/${xHandle(source.feed_url)}` });
+        }
+    };
 
     // Fetch now = a synchronous test-fetch that REPORTS the outcome (X 429, etc.)
     // inline on the row, then triggers the real async ingest only if tweets came
@@ -337,7 +399,10 @@ function ActiveAccountRow({ source }: { source: NewsSource }) {
                 <Badge variant={stale ? 'warning' : source.items_count > 0 ? 'success' : 'secondary'}>
                     {stale ? 'check' : source.items_count > 0 ? 'healthy' : 'new'}
                 </Badge>
-                <Button size="sm" variant="ghost" onClick={() => setOpen((o) => !o)}>
+                <Button size="sm" variant="ghost" title="Preview tweets" onClick={toggleTweets}>
+                    <MessageSquare className={cn('h-3.5 w-3.5', showTweets && 'text-news')} />
+                </Button>
+                <Button size="sm" variant="ghost" title="Settings" onClick={() => setOpen((o) => !o)}>
                     <Settings2 className="h-3.5 w-3.5" />
                 </Button>
                 <Button size="sm" variant="outline" disabled={running} onClick={fetchNow}>
@@ -354,6 +419,13 @@ function ActiveAccountRow({ source }: { source: NewsSource }) {
                     {lastResult.ok ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />}
                     <span dir="auto">{lastResult.msg}</span>
                 </div>
+            )}
+            {showTweets && (
+                <InlineTweets
+                    items={tweetPreview.data?.items ?? []}
+                    loading={tweetPreview.isPending}
+                    empty={tweetPreview.data?.message || 'No tweets available right now.'}
+                />
             )}
             {open && <IngestionControls source={source} onClose={() => setOpen(false)} />}
         </div>
