@@ -36,6 +36,7 @@ import {
     useBulkApprove,
     useBulkReject,
     useDiscoveryConfig,
+    useAuthorities,
     discoveryKeys,
 } from '@/hooks/use-discovery';
 import type { DiscoveryProfile, NewsSource, SourceSuggestion } from '@/types/platform/discovery';
@@ -101,7 +102,7 @@ export function FindingPage() {
     const { data: discoveryConfig } = useDiscoveryConfig();
 
     const [selected, setSelected] = useState<string>(ALL);
-    const [tab, setTab] = useState<'suggestions' | 'sources'>('suggestions');
+    const [tab, setTab] = useState<'review' | 'sources' | 'network'>('review');
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<DiscoveryProfile | null>(null);
     const [hideLow, setHideLow] = useState(false);
@@ -171,16 +172,13 @@ export function FindingPage() {
 
             <NewsSectionNav />
 
-            {/* Discovery engine — automation + source intelligence control panel */}
+            {/* Discovery control bar — slim automation/intelligence strip */}
             <DiscoveryEnginePanel
                 pending={allSuggestions.length}
                 sources={allSources.length}
                 interests={profiles.length}
                 onOpenSettings={() => setSettingsOpen(true)}
             />
-
-            {/* Twitter/X discovery + ingestion — its own advanced card */}
-            <TwitterCard />
 
             {/* First-run / empty state */}
             {!profilesLoading && profiles.length === 0 ? (
@@ -234,8 +232,9 @@ export function FindingPage() {
 
                     {/* Main */}
                     <div className="space-y-4">
-                        {/* Selected interest header */}
-                        {selectedProfile && (
+                        {/* Selected interest header — Review/Sources are interest-scoped;
+                            Network is global so the header is hidden there. */}
+                        {selectedProfile && tab !== 'network' && (
                             <Card>
                                 <CardContent className="flex flex-wrap items-center gap-3 p-4">
                                     <div className="mr-auto min-w-0">
@@ -277,18 +276,19 @@ export function FindingPage() {
                         {/* Tabs */}
                         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
                             <TabsList>
-                                <TabsTrigger value="suggestions">
-                                    Suggestions
+                                <TabsTrigger value="review">
+                                    Review
                                     {scopedSuggestions.length > 0 && <CountBadge className="ml-2">{scopedSuggestions.length}</CountBadge>}
                                 </TabsTrigger>
                                 <TabsTrigger value="sources">
                                     Active sources
                                     {scopedSources.length > 0 && <span className="ml-2 text-muted-foreground">{scopedSources.length}</span>}
                                 </TabsTrigger>
+                                <TabsTrigger value="network">Network</TabsTrigger>
                             </TabsList>
                         </Tabs>
 
-                        {tab === 'suggestions' && (
+                        {tab === 'review' && (
                             <div className="space-y-3">
                                 {scopedSuggestions.length > 0 && (
                                     <div className="flex items-center justify-between">
@@ -368,6 +368,13 @@ export function FindingPage() {
                                 </Table>
                             </div>
                         )}
+
+                        {tab === 'network' && (
+                            <div className="space-y-4">
+                                <NetworkAuthorities />
+                                <TwitterCard />
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -377,6 +384,34 @@ export function FindingPage() {
             {suggestOpen && <SuggestProfilesDialog onClose={() => setSuggestOpen(false)} />}
             <DiscoverySettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         </div>
+    );
+}
+
+// NetworkAuthorities — the "top voices in your network" insight (PageRank
+// authorities across RSS/Telegram/X), relocated from the engine panel into the
+// Network tab. Null when the graph hasn't surfaced any valid authorities yet.
+function NetworkAuthorities() {
+    const { data } = useAuthorities();
+    const top = (data?.data ?? []).filter((a) => a.feed_valid).slice(0, 8);
+    if (top.length === 0) return null;
+    return (
+        <Card>
+            <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Network className="h-3.5 w-3.5 text-news" /> Top voices in your network
+                </span>
+                {top.map((a) => (
+                    <span
+                        key={`${a.kind ?? ''}:${a.domain}`}
+                        className="rounded bg-muted px-1.5 py-0.5 text-xs"
+                        title={`authority ${a.authority}`}
+                    >
+                        {a.kind === 'twitter' ? '@' : ''}
+                        {a.domain}
+                    </span>
+                ))}
+            </CardContent>
+        </Card>
     );
 }
 
