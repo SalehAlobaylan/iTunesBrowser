@@ -7,8 +7,20 @@ import {
     getScoreDistribution, getVelocityLeaderboard, getTrendingItems,
     getSourcePerformance, getSignalHealth,
     previewForYouFeed, previewNewsFeed,
+    getCirculationPolicy, updateCirculationPolicy, applyCirculationPreset,
+    previewCirculation, getCirculationMetrics,
+    listStoryOverrides, upsertStoryOverride, deleteStoryOverride,
+    listSourceRecommendations, generateSourceRecommendations, applySourceRecommendation,
+    listCirculationAudit,
 } from '@/lib/api/cms/intelligence';
-import type { UpdateRankingConfigRequest, UpsertFlagRequest, BulkFlagRequest } from '@/types/platform/intelligence';
+import type {
+    NewsWindow,
+    UpdateCirculationPolicyRequest,
+    UpdateRankingConfigRequest,
+    UpsertFlagRequest,
+    BulkFlagRequest,
+    UpsertStoryOverrideRequest,
+} from '@/types/platform/intelligence';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
 
@@ -29,6 +41,13 @@ export const intelligenceKeys = {
     signalHealth: () => [...intelligenceKeys.all, 'signal-health'] as const,
     previewForYou: (overrides?: object) => [...intelligenceKeys.all, 'preview-foryou', overrides] as const,
     previewNews: (overrides?: object) => [...intelligenceKeys.all, 'preview-news', overrides] as const,
+    circulation: () => [...intelligenceKeys.all, 'circulation'] as const,
+    circulationPolicy: () => [...intelligenceKeys.circulation(), 'policy'] as const,
+    circulationPreview: (window: NewsWindow) => [...intelligenceKeys.circulation(), 'preview', window] as const,
+    circulationMetrics: () => [...intelligenceKeys.circulation(), 'metrics'] as const,
+    circulationOverrides: () => [...intelligenceKeys.circulation(), 'overrides'] as const,
+    sourceRecommendations: () => [...intelligenceKeys.circulation(), 'source-recommendations'] as const,
+    circulationAudit: () => [...intelligenceKeys.circulation(), 'audit'] as const,
 };
 
 // ---- Modes ----
@@ -189,5 +208,131 @@ export function usePreviewNews(overrides?: Record<string, number>) {
         queryKey: intelligenceKeys.previewNews(overrides),
         queryFn: () => previewNewsFeed(overrides),
         staleTime: 0,
+    });
+}
+
+// ---- News Circulation ----
+export function useCirculationPolicy() {
+    return useQuery({
+        queryKey: intelligenceKeys.circulationPolicy(),
+        queryFn: getCirculationPolicy,
+        staleTime: CACHE_CONFIG.details.staleTime,
+    });
+}
+
+export function useUpdateCirculationPolicy() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (data: UpdateCirculationPolicyRequest) => updateCirculationPolicy(data),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: intelligenceKeys.circulation() });
+            toast({ title: 'Circulation policy saved', variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to save circulation policy', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useApplyCirculationPreset() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (preset: string) => applyCirculationPreset(preset),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: intelligenceKeys.circulation() });
+            toast({ title: 'Circulation preset applied', variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to apply preset', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useCirculationPreview(window: NewsWindow) {
+    return useQuery({
+        queryKey: intelligenceKeys.circulationPreview(window),
+        queryFn: () => previewCirculation(window),
+        staleTime: 0,
+    });
+}
+
+export function useCirculationMetrics() {
+    return useQuery({
+        queryKey: intelligenceKeys.circulationMetrics(),
+        queryFn: getCirculationMetrics,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+    });
+}
+
+export function useStoryOverrides() {
+    return useQuery({
+        queryKey: intelligenceKeys.circulationOverrides(),
+        queryFn: listStoryOverrides,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+    });
+}
+
+export function useUpsertStoryOverride() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ storyId, data }: { storyId: string; data: UpsertStoryOverrideRequest }) =>
+            upsertStoryOverride(storyId, data),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: intelligenceKeys.circulation() });
+            toast({ title: 'Story override saved', variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to save override', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useDeleteStoryOverride() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (storyId: string) => deleteStoryOverride(storyId),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: intelligenceKeys.circulation() });
+            toast({ title: 'Story override removed', variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to remove override', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useSourceRecommendations() {
+    return useQuery({
+        queryKey: intelligenceKeys.sourceRecommendations(),
+        queryFn: listSourceRecommendations,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+    });
+}
+
+export function useGenerateSourceRecommendations() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: generateSourceRecommendations,
+        onSuccess: (res) => {
+            qc.invalidateQueries({ queryKey: intelligenceKeys.circulation() });
+            toast({
+                title: `${res.data.length} source recommendations refreshed`,
+                description: res.auto_applied ? 'Auto-apply guardrails changed source cadence.' : undefined,
+                variant: 'success',
+            });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to refresh source recommendations', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useApplySourceRecommendation() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => applySourceRecommendation(id),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: intelligenceKeys.circulation() });
+            toast({ title: 'Source cadence updated', variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to apply recommendation', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useCirculationAudit() {
+    return useQuery({
+        queryKey: intelligenceKeys.circulationAudit(),
+        queryFn: listCirculationAudit,
+        staleTime: CACHE_CONFIG.lists.staleTime,
     });
 }
