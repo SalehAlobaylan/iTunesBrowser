@@ -11,6 +11,7 @@ import type {
 import type {
     BulkStatusBody,
     BulkStatusResult,
+    AuditLogListResponse,
     BulkTopicBody,
     CreateNewsRequest,
     ExtractUrlResult,
@@ -19,10 +20,20 @@ import type {
     ListTopicsParams,
     MergeTopicsBody,
     NewsLineupParams,
+    NewsCirculationPolicy,
+    NewsStoryOverride,
+    NewsWindow,
     ReclassifyResult,
     ReclusterResult,
+    CirculationMetricsResponse,
+    CirculationPreviewResponse,
+    SourceCirculationRecommendation,
+    SourceRecommendationsResponse,
+    StoryOverridesResponse,
     TopicContentParams,
     TopicsListResponse,
+    UpdateCirculationPolicyRequest,
+    UpsertStoryOverrideRequest,
 } from '@/types/platform/news';
 
 /** RFC3339 timestamp for `days` ago — used by age-based rotation. */
@@ -219,6 +230,59 @@ export async function reclusterTopics(k?: number): Promise<ReclusterResult> {
         k && k > 0 ? { k } : {}
     );
 }
+
+// ─── News Circulation ──────────────────────────────────────
+
+export const getCirculationPolicy = () =>
+    cmsClient.get<NewsCirculationPolicy>('/admin/news/circulation/policy');
+
+export const updateCirculationPolicy = (data: UpdateCirculationPolicyRequest) =>
+    cmsClient.put<NewsCirculationPolicy>('/admin/news/circulation/policy', data);
+
+export const applyCirculationPreset = (preset = 'latest_plus') =>
+    cmsClient.post<NewsCirculationPolicy>(`/admin/news/circulation/presets/${preset}`, {});
+
+export const previewCirculation = (
+    window: NewsWindow,
+    limit = 12,
+    policy?: NewsCirculationPolicy
+) => {
+    if (policy) {
+        return cmsClient.post<CirculationPreviewResponse>('/admin/news/circulation/preview', {
+            window,
+            limit,
+            policy,
+        });
+    }
+    return cmsClient.get<CirculationPreviewResponse>('/admin/news/circulation/preview', { window, limit });
+};
+
+export const getCirculationMetrics = () =>
+    cmsClient.get<CirculationMetricsResponse>('/admin/news/circulation/metrics');
+
+export const listStoryOverrides = () =>
+    cmsClient.get<StoryOverridesResponse>('/admin/news/circulation/overrides');
+
+export const upsertStoryOverride = (storyId: string, data: UpsertStoryOverrideRequest) =>
+    cmsClient.put<NewsStoryOverride>(`/admin/news/circulation/overrides/${storyId}`, data);
+
+export const deleteStoryOverride = (storyId: string) =>
+    cmsClient.delete<{ message: string }>(`/admin/news/circulation/overrides/${storyId}`);
+
+export const listSourceRecommendations = () =>
+    cmsClient.get<SourceRecommendationsResponse>('/admin/news/circulation/source-recommendations');
+
+export const generateSourceRecommendations = () =>
+    cmsClient.post<SourceRecommendationsResponse>('/admin/news/circulation/source-recommendations/generate', {});
+
+export const applySourceRecommendation = (id: string) =>
+    cmsClient.post<SourceCirculationRecommendation>(`/admin/news/circulation/source-recommendations/${id}/apply`, {});
+
+export const runCirculationNow = () =>
+    cmsClient.post<{ success?: boolean; message?: string; jobId?: string }>('/admin/news/circulation/sweep-now', {});
+
+export const listCirculationAudit = () =>
+    cmsClient.get<AuditLogListResponse>('/admin/audit', { service: 'news_circulation', limit: 10 });
 
 /** Name one batch of freshly-clustered topics via the LLM. */
 export async function labelTopicsBatch(limit = 8): Promise<LabelBatchResult> {

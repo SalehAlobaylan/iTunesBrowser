@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ModeCard, AdvancedSettingsDialog } from '@/components/platform/intelligence';
 import { NewsFeedModeCard } from '@/components/platform/intelligence/news-feed-mode-card';
-import { NewsCirculationCard } from '@/components/platform/intelligence/news-circulation-card';
 import {
     useModes,
     useSetMode,
@@ -59,8 +58,6 @@ export default function IntelligencePage() {
 
             {/* Phase 13 — News (stories) feed mode + snapshot refresh */}
             <NewsFeedModeCard />
-
-            <NewsCirculationCard />
 
             {/* Mode Selector */}
             {modesLoading ? (

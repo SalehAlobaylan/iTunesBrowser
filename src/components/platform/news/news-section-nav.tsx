@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 const TABS = [
     { label: 'Library', href: '/platform/news' },
     { label: 'Feeds Finding', href: '/platform/news/finding' },
-    { label: 'Circulation', href: '/platform/news/circulation', disabled: true },
+    { label: 'Circulation', href: '/platform/news/circulation' },
 ];
 
 export function NewsSectionNav() {
@@ -15,18 +15,9 @@ export function NewsSectionNav() {
     return (
         <div className="inline-flex items-center gap-1 rounded-md border bg-muted/40 p-1">
             {TABS.map((tab) => {
-                const active = pathname === tab.href;
-                if (tab.disabled) {
-                    return (
-                        <span
-                            key={tab.href}
-                            className="cursor-not-allowed rounded px-3 py-1.5 text-sm text-muted-foreground/50"
-                            title="Coming soon"
-                        >
-                            {tab.label}
-                        </span>
-                    );
-                }
+                const active = tab.href === '/platform/news'
+                    ? pathname === tab.href
+                    : pathname.startsWith(tab.href);
                 return (
                     <Link
                         key={tab.href}
