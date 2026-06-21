@@ -30,6 +30,7 @@ const DEFAULTS: DiscoveryConfig = {
     intelligence_enabled: false,
     telegram_discovery_enabled: false,
     twitter_discovery_enabled: false,
+    twitter_recommend_enabled: false,
     graph_build_interval_hours: 24,
     promotion_threshold: 0.5,
     weight_citation: 0.2,

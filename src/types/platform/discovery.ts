@@ -111,6 +111,7 @@ export interface DiscoveryConfig {
     intelligence_enabled: boolean;
     telegram_discovery_enabled: boolean;
     twitter_discovery_enabled: boolean;
+    twitter_recommend_enabled: boolean;
     graph_build_interval_hours: number;
     promotion_threshold: number;
     weight_citation: number;

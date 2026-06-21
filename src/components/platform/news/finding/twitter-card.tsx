@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
     Twitter, Plus, Loader2, Eye, Check, X, Play, Trash2, Sparkles,
     Settings2, Network, AlertTriangle, ChevronDown, MessageSquare,
+    Repeat2, UserPlus, Search, Users,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,7 @@ function xProvenance(via?: string): string {
         case 'x-retweet': return 'Retweeted by your network';
         case 'x-quote': return 'Quoted by your network';
         case 'x-mention': return 'Mentioned by your network';
+        case 'x-recommend': return 'Recommended by X for your sources';
         default: return 'From your X network';
     }
 }
@@ -57,6 +59,52 @@ function Toggle({ on, onChange, disabled }: { on: boolean; onChange: () => void;
             <span className={cn('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
                 on ? 'translate-x-[22px]' : 'translate-x-0.5')} />
         </button>
+    );
+}
+
+// Account avatar with graceful monogram fallback (Twitter CDN image may 404 or
+// be missing). Plain <img> — pbs.twimg.com is public, no next/image domain config.
+function Avatar({ src, name, size = 40 }: { src?: string | null; name?: string; size?: number }) {
+    const [err, setErr] = useState(false);
+    const initial = (name?.trim()?.replace(/^@/, '')?.[0] ?? '@').toUpperCase();
+    if (src && !err) {
+        return (
+            // eslint-disable-next-line @next/next/no-img-element -- external Twitter CDN avatar; next/image would need pbs.twimg.com allowlisted
+            <img
+                src={src} alt="" width={size} height={size} loading="lazy"
+                onError={() => setErr(true)}
+                className="shrink-0 rounded-full bg-muted object-cover"
+                style={{ width: size, height: size }}
+            />
+        );
+    }
+    return (
+        <div
+            className="flex shrink-0 items-center justify-center rounded-full bg-news/10 font-medium text-news"
+            style={{ width: size, height: size, fontSize: size * 0.4 }}
+            dir="auto"
+        >
+            {initial}
+        </div>
+    );
+}
+
+// One selectable discovery method (a signal that surfaces account suggestions).
+function MethodRow({ icon, title, desc, on, onChange, disabled }: {
+    icon: React.ReactNode; title: string; desc: string;
+    on: boolean; onChange: () => void; disabled?: boolean;
+}) {
+    return (
+        <div className="flex items-center gap-3 p-2.5">
+            <div className={cn('rounded p-1.5', on ? 'bg-news/10 text-news' : 'bg-muted text-muted-foreground')}>
+                {icon}
+            </div>
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium leading-none">{title}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground" dir="auto">{desc}</p>
+            </div>
+            <Toggle on={on} onChange={onChange} disabled={disabled} />
+        </div>
     );
 }
 
@@ -96,8 +144,9 @@ export function TwitterCard() {
     const update = useUpdateDiscoveryConfig();
     const build = useBuildGraph();
 
-    const enabled = cfg?.twitter_discovery_enabled ?? false;
-    const intel = cfg?.intelligence_enabled ?? false;
+    const networkOn = cfg?.twitter_discovery_enabled ?? false;
+    const recommendOn = cfg?.twitter_recommend_enabled ?? false;
+    const anyOn = networkOn || recommendOn;
 
     const { data: suggData } = useSuggestions(undefined, 'PENDING');
     const { data: srcData } = useNewsSources();
@@ -115,34 +164,68 @@ export function TwitterCard() {
 
     const [preview, setPreview] = useState<SourceSuggestion | string | null>(null);
 
-    const toggleDiscovery = () => {
+    // Each X discovery method toggles independently. Enabling ANY method also
+    // turns on Source intelligence (the scheduled graph build that runs them);
+    // disabling one never touches intelligence — the other method may still need it.
+    const setMethod = (
+        key: 'twitter_discovery_enabled' | 'twitter_recommend_enabled',
+        val: boolean,
+    ) => {
         if (!cfg) return;
-        update.mutate({ ...cfg, twitter_discovery_enabled: !enabled, intelligence_enabled: true } as DiscoveryConfig);
+        const next: DiscoveryConfig = { ...cfg, [key]: val };
+        if (val) next.intelligence_enabled = true;
+        update.mutate(next);
     };
+
+    const activeLabel = [networkOn && 'network activity', recommendOn && 'recommendations']
+        .filter(Boolean)
+        .join(' + ');
 
     return (
         <Card>
             <CardContent className="space-y-4 p-4">
                 {/* header */}
                 <div className="flex items-start gap-3">
-                    <div className={cn('rounded-md p-2', enabled ? 'bg-news/10 text-news' : 'bg-muted text-muted-foreground')}>
+                    <div className={cn('rounded-md p-2', anyOn ? 'bg-news/10 text-news' : 'bg-muted text-muted-foreground')}>
                         <Twitter className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
                         <p className="font-semibold leading-none">X / Twitter discovery</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                            {enabled
-                                ? 'On · finds accounts your trusted accounts retweet, quote, and mention'
-                                : intel
-                                    ? 'Off — discover accounts from your network’s retweets & quotes (no login)'
-                                    : 'Turn on Source intelligence to auto-discover; you can still add accounts manually'}
+                            {anyOn
+                                ? `On · ${activeLabel}`
+                                : 'Off — pick a method below to auto-discover related accounts (no login needed)'}
                         </p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => build.mutate()} disabled={build.isPending || !enabled}>
+                    <Button size="sm" variant="outline" onClick={() => build.mutate()} disabled={build.isPending || !anyOn}>
                         {build.isPending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}
                         Find now
                     </Button>
-                    <Toggle on={enabled} onChange={toggleDiscovery} disabled={update.isPending} />
+                </div>
+
+                {/* discovery methods — pick which signals surface account suggestions */}
+                <div className="overflow-hidden rounded-md border">
+                    <div className="border-b bg-muted/40 px-3 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Discovery methods
+                    </div>
+                    <div className="divide-y">
+                        <MethodRow
+                            icon={<Repeat2 className="h-4 w-4" />}
+                            title="Network activity"
+                            desc="Accounts your trusted accounts retweet, quote & mention"
+                            on={networkOn}
+                            onChange={() => setMethod('twitter_discovery_enabled', !networkOn)}
+                            disabled={update.isPending}
+                        />
+                        <MethodRow
+                            icon={<UserPlus className="h-4 w-4" />}
+                            title="X recommendations"
+                            desc={'“Who to follow” / قد يعجبك — accounts X considers similar to your sources'}
+                            on={recommendOn}
+                            onChange={() => setMethod('twitter_recommend_enabled', !recommendOn)}
+                            disabled={update.isPending}
+                        />
+                    </div>
                 </div>
 
                 {/* direct add */}
@@ -228,18 +311,39 @@ function AddAccount({ onPreview }: { onPreview: (handle: string) => void }) {
     );
 }
 
-// ── discovered accounts with bulk approve ─────────────────────────────────────
+// ── discovered accounts: avatars, evidence, filter + sort, bulk approve ───────
+type SortKey = 'match' | 'followers' | 'sources';
+const SORTS: { k: SortKey; label: string }[] = [
+    { k: 'match', label: 'Match' },
+    { k: 'sources', label: 'Sources' },
+    { k: 'followers', label: 'Followers' },
+];
+
 function DiscoveredAccounts({
     suggestions, onPreview,
 }: { suggestions: SourceSuggestion[]; onPreview: (s: SourceSuggestion) => void }) {
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    const [query, setQuery] = useState('');
+    const [sortBy, setSortBy] = useState<SortKey>('match');
     const approve = useApproveSuggestion();
     const reject = useRejectSuggestion();
     const bulkApprove = useBulkApprove();
     const bulkReject = useBulkReject();
 
-    const allSelected = suggestions.length > 0 && selected.size === suggestions.length;
+    const view = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        const filtered = q
+            ? suggestions.filter((s) => (s.name ?? '').toLowerCase().includes(q) || xHandle(s.feed_url).toLowerCase().includes(q))
+            : suggestions;
+        const key = (s: SourceSuggestion) =>
+            sortBy === 'followers' ? (s.evidence?.subscribers ?? 0)
+                : sortBy === 'sources' ? (s.evidence?.cocitation_count ?? 0)
+                    : (s.relevance_score ?? 0);
+        return [...filtered].sort((a, b) => key(b) - key(a));
+    }, [suggestions, query, sortBy]);
+
+    const allSelected = view.length > 0 && view.every((s) => selected.has(s.id));
     const toggle = (id: string) => setSelected((p) => {
         const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n;
     });
@@ -249,17 +353,17 @@ function DiscoveredAccounts({
     const clear = () => setSelected(new Set());
 
     return (
-        <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
+        <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                     <Checkbox
                         checked={allSelected}
-                        onCheckedChange={(v) => setSelected(v ? new Set(suggestions.map((s) => s.id)) : new Set())}
+                        onCheckedChange={(v) => setSelected(v ? new Set(view.map((s) => s.id)) : new Set())}
                     />
                     <span className="text-sm font-medium">Discovered accounts</span>
                     <Badge variant="outline">{suggestions.length}</Badge>
                 </div>
-                {selected.size > 0 && (
+                {selected.size > 0 ? (
                     <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{selected.size} selected</span>
                         <Button size="sm" variant="outline" disabled={bulkReject.isPending}
@@ -272,18 +376,45 @@ function DiscoveredAccounts({
                             Approve {selected.size}
                         </Button>
                     </div>
+                ) : (
+                    <div className="flex items-center gap-1.5">
+                        <div className="relative">
+                            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                value={query} onChange={(e) => setQuery(e.target.value)}
+                                placeholder="Filter accounts"
+                                className="h-8 w-36 pl-7 text-xs sm:w-44"
+                            />
+                        </div>
+                        <div className="flex items-center overflow-hidden rounded-md border text-xs">
+                            {SORTS.map((s) => (
+                                <button
+                                    key={s.k} type="button" onClick={() => setSortBy(s.k)}
+                                    className={cn('px-2 py-1.5 transition-colors', sortBy === s.k ? 'bg-news/10 text-news' : 'text-muted-foreground hover:bg-muted')}
+                                    title={`Sort by ${s.label.toLowerCase()}`}
+                                >
+                                    {s.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 )}
             </div>
 
             <div className="divide-y rounded-md border">
-                {suggestions.map((s) => {
+                {view.length === 0 && (
+                    <p className="px-3 py-4 text-center text-xs text-muted-foreground">No accounts match “{query}”.</p>
+                )}
+                {view.map((s) => {
                     const subs = s.evidence?.subscribers;
+                    const corec = s.evidence?.cocitation_count ?? 0;
                     const isOpen = expanded.has(s.id);
                     const samples = s.sample_items ?? [];
                     return (
                         <div key={s.id} className="p-2.5">
                             <div className="flex items-center gap-3">
                                 <Checkbox checked={selected.has(s.id)} onCheckedChange={() => toggle(s.id)} />
+                                <Avatar src={s.image_url} name={s.name} size={40} />
                                 {/* Row body toggles the inline tweet preview (cached samples). */}
                                 <button
                                     type="button"
@@ -293,14 +424,19 @@ function DiscoveredAccounts({
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2">
                                             <span className="truncate text-sm font-medium" dir="auto">{s.name}</span>
-                                            <span className="inline-flex items-center gap-1 rounded bg-news/10 px-1.5 py-0.5 text-[11px] text-news">
+                                            <span className="hidden shrink-0 items-center gap-1 rounded bg-news/10 px-1.5 py-0.5 text-[11px] text-news sm:inline-flex">
                                                 {xProvenance(s.discovered_via)}
                                             </span>
                                         </div>
-                                        <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                                             <span>@{xHandle(s.feed_url)}</span>
                                             {subs ? <span>· {fmtFollowers(subs)} followers</span> : null}
-                                            {typeof s.relevance_score === 'number' && (
+                                            {corec >= 2 && (
+                                                <span className="inline-flex items-center gap-0.5 text-news/80" title="Co-recommended by this many of your trusted sources">
+                                                    · <Users className="h-3 w-3" /> {corec} sources
+                                                </span>
+                                            )}
+                                            {typeof s.relevance_score === 'number' && s.relevance_score > 0 && (
                                                 <span>· {Math.round(s.relevance_score * 100)}% match</span>
                                             )}
                                             {samples.length > 0 && (
@@ -387,6 +523,7 @@ function ActiveAccountRow({ source }: { source: NewsSource }) {
     return (
         <div className="p-2.5">
             <div className="flex items-center gap-3">
+                <Avatar src={source.image_url} name={source.name} size={36} />
                 <div className="min-w-0 flex-1">
                     <div className="text-sm font-medium" dir="auto">{source.name}</div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
