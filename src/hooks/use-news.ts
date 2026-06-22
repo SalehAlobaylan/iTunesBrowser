@@ -18,6 +18,12 @@ import {
     applySourceRecommendation,
     runCirculationNow,
     listCirculationAudit,
+    getCirculationAutopilotStatus,
+    updateCirculationAutopilotSettings,
+    runCirculationAutopilot,
+    boostCirculationAutopilot,
+    pauseCirculationAutopilot,
+    listCirculationAutopilotRuns,
     createNewsArticle,
     deleteNewsByIds,
     deleteNewsOlderThan,
@@ -50,7 +56,9 @@ import type {
     NewsLineupParams,
     NewsCirculationPolicy,
     NewsWindow,
+    BoostAutopilotRequest,
     TopicContentParams,
+    UpdateAutopilotSettingsRequest,
     UpdateCirculationPolicyRequest,
     UpsertStoryOverrideRequest,
 } from '@/types/platform/news';
@@ -78,6 +86,8 @@ export const newsKeys = {
     circulationOverrides: () => [...newsKeys.circulation(), 'overrides'] as const,
     sourceRecommendations: () => [...newsKeys.circulation(), 'source-recommendations'] as const,
     circulationAudit: () => [...newsKeys.circulation(), 'audit'] as const,
+    circulationAutopilot: () => [...newsKeys.circulation(), 'autopilot'] as const,
+    circulationAutopilotRuns: () => [...newsKeys.circulationAutopilot(), 'runs'] as const,
 };
 
 /** Anything that mutates content invalidates both the News views and the
@@ -619,6 +629,71 @@ export function useCirculationAudit() {
     return useQuery({
         queryKey: newsKeys.circulationAudit(),
         queryFn: listCirculationAudit,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+    });
+}
+
+export function useCirculationAutopilotStatus() {
+    return useQuery({
+        queryKey: newsKeys.circulationAutopilot(),
+        queryFn: getCirculationAutopilotStatus,
+        staleTime: 10_000,
+        refetchInterval: 30_000,
+    });
+}
+
+export function useUpdateCirculationAutopilotSettings() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (data: UpdateAutopilotSettingsRequest) => updateCirculationAutopilotSettings(data),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: newsKeys.circulation() });
+            toast({ title: 'Autopilot settings saved', variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to save Autopilot settings', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useRunCirculationAutopilot() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: runCirculationAutopilot,
+        onSuccess: (run) => {
+            qc.invalidateQueries({ queryKey: newsKeys.circulation() });
+            toast({ title: 'Autopilot run completed', description: run.summary, variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Autopilot run failed', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useBoostCirculationAutopilot() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (data?: BoostAutopilotRequest) => boostCirculationAutopilot(data),
+        onSuccess: (run) => {
+            qc.invalidateQueries({ queryKey: newsKeys.circulation() });
+            toast({ title: 'Freshness boost started', description: run.summary, variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to boost freshness', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function usePauseCirculationAutopilot() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: pauseCirculationAutopilot,
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: newsKeys.circulation() });
+            toast({ title: 'Autopilot paused', variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to pause Autopilot', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useCirculationAutopilotRuns() {
+    return useQuery({
+        queryKey: newsKeys.circulationAutopilotRuns(),
+        queryFn: () => listCirculationAutopilotRuns(10),
         staleTime: CACHE_CONFIG.lists.staleTime,
     });
 }

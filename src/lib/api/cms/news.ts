@@ -12,6 +12,8 @@ import type {
     BulkStatusBody,
     BulkStatusResult,
     AuditLogListResponse,
+    AutopilotRunsResponse,
+    BoostAutopilotRequest,
     BulkTopicBody,
     CreateNewsRequest,
     ExtractUrlResult,
@@ -21,6 +23,8 @@ import type {
     MergeTopicsBody,
     NewsLineupParams,
     NewsCirculationPolicy,
+    NewsAutopilotRun,
+    NewsAutopilotStatus,
     NewsStoryOverride,
     NewsWindow,
     ReclassifyResult,
@@ -32,6 +36,7 @@ import type {
     StoryOverridesResponse,
     TopicContentParams,
     TopicsListResponse,
+    UpdateAutopilotSettingsRequest,
     UpdateCirculationPolicyRequest,
     UpsertStoryOverrideRequest,
 } from '@/types/platform/news';
@@ -283,6 +288,27 @@ export const runCirculationNow = () =>
 
 export const listCirculationAudit = () =>
     cmsClient.get<AuditLogListResponse>('/admin/audit', { service: 'news_circulation', limit: 10 });
+
+export const getCirculationAutopilotStatus = () =>
+    cmsClient.get<NewsAutopilotStatus>('/admin/news/circulation/autopilot/status');
+
+export const updateCirculationAutopilotSettings = (data: UpdateAutopilotSettingsRequest) =>
+    cmsClient.patch<NewsCirculationPolicy>('/admin/news/circulation/autopilot/settings', data);
+
+export const runCirculationAutopilot = () =>
+    cmsClient.post<NewsAutopilotRun>('/admin/news/circulation/autopilot/run', {});
+
+export const boostCirculationAutopilot = (data: BoostAutopilotRequest = { duration_minutes: 120 }) =>
+    cmsClient.post<NewsAutopilotRun>('/admin/news/circulation/autopilot/boost', data);
+
+export const pauseCirculationAutopilot = () =>
+    cmsClient.post<{ policy: NewsCirculationPolicy; state: string }>('/admin/news/circulation/autopilot/pause', {});
+
+export const listCirculationAutopilotRuns = (limit = 10) =>
+    cmsClient.get<AutopilotRunsResponse>('/admin/news/circulation/autopilot/runs', { limit });
+
+export const getCirculationAutopilotRun = (id: string) =>
+    cmsClient.get<NewsAutopilotRun>(`/admin/news/circulation/autopilot/runs/${id}`);
 
 /** Name one batch of freshly-clustered topics via the LLM. */
 export async function labelTopicsBatch(limit = 8): Promise<LabelBatchResult> {

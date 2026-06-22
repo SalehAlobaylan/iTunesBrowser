@@ -13,11 +13,15 @@ import {
     Eye,
     EyeOff,
     FileClock,
+    Gauge,
     History,
     Loader2,
     Minus,
+    PauseCircle,
     Pin,
+    Play,
     Plus,
+    Power,
     RefreshCw,
     RotateCcw,
     Save,
@@ -42,23 +46,33 @@ import { Textarea } from '@/components/ui/textarea';
 import {
     useApplyCirculationPreset,
     useApplySourceRecommendation,
+    useBoostCirculationAutopilot,
     useCirculationAudit,
+    useCirculationAutopilotRuns,
+    useCirculationAutopilotStatus,
     useCirculationMetrics,
     useCirculationPolicy,
     useCirculationPreview,
     useDeleteStoryOverride,
     useGenerateSourceRecommendations,
+    usePauseCirculationAutopilot,
+    useRunCirculationAutopilot,
     useSourceRecommendations,
     useStoryOverrides,
     useUpdateCirculationPolicy,
+    useUpdateCirculationAutopilotSettings,
     useUpsertStoryOverride,
 } from '@/hooks/use-news';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/utils/format';
 import type {
     AuditLogEntry,
+    AutopilotState,
     CirculationStorySummary,
     CirculationWindowMetric,
+    NewsAutopilotAction,
+    NewsAutopilotRun,
+    NewsAutopilotStatus,
     NewsCirculationPolicy,
     NewsLifecycle,
     NewsStoryOverride,
@@ -85,6 +99,31 @@ const LIFECYCLE_LABELS: Record<NewsLifecycle, string> = {
     cooling: 'Cooling',
     historical: 'Historical',
 };
+
+const AUTOPILOT_STATE_LABELS: Record<AutopilotState, string> = {
+    healthy: 'Healthy',
+    watching: 'Watching',
+    boosting: 'Boosting',
+    safety: 'Safety Mode',
+    paused: 'Paused',
+    degraded: 'Degraded',
+};
+
+function autopilotStateClass(state: AutopilotState | undefined): string {
+    switch (state) {
+        case 'boosting':
+            return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+        case 'watching':
+        case 'healthy':
+            return 'border-sky-200 bg-sky-50 text-sky-700';
+        case 'safety':
+            return 'border-amber-200 bg-amber-50 text-amber-700';
+        case 'degraded':
+            return 'border-red-200 bg-red-50 text-red-700';
+        default:
+            return 'border-slate-200 bg-slate-50 text-slate-700';
+    }
+}
 
 type DeskTab = 'overview' | 'policy' | 'sources' | 'exceptions' | 'history';
 
@@ -410,8 +449,14 @@ export function NewsCirculationCard() {
     const overridesQuery = useStoryOverrides();
     const recommendationsQuery = useSourceRecommendations();
     const auditQuery = useCirculationAudit();
+    const autopilotStatusQuery = useCirculationAutopilotStatus();
+    const autopilotRunsQuery = useCirculationAutopilotRuns();
 
     const updatePolicy = useUpdateCirculationPolicy();
+    const updateAutopilotSettings = useUpdateCirculationAutopilotSettings();
+    const runAutopilot = useRunCirculationAutopilot();
+    const boostAutopilot = useBoostCirculationAutopilot();
+    const pauseAutopilot = usePauseCirculationAutopilot();
     const applyPreset = useApplyCirculationPreset();
     const upsertOverride = useUpsertStoryOverride();
     const deleteOverride = useDeleteStoryOverride();
@@ -615,6 +660,22 @@ export function NewsCirculationCard() {
                 </div>
             </div>
 
+            <AutopilotCockpit
+                status={autopilotStatusQuery.data}
+                runs={autopilotRunsQuery.data?.data ?? []}
+                loading={autopilotStatusQuery.isLoading}
+                busy={
+                    updateAutopilotSettings.isPending ||
+                    runAutopilot.isPending ||
+                    boostAutopilot.isPending ||
+                    pauseAutopilot.isPending
+                }
+                onStart={() => updateAutopilotSettings.mutate({ autopilot_enabled: true, autopilot_mode: 'safe_auto' })}
+                onRun={() => runAutopilot.mutate()}
+                onBoost={() => boostAutopilot.mutate({ duration_minutes: 120 })}
+                onPause={() => pauseAutopilot.mutate()}
+            />
+
             <Tabs value={deskTab} onValueChange={(value) => setDeskTab(value as DeskTab)} className="space-y-4">
                 <TabsList className="flex h-auto flex-wrap justify-start">
                     <TabsTrigger value="overview">
@@ -708,6 +769,184 @@ export function NewsCirculationCard() {
                     <AuditPanel entries={auditQuery.data?.data ?? []} loading={auditQuery.isLoading} />
                 </TabsContent>
             </Tabs>
+        </div>
+    );
+}
+
+function AutopilotCockpit({
+    status,
+    runs,
+    loading,
+    busy,
+    onStart,
+    onRun,
+    onBoost,
+    onPause,
+}: {
+    status?: NewsAutopilotStatus;
+    runs: NewsAutopilotRun[];
+    loading: boolean;
+    busy: boolean;
+    onStart: () => void;
+    onRun: () => void;
+    onBoost: () => void;
+    onPause: () => void;
+}) {
+    const state = status?.state ?? 'paused';
+    const health = status?.health;
+    const enabled = Boolean(status?.policy.autopilot_enabled);
+    const latestRun = status?.latest_run ?? runs[0];
+    const actions = status?.latest_actions ?? latestRun?.actions ?? [];
+    const snapshotIssues = health?.snapshots.filter((snapshot) => snapshot.dirty || (snapshot.age_seconds ?? 0) > 60).length ?? 0;
+    const queueBlocked = health ? !health.aggregation_reachable || health.queue_depth > health.max_queue_depth : false;
+
+    const stateCopy: Record<AutopilotState, string> = {
+        healthy: 'Autopilot is ready. No scheduled loop is active.',
+        watching: 'Autopilot is supervising circulation and will run on its saved cadence.',
+        boosting: 'Boost Freshness is active. Autopilot can use the expanded News toolbelt.',
+        safety: 'Queue pressure is above the configured safety limit, so pull-heavy tools are blocked.',
+        paused: 'Autopilot is paused. Manual runs are still available.',
+        degraded: 'Aggregation health is degraded, so queue-backed tools are blocked.',
+    };
+
+    return (
+        <Card className={cn(state === 'boosting' && 'border-emerald-300', state === 'safety' && 'border-amber-300', state === 'degraded' && 'border-red-300')}>
+            <CardHeader className="gap-4 pb-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                    <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+                        <Bot className="h-4 w-4 text-primary" />
+                        News Circulation Autopilot
+                        <Badge variant="outline" className={cn('capitalize', autopilotStateClass(state))}>
+                            {AUTOPILOT_STATE_LABELS[state]}
+                        </Badge>
+                        {status?.policy.autopilot_boost_until && state === 'boosting' && (
+                            <Badge variant="success">until {formatRelativeTime(status.policy.autopilot_boost_until)}</Badge>
+                        )}
+                    </CardTitle>
+                    <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{stateCopy[state]}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <Button variant={enabled ? 'outline' : 'default'} size="sm" onClick={onStart} disabled={busy || loading}>
+                        <Power className="mr-2 h-4 w-4" />
+                        {enabled ? 'Autopilot On' : 'Start Autopilot'}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={onRun} disabled={busy || loading}>
+                        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                        Run Once
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={onBoost} disabled={busy || loading || queueBlocked}>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Boost Freshness
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={onPause} disabled={busy || loading || !enabled}>
+                        <PauseCircle className="mr-2 h-4 w-4" />
+                        Pause
+                    </Button>
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    <KpiTile
+                        icon={<Activity className="h-4 w-4" />}
+                        label="Today"
+                        value={health?.today_story_count ?? 0}
+                        caption={`${health?.today_carryover_count ?? 0} carryover · ${Math.round((health?.today_carryover_ratio ?? 0) * 100)}%`}
+                        loading={loading}
+                    />
+                    <KpiTile
+                        icon={<RefreshCw className="h-4 w-4" />}
+                        label="Sources due"
+                        value={health?.due_sources ?? 0}
+                        caption={`${health?.active_sources ?? 0} active sources`}
+                        loading={loading}
+                    />
+                    <KpiTile
+                        icon={<Gauge className="h-4 w-4" />}
+                        label="Queue depth"
+                        value={`${health?.queue_depth ?? 0}/${health?.max_queue_depth ?? 0}`}
+                        caption={health?.aggregation_reachable ? 'Aggregation reachable' : health?.aggregation_error || 'Aggregation unavailable'}
+                        loading={loading}
+                    />
+                    <KpiTile
+                        icon={<FileClock className="h-4 w-4" />}
+                        label="Snapshots"
+                        value={snapshotIssues}
+                        caption="dirty or older than cache SLO"
+                        loading={loading}
+                    />
+                    <KpiTile
+                        icon={<History className="h-4 w-4" />}
+                        label="Last run"
+                        value={latestRun ? formatRelativeTime(latestRun.started_at) : 'Never'}
+                        caption={latestRun?.summary || 'No ledger yet'}
+                        loading={loading}
+                    />
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                    <div className="rounded-md border bg-muted/20 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold">Tool Access</p>
+                            <Badge variant={state === 'boosting' ? 'success' : 'secondary'}>
+                                {state === 'boosting' ? 'Boosted toolbelt' : 'Core toolbelt'}
+                            </Badge>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                            {(status?.allowed_tools ?? []).map((tool) => (
+                                <Badge key={tool} variant="outline" className="font-normal">
+                                    {tool.replaceAll('_', ' ')}
+                                </Badge>
+                            ))}
+                        </div>
+                        <div className="mt-3 space-y-2">
+                            {(status?.blocked_tools ?? []).slice(0, 4).map((tool) => (
+                                <div key={tool.name} className="rounded-sm border bg-background px-2 py-1.5">
+                                    <p className="text-xs font-medium">{tool.name.replaceAll('_', ' ')}</p>
+                                    <p className="line-clamp-1 text-[11px] text-muted-foreground">{tool.reason}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="rounded-md border bg-background p-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold">Latest Actions</p>
+                            {latestRun && <Badge variant={latestRun.status === 'completed' ? 'success' : latestRun.status === 'failed' ? 'destructive' : 'warning'}>{latestRun.status}</Badge>}
+                        </div>
+                        <div className="mt-3 space-y-2">
+                            {loading ? (
+                                Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)
+                            ) : actions.length === 0 ? (
+                                <EmptyState icon={<History className="h-5 w-5" />} title="No Autopilot actions yet" />
+                            ) : (
+                                actions.slice(0, 5).map((action) => <AutopilotActionRow key={action.id} action={action} />)
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function AutopilotActionRow({ action }: { action: NewsAutopilotAction }) {
+    const variant =
+        action.status === 'success'
+            ? 'success'
+            : action.status === 'error'
+                ? 'destructive'
+                : action.status === 'skipped'
+                    ? 'warning'
+                    : 'secondary';
+    return (
+        <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 p-2.5">
+            <div className="min-w-0">
+                <p className="truncate text-xs font-semibold">{action.tool_name.replaceAll('_', ' ')}</p>
+                <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+                    {action.error || action.reason || formatRelativeTime(action.started_at)}
+                </p>
+            </div>
+            <Badge variant={variant}>{action.status}</Badge>
         </div>
     );
 }

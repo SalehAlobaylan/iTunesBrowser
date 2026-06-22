@@ -187,6 +187,11 @@ export interface BulkTagsBody extends BulkSelection {
 export type NewsWindow = 'today' | 'week' | 'month';
 export type NewsLifecycle = 'breaking' | 'active' | 'cooling' | 'historical';
 export type SourceCadenceMode = 'suggest' | 'auto_apply' | 'manual';
+export type AutopilotMode = 'assist' | 'safe_auto';
+export type AutopilotToolScope = 'core' | 'boosted';
+export type AutopilotState = 'healthy' | 'watching' | 'boosting' | 'safety' | 'paused' | 'degraded';
+export type AutopilotRunStatus = 'running' | 'completed' | 'partial' | 'failed';
+export type AutopilotActionStatus = 'running' | 'success' | 'skipped' | 'error';
 
 export interface NewsCirculationPolicy {
     tenant_id: string;
@@ -217,6 +222,14 @@ export interface NewsCirculationPolicy {
     max_auto_applies_per_run: number;
     min_runs_for_auto: number;
     last_automation_run_at?: string;
+    autopilot_enabled: boolean;
+    autopilot_mode: AutopilotMode;
+    autopilot_interval_minutes: number;
+    autopilot_boost_until?: string;
+    autopilot_paused_until?: string;
+    autopilot_last_run_at?: string;
+    autopilot_max_queue_depth: number;
+    autopilot_max_actions_per_run: number;
     created_at?: string;
     updated_at?: string;
 }
@@ -296,6 +309,109 @@ export interface CirculationMetricsResponse {
     active_sources: number;
     pending_recommendations: number;
     policy: NewsCirculationPolicy;
+}
+
+export interface AutopilotQueueStat {
+    queue: string;
+    waiting: number;
+    active: number;
+    completed: number;
+    failed: number;
+    delayed: number;
+}
+
+export interface AutopilotSnapshotSignal {
+    window: NewsWindow;
+    built_at?: string;
+    dirty: boolean;
+    age_seconds?: number;
+}
+
+export interface AutopilotHealthSignal {
+    state: AutopilotState;
+    aggregation_reachable: boolean;
+    aggregation_error?: string;
+    queue_depth: number;
+    max_queue_depth: number;
+    today_story_count: number;
+    today_carryover_count: number;
+    today_carryover_ratio: number;
+    active_sources: number;
+    due_sources: number;
+    pending_recommendations: number;
+    source_error_rate: number;
+    snapshots: AutopilotSnapshotSignal[];
+    queues: AutopilotQueueStat[];
+    generated_at: string;
+}
+
+export interface AutopilotBlockedTool {
+    name: string;
+    reason: string;
+}
+
+export interface NewsAutopilotAction {
+    id: string;
+    tenant_id: string;
+    tool_name: string;
+    status: AutopilotActionStatus;
+    reason?: string;
+    input?: Record<string, unknown>;
+    output?: Record<string, unknown>;
+    error?: string;
+    started_at: string;
+    finished_at?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface NewsAutopilotRun {
+    id: string;
+    tenant_id: string;
+    trigger: string;
+    mode: AutopilotMode;
+    tool_scope: AutopilotToolScope;
+    status: AutopilotRunStatus;
+    started_at: string;
+    finished_at?: string;
+    summary?: string;
+    health_before?: AutopilotHealthSignal;
+    health_after?: AutopilotHealthSignal;
+    created_by?: string;
+    error?: string;
+    created_at: string;
+    updated_at: string;
+    action_count?: number;
+    actions?: NewsAutopilotAction[];
+}
+
+export interface NewsAutopilotStatus {
+    state: AutopilotState;
+    policy: NewsCirculationPolicy;
+    health: AutopilotHealthSignal;
+    next_run_at?: string | null;
+    boost_until?: string | null;
+    paused_until?: string | null;
+    allowed_tools: string[];
+    blocked_tools: AutopilotBlockedTool[];
+    latest_run?: NewsAutopilotRun | null;
+    latest_actions: NewsAutopilotAction[];
+}
+
+export interface UpdateAutopilotSettingsRequest {
+    autopilot_enabled?: boolean;
+    autopilot_mode?: AutopilotMode;
+    autopilot_interval_minutes?: number;
+    autopilot_max_queue_depth?: number;
+    autopilot_max_actions_per_run?: number;
+}
+
+export interface BoostAutopilotRequest {
+    duration_minutes?: number;
+}
+
+export interface AutopilotRunsResponse {
+    data: NewsAutopilotRun[];
 }
 
 export interface NewsStoryOverride {
