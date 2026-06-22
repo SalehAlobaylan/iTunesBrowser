@@ -88,10 +88,10 @@ Jest (`jest.config.js`) and Playwright (`playwright.config.ts`, `e2e/`) configs 
 
 ## Intelligence Tab
 
-Full control over how content is ranked and distributed across feeds — the UI for the per-tenant 7-signal ranking engine. Feeds stay chronological until ranking is activated.
+Full control over how content is ranked and distributed across feeds — the UI for the per-tenant ranking engine. Feeds stay chronological until ranking is activated.
 
 ### Dashboard — `/platform/intelligence`
-Algorithm status (Active/Inactive), embedding coverage, flagged-item count, currently-trending count, a **Signal Health** radar (coverage % for all 7 signals), and a **Score Distribution** histogram across READY content.
+Algorithm status (Active/Inactive), embedding coverage, flagged-item count, currently-trending count, a **Signal Health** and a **Score Distribution** histogram across READY content.
 
 ### Ranking Config — `/platform/intelligence/ranking`
 

@@ -47,6 +47,8 @@ export interface SuggestionEvidence {
     trend?: string;
     via?: string[];
     subscribers?: number;
+    // Deterministic source classification: official | news | person | other.
+    source_class?: string;
 }
 
 export interface SourceSuggestion {

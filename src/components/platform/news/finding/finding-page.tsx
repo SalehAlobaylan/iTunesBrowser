@@ -42,6 +42,7 @@ import {
 import type { DiscoveryProfile, NewsSource, SourceSuggestion } from '@/types/platform/discovery';
 import { NewsSectionNav } from '@/components/platform/news/news-section-nav';
 import { ProfileDialog } from './profile-dialog';
+import { ClassBadge, ClassFilter, sourceClassOf, type SourceClass } from './source-class-badge';
 import { DiscoverySettingsDialog } from './discovery-settings-dialog';
 import { DiscoveryEnginePanel } from './discovery-engine-panel';
 import { TwitterCard } from './twitter-card';
@@ -106,6 +107,7 @@ export function FindingPage() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<DiscoveryProfile | null>(null);
     const [hideLow, setHideLow] = useState(false);
+    const [classFilter, setClassFilter] = useState<SourceClass | 'all'>('all');
     const [previewTarget, setPreviewTarget] = useState<SourceSuggestion | null>(null);
     const [suggestOpen, setSuggestOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -114,8 +116,8 @@ export function FindingPage() {
     // per-profile views + rail counts client-side.
     const { data: suggestionsData, isLoading: suggestionsLoading } = useSuggestions(undefined, 'PENDING');
     const { data: sourcesData, isLoading: sourcesLoading } = useNewsSources(undefined);
-    const allSuggestions = suggestionsData?.data ?? [];
-    const allSources = sourcesData?.data ?? [];
+    const allSuggestions = useMemo(() => suggestionsData?.data ?? [], [suggestionsData]);
+    const allSources = useMemo(() => sourcesData?.data ?? [], [sourcesData]);
 
     const suggCountByProfile = useMemo(() => {
         const m: Record<string, number> = {};
@@ -131,11 +133,23 @@ export function FindingPage() {
     const selectedProfile = profiles.find((p) => p.id === selected) ?? null;
     const lowThreshold = discoveryConfig?.min_relevance ?? LOW_RELEVANCE;
 
+    const scopedBase = useMemo(
+        () => (selected === ALL ? allSuggestions : allSuggestions.filter((s) => s.profile_id === selected)),
+        [allSuggestions, selected],
+    );
+    const classCounts = useMemo(() => {
+        const m: Partial<Record<SourceClass | 'all', number>> = { all: scopedBase.length };
+        for (const s of scopedBase) {
+            const c = sourceClassOf(s);
+            if (c) m[c] = (m[c] ?? 0) + 1;
+        }
+        return m;
+    }, [scopedBase]);
     const scopedSuggestions = useMemo(() => {
-        const base = selected === ALL ? allSuggestions : allSuggestions.filter((s) => s.profile_id === selected);
-        const filtered = hideLow ? base.filter((s) => (s.relevance_score ?? 1) >= lowThreshold) : base;
+        let filtered = hideLow ? scopedBase.filter((s) => (s.relevance_score ?? 1) >= lowThreshold) : scopedBase;
+        if (classFilter !== 'all') filtered = filtered.filter((s) => sourceClassOf(s) === classFilter);
         return [...filtered].sort((a, b) => (b.relevance_score ?? -1) - (a.relevance_score ?? -1));
-    }, [allSuggestions, selected, hideLow, lowThreshold]);
+    }, [scopedBase, hideLow, lowThreshold, classFilter]);
     const scopedSources = useMemo(
         () => (selected === ALL ? allSources : allSources.filter((s) => s.discovery_profile_id === selected)),
         [allSources, selected]
@@ -290,17 +304,20 @@ export function FindingPage() {
 
                         {tab === 'review' && (
                             <div className="space-y-3">
-                                {scopedSuggestions.length > 0 && (
-                                    <div className="flex items-center justify-between">
-                                        <Button size="sm" variant={hideLow ? 'default' : 'outline'} onClick={() => setHideLow((v) => !v)}>
-                                            <Filter className="mr-1 h-3.5 w-3.5" />
-                                            {hideLow ? 'Showing strong only' : 'Hide weak matches'}
-                                        </Button>
+                                {scopedBase.length > 0 && (
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Button size="sm" variant={hideLow ? 'default' : 'outline'} onClick={() => setHideLow((v) => !v)}>
+                                                <Filter className="mr-1 h-3.5 w-3.5" />
+                                                {hideLow ? 'Showing strong only' : 'Hide weak matches'}
+                                            </Button>
+                                            <ClassFilter value={classFilter} onChange={setClassFilter} counts={classCounts} />
+                                        </div>
                                         <div className="flex gap-2">
-                                            <Button size="sm" variant="outline" onClick={() => bulkApprove.mutate(pendingIds)} disabled={bulkApprove.isPending}>
+                                            <Button size="sm" variant="outline" onClick={() => bulkApprove.mutate(pendingIds)} disabled={bulkApprove.isPending || pendingIds.length === 0}>
                                                 <Check className="mr-1 h-3.5 w-3.5" /> Approve all
                                             </Button>
-                                            <Button size="sm" variant="ghost" onClick={() => bulkReject.mutate(pendingIds)} disabled={bulkReject.isPending}>
+                                            <Button size="sm" variant="ghost" onClick={() => bulkReject.mutate(pendingIds)} disabled={bulkReject.isPending || pendingIds.length === 0}>
                                                 Dismiss all
                                             </Button>
                                         </div>
@@ -309,7 +326,11 @@ export function FindingPage() {
 
                                 {suggestionsLoading && <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>}
 
-                                {!suggestionsLoading && scopedSuggestions.length === 0 && (
+                                {!suggestionsLoading && scopedBase.length > 0 && scopedSuggestions.length === 0 && (
+                                    <p className="py-8 text-center text-sm text-muted-foreground">No sources in this filter.</p>
+                                )}
+
+                                {!suggestionsLoading && scopedBase.length === 0 && (
                                     <Card>
                                         <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
                                             <CheckCircle2 className="h-8 w-8 text-success" />
@@ -501,6 +522,7 @@ function SuggestionCard({ suggestion, onApprove, onReject, onPreview, busy }: {
                     <div className="min-w-0">
                         <div className="flex items-center gap-2">
                             <span className="truncate font-semibold" dir="auto">{suggestion.name}</span>
+                            <ClassBadge value={suggestion.evidence?.source_class} />
                             <Badge variant="outline" className="shrink-0">{suggestion.type}</Badge>
                         </div>
                         <a href={suggestion.feed_url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:underline">

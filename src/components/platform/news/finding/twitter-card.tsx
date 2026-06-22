@@ -24,6 +24,7 @@ import {
 import { useCreateSource, useUpdateSource, useDeleteSource, useRunSource } from '@/hooks/use-sources';
 import { usePreviewSource } from '@/hooks/use-source-preview';
 import type { DiscoveryConfig, NewsSource, SourceSuggestion } from '@/types/platform/discovery';
+import { ClassBadge, ClassFilter, sourceClassOf, type SourceClass } from './source-class-badge';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const fmtFollowers = (n?: number) =>
@@ -326,22 +327,33 @@ function DiscoveredAccounts({
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
     const [query, setQuery] = useState('');
     const [sortBy, setSortBy] = useState<SortKey>('match');
+    const [classFilter, setClassFilter] = useState<SourceClass | 'all'>('all');
     const approve = useApproveSuggestion();
     const reject = useRejectSuggestion();
     const bulkApprove = useBulkApprove();
     const bulkReject = useBulkReject();
 
+    const classCounts = useMemo(() => {
+        const m: Partial<Record<SourceClass | 'all', number>> = { all: suggestions.length };
+        for (const s of suggestions) {
+            const c = sourceClassOf(s);
+            if (c) m[c] = (m[c] ?? 0) + 1;
+        }
+        return m;
+    }, [suggestions]);
+
     const view = useMemo(() => {
         const q = query.trim().toLowerCase();
-        const filtered = q
+        let filtered = q
             ? suggestions.filter((s) => (s.name ?? '').toLowerCase().includes(q) || xHandle(s.feed_url).toLowerCase().includes(q))
             : suggestions;
+        if (classFilter !== 'all') filtered = filtered.filter((s) => sourceClassOf(s) === classFilter);
         const key = (s: SourceSuggestion) =>
             sortBy === 'followers' ? (s.evidence?.subscribers ?? 0)
                 : sortBy === 'sources' ? (s.evidence?.cocitation_count ?? 0)
                     : (s.relevance_score ?? 0);
         return [...filtered].sort((a, b) => key(b) - key(a));
-    }, [suggestions, query, sortBy]);
+    }, [suggestions, query, sortBy, classFilter]);
 
     const allSelected = view.length > 0 && view.every((s) => selected.has(s.id));
     const toggle = (id: string) => setSelected((p) => {
@@ -401,9 +413,11 @@ function DiscoveredAccounts({
                 )}
             </div>
 
+            <ClassFilter value={classFilter} onChange={setClassFilter} counts={classCounts} />
+
             <div className="divide-y rounded-md border">
                 {view.length === 0 && (
-                    <p className="px-3 py-4 text-center text-xs text-muted-foreground">No accounts match “{query}”.</p>
+                    <p className="px-3 py-4 text-center text-xs text-muted-foreground">No accounts match this view.</p>
                 )}
                 {view.map((s) => {
                     const subs = s.evidence?.subscribers;
@@ -424,6 +438,7 @@ function DiscoveredAccounts({
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2">
                                             <span className="truncate text-sm font-medium" dir="auto">{s.name}</span>
+                                            <ClassBadge value={s.evidence?.source_class} />
                                             <span className="hidden shrink-0 items-center gap-1 rounded bg-news/10 px-1.5 py-0.5 text-[11px] text-news sm:inline-flex">
                                                 {xProvenance(s.discovered_via)}
                                             </span>
