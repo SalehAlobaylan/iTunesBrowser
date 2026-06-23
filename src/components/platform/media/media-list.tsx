@@ -31,7 +31,7 @@ import { useContent, useDeleteContentByIds, useMediaSizeStats } from '@/hooks/us
 import {
     useBulkTriggerStt,
     useCancelTranscriptionBatch,
-    useTranscriptionBatch,
+    useTranscriptionBatches,
     useTriggerStt,
 } from '@/hooks/use-transcription';
 import { listSourceNames } from '@/lib/api/cms/content';
@@ -71,6 +71,7 @@ function captionStateOf(item: ContentItem): CaptionState {
 }
 
 const UNKNOWN_SOURCE = 'Unknown source';
+const STT_ESTIMATED_COST_PER_HOUR_USD = 0.26;
 const STATUS_OPTIONS: (ContentStatus | 'all')[] = ['all', 'READY', 'PROCESSING', 'FAILED', 'PENDING'];
 const CAPTION_FILTERS: { value: CaptionState | 'all'; label: string }[] = [
     { value: 'all', label: 'All transcripts' },
@@ -213,6 +214,10 @@ function renderJobSummary(job?: TranscriptionJobSummary) {
     );
 }
 
+function estimateSttCost(items: ContentItem[]): number {
+    return items.reduce((sum, item) => sum + ((item.duration_sec ?? 0) / 3600) * STT_ESTIMATED_COST_PER_HOUR_USD, 0);
+}
+
 export function MediaList({ type }: { type: ContentType }) {
     const router = useRouter();
 
@@ -237,14 +242,13 @@ export function MediaList({ type }: { type: ContentType }) {
     const [sttConfirm, setSttConfirm] = useState<ContentItem[] | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<ContentItem[] | null>(null);
     const [bulkBusy, setBulkBusy] = useState(false);
-    const [activeBatchId, setActiveBatchId] = useState<string | undefined>();
-
     const triggerStt = useTriggerStt();
     const bulkTriggerStt = useBulkTriggerStt();
     const cancelBatch = useCancelTranscriptionBatch();
-    const { data: activeBatch } = useTranscriptionBatch(activeBatchId);
+    const { data: activeBatches } = useTranscriptionBatches({ status: 'active', limit: 5 });
     const deleteByIds = useDeleteContentByIds();
 
+    const activeBatch = activeBatches?.data[0];
     const batchRunning = activeBatch?.status === 'queued' || activeBatch?.status === 'running';
     const activeBatchRunningCount = activeBatch
         ? Math.max(0, activeBatch.accepted_count - activeBatch.completed_count - activeBatch.failed_count - activeBatch.canceled_count)
@@ -340,6 +344,7 @@ export function MediaList({ type }: { type: ContentType }) {
     const selectedUntracked = selectedItems.filter((item) => !item.file_size_bytes || item.file_size_bytes <= 0).length;
     const sttConfirmBytes = (sttConfirm ?? []).reduce((sum, item) => sum + Math.max(0, item.file_size_bytes ?? 0), 0);
     const sttConfirmUntracked = (sttConfirm ?? []).filter((item) => !item.file_size_bytes || item.file_size_bytes <= 0).length;
+    const sttConfirmEstimatedCost = estimateSttCost(sttConfirm ?? []);
     const allSelected = items.length > 0 && items.every((i) => selected.has(i.id));
 
     const setMany = (ids: string[], on: boolean) =>
@@ -371,8 +376,7 @@ export function MediaList({ type }: { type: ContentType }) {
             return;
         }
         setBulkBusy(true);
-        const batch = await bulkTriggerStt.mutateAsync(targets.map((t) => t.id)).catch(() => undefined);
-        if (batch?.id) setActiveBatchId(batch.id);
+        await bulkTriggerStt.mutateAsync(targets.map((t) => t.id)).catch(() => undefined);
         setBulkBusy(false);
         setSelected(new Set());
     };
@@ -848,6 +852,7 @@ export function MediaList({ type }: { type: ContentType }) {
                             const groupIds = gItems.map((i) => i.id);
                             const groupAllSelected = groupIds.every((id) => selected.has(id));
                             const isCollapsed = collapsed.has(src);
+                            const sourceAgg = mediaSizeStats.data?.by_source?.[src];
                             return (
                                 <div key={src} className="space-y-2">
                                     <div className="flex items-center gap-2">
@@ -864,9 +869,9 @@ export function MediaList({ type }: { type: ContentType }) {
                                             {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                             <Rss className="h-3.5 w-3.5 text-muted-foreground" />
                                             {src}
-                                            <Badge variant="secondary" className="ml-1">{gItems.length}</Badge>
+                                            <Badge variant="secondary" className="ml-1">{sourceAgg?.count ?? gItems.length}</Badge>
                                             <Badge variant="outline" className="ml-1">
-                                                {formatBytes(gItems.reduce((sum, item) => sum + Math.max(0, item.file_size_bytes ?? 0), 0), '0 B')}
+                                                {formatBytes(sourceAgg?.bytes ?? gItems.reduce((sum, item) => sum + Math.max(0, item.file_size_bytes ?? 0), 0), '0 B')}
                                             </Badge>
                                             {gItems.some((item) => !item.file_size_bytes || item.file_size_bytes <= 0) && (
                                                 <Badge variant="outline" className="ml-1">
@@ -918,6 +923,7 @@ export function MediaList({ type }: { type: ContentType }) {
                                 const groupIds = gItems.map((i) => i.id);
                                 const groupAllSelected = groupIds.every((id) => selected.has(id));
                                 const isCollapsed = collapsed.has(src);
+                                const sourceAgg = mediaSizeStats.data?.by_source?.[src];
                                 return (
                                     <Fragment key={src}>
                                         <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -937,9 +943,9 @@ export function MediaList({ type }: { type: ContentType }) {
                                                     {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                                     <Rss className="h-3.5 w-3.5 text-muted-foreground" />
                                                     {src}
-                                                    <Badge variant="secondary" className="ml-1">{gItems.length}</Badge>
+                                                    <Badge variant="secondary" className="ml-1">{sourceAgg?.count ?? gItems.length}</Badge>
                                                     <Badge variant="outline" className="ml-1">
-                                                        {formatBytes(gItems.reduce((sum, item) => sum + Math.max(0, item.file_size_bytes ?? 0), 0), '0 B')}
+                                                        {formatBytes(sourceAgg?.bytes ?? gItems.reduce((sum, item) => sum + Math.max(0, item.file_size_bytes ?? 0), 0), '0 B')}
                                                     </Badge>
                                                     {gItems.some((item) => !item.file_size_bytes || item.file_size_bytes <= 0) && (
                                                         <Badge variant="outline" className="ml-1">
@@ -980,6 +986,9 @@ export function MediaList({ type }: { type: ContentType }) {
                             <span className="mt-2 block">
                                 Media size: {formatBytes(sttConfirmBytes, '0 B')} tracked
                                 {sttConfirmUntracked > 0 ? ` · ${sttConfirmUntracked} untracked` : ''}.
+                            </span>
+                            <span className="mt-2 block">
+                                Estimated STT cost before CMS budget enforcement: {formatUsd(sttConfirmEstimatedCost)}.
                             </span>
                             {sttConfirmBytes >= LARGE_MEDIA_WARNING_BYTES && (
                                 <span className="mt-2 block font-medium text-amber-600 dark:text-amber-500">

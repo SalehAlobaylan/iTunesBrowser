@@ -50,6 +50,11 @@ export type TranscriptionJobStatus =
 export interface TranscriptionJobSummary {
     id: string;
     content_item_id: string;
+    content_title?: string;
+    content_type?: ContentType;
+    content_source_name?: string;
+    file_size_bytes?: number;
+    storage_tier?: string;
     transcript_id?: string;
     batch_id?: string;
     batch_item_id?: string;

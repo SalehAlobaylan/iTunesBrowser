@@ -53,6 +53,7 @@ export interface TranscriptionBatchItem {
     id: string;
     content_item_id: string;
     job_id?: string;
+    job?: TranscriptionJobSummary;
     status: 'pending' | 'accepted' | 'skipped' | 'failed' | 'canceled' | 'done';
     reason?: string;
     error?: string;
@@ -77,6 +78,41 @@ export interface TranscriptionBatch {
     created_at: string;
     updated_at: string;
     items?: TranscriptionBatchItem[];
+}
+
+export interface TranscriptionBatchListResponse {
+    data: TranscriptionBatch[];
+    total: number;
+    page: number;
+    limit: number;
+    total_pages: number;
+}
+
+export interface ListTranscriptionBatchesParams {
+    status?: 'active' | 'terminal' | TranscriptionBatch['status'] | 'all';
+    page?: number;
+    limit?: number;
+}
+
+export interface ListTranscriptionJobsParams {
+    status?: TranscriptionJobSummary['status'];
+    content_id?: string;
+    limit?: number;
+}
+
+export interface RepairSweepResponse {
+    accepted: number;
+    skipped: number;
+    failed: number;
+    reasons: Record<string, number>;
+    results: Array<{
+        content_id: string;
+        status: 'accepted' | 'skipped' | 'failed';
+        job_id?: string;
+        reason?: string;
+        error?: string;
+    }>;
+    job_ids: string[];
 }
 
 export const createTranscriptionJob = (data: CreateTranscriptionJobRequest) =>
@@ -110,10 +146,34 @@ export const getTranscriptionBatch = (id: string) =>
         )
     );
 
+export const listTranscriptionBatches = (params?: ListTranscriptionBatchesParams) =>
+    unwrapCmsData(
+        cmsClient.get<CmsEnvelope<TranscriptionBatchListResponse>>(
+            '/admin/transcription/batches',
+            params
+        )
+    );
+
 export const cancelTranscriptionBatch = (id: string) =>
     unwrapCmsData(
         cmsClient.post<CmsEnvelope<TranscriptionBatch>>(
             `/admin/transcription/batches/${id}/cancel`,
+            {}
+        )
+    );
+
+export const listTranscriptionJobs = (params?: ListTranscriptionJobsParams) =>
+    unwrapCmsData(
+        cmsClient.get<CmsEnvelope<TranscriptionJobSummary[]>>(
+            '/admin/transcription/jobs',
+            params
+        )
+    );
+
+export const repairTranscriptionQualitySweep = (limit = 100) =>
+    unwrapCmsData(
+        cmsClient.post<CmsEnvelope<RepairSweepResponse>>(
+            `/admin/transcription/quality/repair-sweep?limit=${limit}`,
             {}
         )
     );

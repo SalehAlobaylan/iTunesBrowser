@@ -11,6 +11,7 @@ import {
     HardDrive,
     Loader2,
     Mic,
+    RefreshCw,
     Search,
     Video,
     XCircle,
@@ -21,12 +22,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useContent, useMediaSizeStats } from '@/hooks/use-content';
+import { useRepairTranscriptionSweep, useTranscriptionBatches, useTranscriptionJobs } from '@/hooks/use-transcription';
 import {
     CONTENT_STATUS_LABELS,
     CONTENT_STATUS_VARIANTS,
     type ContentItem,
     type ContentType,
     type TranscriptQualityStatus,
+    type TranscriptionJobSummary,
     type TranscriptionJobStatus,
 } from '@/types/platform/content';
 
@@ -83,6 +86,11 @@ function formatDateShort(value?: string): string {
     return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+function formatUsd(value?: number): string {
+    if (!value || value <= 0) return '$0.00';
+    return `$${value.toFixed(2)}`;
+}
+
 function jobTime(item: ContentItem): string {
     const job = item.latest_transcription_job;
     return formatDateShort(job?.completed_at || job?.started_at || job?.created_at || item.updated_at);
@@ -130,6 +138,44 @@ function StudioItemRow({ item, compact = false }: { item: ContentItem; compact?:
     );
 }
 
+function StudioJobRow({ job }: { job: TranscriptionJobSummary }) {
+    const reason = job.error_message || job.writeback_error || job.skip_reason;
+    const cost = job.actual_cost_usd > 0
+        ? formatUsd(job.actual_cost_usd)
+        : job.reserved_cost_usd > 0
+            ? `${formatUsd(job.reserved_cost_usd)} reserved`
+            : formatUsd(job.estimated_cost_usd);
+    return (
+        <Link
+            href={`/platform/media-studio/${job.content_item_id}`}
+            className="flex items-center gap-3 rounded-md border px-3 py-2 transition-colors hover:bg-muted/50"
+        >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-muted">
+                <Clapperboard className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{job.content_title || job.content_item_id}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    {job.content_type && <Badge variant="outline">{job.content_type}</Badge>}
+                    <Badge variant={JOB_STATUS_VARIANTS[job.status]}>{JOB_STATUS_LABELS[job.status]}</Badge>
+                    <span>{formatBytes(job.file_size_bytes)}</span>
+                    {job.storage_tier && <span>{job.storage_tier}</span>}
+                    {job.provider && <span>{job.provider}</span>}
+                    <span>{cost}</span>
+                    <span>{formatDateShort(job.completed_at || job.started_at || job.created_at)}</span>
+                </div>
+                {job.writeback_status && (
+                    <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                        Writeback: {job.writeback_status}
+                    </div>
+                )}
+                {reason && <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">{reason}</div>}
+            </div>
+            <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </Link>
+    );
+}
+
 function EmptyState({ label }: { label: string }) {
     return (
         <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
@@ -148,10 +194,20 @@ export default function MediaStudioPage() {
         return () => clearTimeout(t);
     }, [searchInput]);
 
-    const queued = useContent({ page: 1, limit: 6, transcription_status: 'queued', sort: 'updated_at', order: 'desc' });
-    const running = useContent({ page: 1, limit: 6, transcription_status: 'running', sort: 'updated_at', order: 'desc' });
-    const failed = useContent({ page: 1, limit: 6, transcription_status: 'failed', sort: 'updated_at', order: 'desc' });
-    const writebackFailed = useContent({ page: 1, limit: 6, transcription_status: 'writeback_failed', sort: 'updated_at', order: 'desc' });
+    const activeBatches = useTranscriptionBatches({ status: 'active', limit: 5 });
+    const recentBatches = useTranscriptionBatches({ status: 'terminal', limit: 5 });
+    const queuedJobs = useTranscriptionJobs({ status: 'queued', limit: 12 });
+    const runningJobs = useTranscriptionJobs({ status: 'running', limit: 12 });
+    const failedJobs = useTranscriptionJobs({ status: 'failed', limit: 12 });
+    const writebackFailedJobs = useTranscriptionJobs({ status: 'writeback_failed', limit: 12 });
+    const recentSucceededJobs = useTranscriptionJobs({ status: 'succeeded', limit: 8 });
+    const repairSweep = useRepairTranscriptionSweep();
+    // Count-only queries for the stat tiles: the jobs list is page-limited, so
+    // its array length under-reports the true backlog. useContent returns total.
+    const queuedCount = useContent({ page: 1, limit: 1, transcription_status: 'queued' });
+    const runningCount = useContent({ page: 1, limit: 1, transcription_status: 'running' });
+    const failedCount = useContent({ page: 1, limit: 1, transcription_status: 'failed' });
+    const writebackFailedCount = useContent({ page: 1, limit: 1, transcription_status: 'writeback_failed' });
     const needsReview = useContent({ page: 1, limit: 6, quality_status: 'needs_review', sort: 'updated_at', order: 'desc' });
     const autoRepair = useContent({ page: 1, limit: 6, quality_status: 'auto_repair', sort: 'updated_at', order: 'desc' });
     const sizeStats = useMediaSizeStats({});
@@ -170,19 +226,21 @@ export default function MediaStudioPage() {
     });
 
     const queueItems = useMemo(() => {
-        const byId = new Map<string, ContentItem>();
-        for (const item of [
-            ...(running.data?.data ?? []),
-            ...(queued.data?.data ?? []),
-            ...(writebackFailed.data?.data ?? []),
-            ...(failed.data?.data ?? []),
+        const byId = new Map<string, TranscriptionJobSummary>();
+        for (const job of [
+            ...(runningJobs.data ?? []),
+            ...(queuedJobs.data ?? []),
+            ...(writebackFailedJobs.data ?? []),
+            ...(failedJobs.data ?? []),
         ]) {
-            byId.set(item.id, item);
+            byId.set(job.id, job);
         }
-        return Array.from(byId.values()).slice(0, 10);
-    }, [failed.data?.data, queued.data?.data, running.data?.data, writebackFailed.data?.data]);
+        return Array.from(byId.values())
+            .sort((a, b) => (b.file_size_bytes ?? 0) - (a.file_size_bytes ?? 0))
+            .slice(0, 12);
+    }, [failedJobs.data, queuedJobs.data, runningJobs.data, writebackFailedJobs.data]);
 
-    const loadingQueue = queued.isLoading || running.isLoading || failed.isLoading || writebackFailed.isLoading;
+    const loadingQueue = queuedJobs.isLoading || runningJobs.isLoading || failedJobs.isLoading || writebackFailedJobs.isLoading;
     const largeFailureItems = useMemo(() => {
         const byId = new Map<string, ContentItem>();
         for (const item of [
@@ -207,13 +265,13 @@ export default function MediaStudioPage() {
     const stats = [
         {
             label: 'Active jobs',
-            value: (queued.data?.total ?? 0) + (running.data?.total ?? 0),
+            value: (queuedCount.data?.total ?? 0) + (runningCount.data?.total ?? 0),
             icon: <Clock3 className="h-4 w-4" />,
             tone: 'text-info',
         },
         {
             label: 'Failures',
-            value: (failed.data?.total ?? 0) + (writebackFailed.data?.total ?? 0),
+            value: (failedCount.data?.total ?? 0) + (writebackFailedCount.data?.total ?? 0),
             icon: <XCircle className="h-4 w-4" />,
             tone: 'text-destructive',
         },
@@ -262,6 +320,81 @@ export default function MediaStudioPage() {
                 ))}
             </div>
 
+            <div className="grid gap-5 xl:grid-cols-2">
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Active Batches</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        {activeBatches.isLoading ? (
+                            <div className="flex items-center justify-center py-8 text-muted-foreground">
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            </div>
+                        ) : (activeBatches.data?.data ?? []).length > 0 ? (
+                            activeBatches.data!.data.map((batch) => (
+                                <div key={batch.id} className="rounded-md border px-3 py-2 text-sm">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Badge variant="secondary">{batch.status}</Badge>
+                                        <span className="font-medium">{batch.total_count} items</span>
+                                        <span className="text-muted-foreground">
+                                            {batch.accepted_count} accepted · {batch.completed_count} done · {batch.failed_count} failed · {batch.canceled_count} canceled
+                                        </span>
+                                    </div>
+                                    {batch.latest_error && <div className="mt-1 line-clamp-1 text-xs text-destructive">{batch.latest_error}</div>}
+                                    {(batch.items ?? []).length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {batch.items!.slice(0, 3).map((item) => (
+                                                <div key={item.id} className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                                                    <Badge variant="outline">{item.status}</Badge>
+                                                    <span className="truncate">{item.job?.content_title || item.content_item_id}</span>
+                                                    {item.job && <span>{formatBytes(item.job.file_size_bytes)}</span>}
+                                                    {item.job?.provider && <span>{item.job.provider}</span>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))
+                        ) : (
+                            <EmptyState label="No active transcription batches." />
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <CardTitle className="text-base">Repair Automation</CardTitle>
+                            <Button size="sm" variant="outline" onClick={() => repairSweep.mutate(100)} disabled={repairSweep.isPending}>
+                                {repairSweep.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+                                Scan weak transcripts
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        {repairSweep.data ? (
+                            <div className="rounded-md border px-3 py-2 text-sm">
+                                <div className="font-medium">
+                                    {repairSweep.data.accepted} queued · {repairSweep.data.skipped} skipped · {repairSweep.data.failed} failed
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {Object.entries(repairSweep.data.reasons).slice(0, 6).map(([reason, count]) => (
+                                        <Badge key={reason} variant="outline">{count} {reason}</Badge>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <EmptyState label="Run a manual scan to queue eligible weak or missing transcripts within the CMS budget." />
+                        )}
+                        {(recentBatches.data?.data ?? []).slice(0, 2).map((batch) => (
+                            <div key={batch.id} className="text-xs text-muted-foreground">
+                                Recent batch: {batch.status} · {batch.completed_count} done · {formatDateShort(batch.completed_at || batch.updated_at)}
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            </div>
+
             <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
                 <Card>
                     <CardHeader className="pb-3">
@@ -273,9 +406,17 @@ export default function MediaStudioPage() {
                                 <Loader2 className="h-5 w-5 animate-spin" />
                             </div>
                         ) : queueItems.length > 0 ? (
-                            queueItems.map((item) => <StudioItemRow key={item.id} item={item} />)
+                            queueItems.map((job) => <StudioJobRow key={job.id} job={job} />)
                         ) : (
                             <EmptyState label="No queued, running, failed, or writeback-failed transcription jobs." />
+                        )}
+                        {(recentSucceededJobs.data ?? []).length > 0 && (
+                            <div className="pt-2">
+                                <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">Recent completions</div>
+                                <div className="space-y-2">
+                                    {recentSucceededJobs.data!.slice(0, 3).map((job) => <StudioJobRow key={job.id} job={job} />)}
+                                </div>
+                            </div>
                         )}
                     </CardContent>
                 </Card>

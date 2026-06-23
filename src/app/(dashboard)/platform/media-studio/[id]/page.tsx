@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertTriangle, ArrowLeft, Clock3, GitCompare, HardDrive, Loader2, RefreshCw, Save, ShieldCheck, Sparkles } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -198,12 +198,25 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
         return () => window.removeEventListener('beforeunload', onBeforeUnload);
     }, [chaptersDirty, transcriptDirty]);
 
-    const confirmLeave = (event: MouseEvent<HTMLAnchorElement>) => {
-        if (!chaptersDirty && !transcriptDirty) return;
-        if (!window.confirm('Leave Media Studio and discard unsaved changes?')) {
-            event.preventDefault();
-        }
-    };
+    useEffect(() => {
+        const onDocumentClick = (event: globalThis.MouseEvent) => {
+            if (!chaptersDirty && !transcriptDirty) return;
+            if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            const target = event.target as Element | null;
+            const anchor = target?.closest('a[href]') as HTMLAnchorElement | null;
+            if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+            const href = anchor.getAttribute('href') || '';
+            if (!href || href.startsWith('#')) return;
+            const next = new URL(anchor.href, window.location.href);
+            if (next.origin !== window.location.origin || next.href === window.location.href) return;
+            if (!window.confirm('Leave Media Studio and discard unsaved changes?')) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        };
+        document.addEventListener('click', onDocumentClick, true);
+        return () => document.removeEventListener('click', onDocumentClick, true);
+    }, [chaptersDirty, transcriptDirty]);
 
     const seek = useCallback((ms: number) => {
         if (mediaRef.current) mediaRef.current.currentTime = ms / 1000;
@@ -341,7 +354,6 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                 <div className="min-w-0">
                     <Link
                         href="/platform/media-studio"
-                        onClick={confirmLeave}
                         className="mb-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft className="h-3.5 w-3.5" /> Media Studio
@@ -359,7 +371,6 @@ export default function MediaStudioPage({ params }: StudioPageProps) {
                         {content.storage_tier && <Badge variant="outline">{content.storage_tier}</Badge>}
                         <Link
                             href="/platform/media"
-                            onClick={confirmLeave}
                             className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                         >
                             Media Library
