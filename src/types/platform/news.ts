@@ -345,6 +345,23 @@ export interface AutopilotHealthSignal {
     generated_at: string;
 }
 
+export type NewsFreshnessVerdictValue = 'fresh' | 'watching' | 'thin' | 'stale' | 'blocked' | 'degraded';
+export type NewsFreshnessRecommendedAction = 'none' | 'run_once' | 'boost_freshness' | 'review_sources' | 'pause';
+
+export interface NewsFreshnessReason {
+    tone: 'good' | 'warning' | 'danger';
+    label: string;
+    detail: string;
+}
+
+export interface NewsFreshnessVerdict {
+    score: number;
+    verdict: NewsFreshnessVerdictValue;
+    summary: string;
+    reasons: NewsFreshnessReason[];
+    recommended_action: NewsFreshnessRecommendedAction;
+}
+
 export interface AutopilotBlockedTool {
     name: string;
     reason: string;
@@ -389,6 +406,7 @@ export interface NewsAutopilotStatus {
     state: AutopilotState;
     policy: NewsCirculationPolicy;
     health: AutopilotHealthSignal;
+    freshness: NewsFreshnessVerdict;
     next_run_at?: string | null;
     boost_until?: string | null;
     paused_until?: string | null;

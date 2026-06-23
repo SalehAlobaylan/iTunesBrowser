@@ -109,6 +109,25 @@ const AUTOPILOT_STATE_LABELS: Record<AutopilotState, string> = {
     degraded: 'Degraded',
 };
 
+const FRESHNESS_VERDICT_LABELS: Record<NonNullable<NewsAutopilotStatus['freshness']>['verdict'], string> = {
+    fresh: 'Fresh',
+    watching: 'Watching',
+    thin: 'Thin',
+    stale: 'Stale',
+    blocked: 'Blocked',
+    degraded: 'Degraded',
+};
+
+const AUTOPILOT_ACTION_LABELS: Record<string, string> = {
+    'health.evaluate': 'Checked freshness',
+    'source_recommendations.generate': 'Reviewed source cadence',
+    'snapshots.refresh': 'Queued snapshot refresh',
+    'circulation.sweep': 'Queued source pulls',
+    'discovery.sweep': 'Checked new source evidence',
+    'source_graph.build': 'Updated source graph',
+    'autopilot.action_limit': 'Stopped at action limit',
+};
+
 function autopilotStateClass(state: AutopilotState | undefined): string {
     switch (state) {
         case 'boosting':
@@ -118,6 +137,23 @@ function autopilotStateClass(state: AutopilotState | undefined): string {
             return 'border-sky-200 bg-sky-50 text-sky-700';
         case 'safety':
             return 'border-amber-200 bg-amber-50 text-amber-700';
+        case 'degraded':
+            return 'border-red-200 bg-red-50 text-red-700';
+        default:
+            return 'border-slate-200 bg-slate-50 text-slate-700';
+    }
+}
+
+function freshnessVerdictClass(verdict: NewsAutopilotStatus['freshness']['verdict'] | undefined): string {
+    switch (verdict) {
+        case 'fresh':
+            return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+        case 'watching':
+            return 'border-sky-200 bg-sky-50 text-sky-700';
+        case 'thin':
+        case 'stale':
+            return 'border-amber-200 bg-amber-50 text-amber-700';
+        case 'blocked':
         case 'degraded':
             return 'border-red-200 bg-red-50 text-red-700';
         default:
@@ -674,6 +710,7 @@ export function NewsCirculationCard() {
                 onRun={() => runAutopilot.mutate()}
                 onBoost={() => boostAutopilot.mutate({ duration_minutes: 120 })}
                 onPause={() => pauseAutopilot.mutate()}
+                onReviewSources={() => setDeskTab('sources')}
             />
 
             <Tabs value={deskTab} onValueChange={(value) => setDeskTab(value as DeskTab)} className="space-y-4">
@@ -782,6 +819,7 @@ function AutopilotCockpit({
     onRun,
     onBoost,
     onPause,
+    onReviewSources,
 }: {
     status?: NewsAutopilotStatus;
     runs: NewsAutopilotRun[];
@@ -791,52 +829,88 @@ function AutopilotCockpit({
     onRun: () => void;
     onBoost: () => void;
     onPause: () => void;
+    onReviewSources: () => void;
 }) {
     const state = status?.state ?? 'paused';
     const health = status?.health;
+    const freshness = status?.freshness;
     const enabled = Boolean(status?.policy.autopilot_enabled);
     const latestRun = status?.latest_run ?? runs[0];
     const actions = status?.latest_actions ?? latestRun?.actions ?? [];
     const snapshotIssues = health?.snapshots.filter((snapshot) => snapshot.dirty || (snapshot.age_seconds ?? 0) > 60).length ?? 0;
     const queueBlocked = health ? !health.aggregation_reachable || health.queue_depth > health.max_queue_depth : false;
+    const carryoverPercent = Math.round((health?.today_carryover_ratio ?? 0) * 100);
+    const snapshotSummary =
+        snapshotIssues === 0
+            ? 'All windows clean'
+            : `${snapshotIssues} window${snapshotIssues === 1 ? '' : 's'} need refresh`;
+    const recommendedAction = !enabled ? 'start' : freshness?.recommended_action ?? 'none';
+    const primaryAction = {
+        start: { label: 'Start Autopilot', icon: <Power className="mr-2 h-4 w-4" />, onClick: onStart, disabled: busy || loading },
+        none: { label: 'No action needed', icon: <CheckCircle2 className="mr-2 h-4 w-4" />, onClick: undefined, disabled: true },
+        run_once: { label: 'Run Check', icon: <Play className="mr-2 h-4 w-4" />, onClick: onRun, disabled: busy || loading },
+        boost_freshness: { label: 'Boost Freshness', icon: <Sparkles className="mr-2 h-4 w-4" />, onClick: onBoost, disabled: busy || loading || queueBlocked },
+        review_sources: { label: 'Review Sources', icon: <RefreshCw className="mr-2 h-4 w-4" />, onClick: onReviewSources, disabled: busy || loading },
+        pause: { label: 'Pause Autopilot', icon: <PauseCircle className="mr-2 h-4 w-4" />, onClick: onPause, disabled: busy || loading || !enabled },
+    }[recommendedAction];
 
-    const stateCopy: Record<AutopilotState, string> = {
-        healthy: 'Autopilot is ready. No scheduled loop is active.',
-        watching: 'Autopilot is supervising circulation and will run on its saved cadence.',
-        boosting: 'Boost Freshness is active. Autopilot can use the expanded News toolbelt.',
-        safety: 'Queue pressure is above the configured safety limit, so pull-heavy tools are blocked.',
-        paused: 'Autopilot is paused. Manual runs are still available.',
-        degraded: 'Aggregation health is degraded, so queue-backed tools are blocked.',
+    const reasonToneClass: Record<'good' | 'warning' | 'danger', string> = {
+        good: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+        warning: 'border-amber-200 bg-amber-50 text-amber-800',
+        danger: 'border-red-200 bg-red-50 text-red-800',
     };
 
     return (
         <Card className={cn(state === 'boosting' && 'border-emerald-300', state === 'safety' && 'border-amber-300', state === 'degraded' && 'border-red-300')}>
-            <CardHeader className="gap-4 pb-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
-                    <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                        <Bot className="h-4 w-4 text-primary" />
-                        News Circulation Autopilot
-                        <Badge variant="outline" className={cn('capitalize', autopilotStateClass(state))}>
-                            {AUTOPILOT_STATE_LABELS[state]}
-                        </Badge>
-                        {status?.policy.autopilot_boost_until && state === 'boosting' && (
-                            <Badge variant="success">until {formatRelativeTime(status.policy.autopilot_boost_until)}</Badge>
+            <CardHeader className="gap-4 pb-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="flex min-w-0 gap-4">
+                    <div className={cn('flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-md border text-center', freshnessVerdictClass(freshness?.verdict))}>
+                        {loading ? (
+                            <Skeleton className="h-8 w-12" />
+                        ) : (
+                            <span className="text-3xl font-semibold leading-none">{freshness?.score ?? 0}</span>
                         )}
-                    </CardTitle>
-                    <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{stateCopy[state]}</p>
+                        <span className="mt-1 text-[11px] font-medium uppercase">Freshness</span>
+                    </div>
+                    <div className="min-w-0">
+                        <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+                            <Bot className="h-4 w-4 text-primary" />
+                            News Circulation Autopilot
+                            <Badge variant="outline" className={cn('capitalize', freshnessVerdictClass(freshness?.verdict))}>
+                                {freshness ? FRESHNESS_VERDICT_LABELS[freshness.verdict] : 'Checking'}
+                            </Badge>
+                            <Badge variant="outline" className={cn('capitalize', autopilotStateClass(state))}>
+                                {AUTOPILOT_STATE_LABELS[state]}
+                            </Badge>
+                            {status?.policy.autopilot_boost_until && state === 'boosting' && (
+                                <Badge variant="success">until {formatRelativeTime(status.policy.autopilot_boost_until)}</Badge>
+                            )}
+                        </CardTitle>
+                        <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+                            {freshness?.summary ?? 'Checking circulation health and freshness signals.'}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {(freshness?.reasons ?? []).slice(0, 3).map((reason) => (
+                                <span key={`${reason.label}-${reason.detail}`} className={cn('rounded-md border px-2.5 py-1 text-xs', reasonToneClass[reason.tone])}>
+                                    <span className="font-medium">{reason.label}</span>
+                                    <span className="ml-1 opacity-80">{reason.detail}</span>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <Button variant={enabled ? 'outline' : 'default'} size="sm" onClick={onStart} disabled={busy || loading}>
-                        <Power className="mr-2 h-4 w-4" />
-                        {enabled ? 'Autopilot On' : 'Start Autopilot'}
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <Button size="sm" onClick={primaryAction.onClick} disabled={primaryAction.disabled}>
+                        {busy && recommendedAction !== 'none' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : primaryAction.icon}
+                        {primaryAction.label}
                     </Button>
                     <Button variant="outline" size="sm" onClick={onRun} disabled={busy || loading}>
-                        {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                        <Play className="mr-2 h-4 w-4" />
                         Run Once
                     </Button>
                     <Button variant="outline" size="sm" onClick={onBoost} disabled={busy || loading || queueBlocked}>
                         <Sparkles className="mr-2 h-4 w-4" />
-                        Boost Freshness
+                        Boost
                     </Button>
                     <Button variant="ghost" size="sm" onClick={onPause} disabled={busy || loading || !enabled}>
                         <PauseCircle className="mr-2 h-4 w-4" />
@@ -845,12 +919,26 @@ function AutopilotCockpit({
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
                     <KpiTile
                         icon={<Activity className="h-4 w-4" />}
                         label="Today"
                         value={health?.today_story_count ?? 0}
-                        caption={`${health?.today_carryover_count ?? 0} carryover · ${Math.round((health?.today_carryover_ratio ?? 0) * 100)}%`}
+                        caption={`${status?.policy.min_today_stories ?? 8} target stories`}
+                        loading={loading}
+                    />
+                    <KpiTile
+                        icon={<Clock3 className="h-4 w-4" />}
+                        label="Carryover"
+                        value={`${carryoverPercent}%`}
+                        caption={`${health?.today_carryover_count ?? 0} carried stories`}
+                        loading={loading}
+                    />
+                    <KpiTile
+                        icon={<FileClock className="h-4 w-4" />}
+                        label="Snapshots"
+                        value={snapshotIssues}
+                        caption={snapshotSummary}
                         loading={loading}
                     />
                     <KpiTile
@@ -862,16 +950,9 @@ function AutopilotCockpit({
                     />
                     <KpiTile
                         icon={<Gauge className="h-4 w-4" />}
-                        label="Queue depth"
+                        label="Queue"
                         value={`${health?.queue_depth ?? 0}/${health?.max_queue_depth ?? 0}`}
                         caption={health?.aggregation_reachable ? 'Aggregation reachable' : health?.aggregation_error || 'Aggregation unavailable'}
-                        loading={loading}
-                    />
-                    <KpiTile
-                        icon={<FileClock className="h-4 w-4" />}
-                        label="Snapshots"
-                        value={snapshotIssues}
-                        caption="dirty or older than cache SLO"
                         loading={loading}
                     />
                     <KpiTile
@@ -883,22 +964,42 @@ function AutopilotCockpit({
                     />
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-                    <div className="rounded-md border bg-muted/20 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-semibold">Tool Access</p>
-                            <Badge variant={state === 'boosting' ? 'success' : 'secondary'}>
-                                {state === 'boosting' ? 'Boosted toolbelt' : 'Core toolbelt'}
-                            </Badge>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                            {(status?.allowed_tools ?? []).map((tool) => (
-                                <Badge key={tool} variant="outline" className="font-normal">
-                                    {tool.replaceAll('_', ' ')}
+                <div className="rounded-md border bg-background p-3">
+                    <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold">What Autopilot did</p>
+                        {latestRun && <Badge variant={latestRun.status === 'completed' ? 'success' : latestRun.status === 'failed' ? 'destructive' : 'warning'}>{latestRun.status}</Badge>}
+                    </div>
+                    <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                        {loading ? (
+                            Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)
+                        ) : actions.length === 0 ? (
+                            <EmptyState icon={<History className="h-5 w-5" />} title="No Autopilot actions yet" />
+                        ) : (
+                            actions.slice(0, 6).map((action) => <AutopilotActionRow key={action.id} action={action} />)
+                        )}
+                    </div>
+                </div>
+
+                <details className="rounded-md border bg-muted/20 p-3">
+                    <summary className="cursor-pointer text-sm font-semibold">Safety and tool access</summary>
+                    <div className="mt-3 grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                        <div>
+                            <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs font-medium text-muted-foreground">Allowed tools</p>
+                                <Badge variant={state === 'boosting' ? 'success' : 'secondary'}>
+                                    {state === 'boosting' ? 'Boosted toolbelt' : 'Core toolbelt'}
                                 </Badge>
-                            ))}
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                                {(status?.allowed_tools ?? []).map((tool) => (
+                                    <Badge key={tool} variant="outline" className="font-normal">
+                                        {tool.replaceAll('_', ' ')}
+                                    </Badge>
+                                ))}
+                            </div>
                         </div>
-                        <div className="mt-3 space-y-2">
+                        <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">Blocked tools</p>
                             {(status?.blocked_tools ?? []).slice(0, 4).map((tool) => (
                                 <div key={tool.name} className="rounded-sm border bg-background px-2 py-1.5">
                                     <p className="text-xs font-medium">{tool.name.replaceAll('_', ' ')}</p>
@@ -907,23 +1008,7 @@ function AutopilotCockpit({
                             ))}
                         </div>
                     </div>
-
-                    <div className="rounded-md border bg-background p-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-semibold">Latest Actions</p>
-                            {latestRun && <Badge variant={latestRun.status === 'completed' ? 'success' : latestRun.status === 'failed' ? 'destructive' : 'warning'}>{latestRun.status}</Badge>}
-                        </div>
-                        <div className="mt-3 space-y-2">
-                            {loading ? (
-                                Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)
-                            ) : actions.length === 0 ? (
-                                <EmptyState icon={<History className="h-5 w-5" />} title="No Autopilot actions yet" />
-                            ) : (
-                                actions.slice(0, 5).map((action) => <AutopilotActionRow key={action.id} action={action} />)
-                            )}
-                        </div>
-                    </div>
-                </div>
+                </details>
             </CardContent>
         </Card>
     );
@@ -941,7 +1026,7 @@ function AutopilotActionRow({ action }: { action: NewsAutopilotAction }) {
     return (
         <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 p-2.5">
             <div className="min-w-0">
-                <p className="truncate text-xs font-semibold">{action.tool_name.replaceAll('_', ' ')}</p>
+                <p className="truncate text-xs font-semibold">{AUTOPILOT_ACTION_LABELS[action.tool_name] ?? action.tool_name.replaceAll('_', ' ')}</p>
                 <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
                     {action.error || action.reason || formatRelativeTime(action.started_at)}
                 </p>
