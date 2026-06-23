@@ -10,6 +10,8 @@ import type {
     PreviewSourceResponse,
     DiscoverFeedsRequest,
     DiscoverFeedsResponse,
+    SourceStats,
+    SourceStatsParams,
 } from '@/types/platform/source';
 
 /**
@@ -18,6 +20,14 @@ import type {
  */
 export async function listSources(params?: ListSourcesParams): Promise<ListSourcesResponse> {
     return cmsClient.get<ListSourcesResponse>('/admin/sources', params);
+}
+
+/**
+ * Source monitoring aggregates for the Sources dashboard.
+ * GET /admin/sources/stats
+ */
+export async function getSourceStats(params?: SourceStatsParams): Promise<SourceStats> {
+    return cmsClient.get<SourceStats>('/admin/sources/stats', params);
 }
 
 /**

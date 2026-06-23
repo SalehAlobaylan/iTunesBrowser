@@ -1,7 +1,7 @@
 'use client';
 
 import { use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Play, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,6 +22,11 @@ interface SourceDetailPageProps {
 export default function SourceDetailPage({ params }: SourceDetailPageProps) {
     const { id } = use(params);
     const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // Return to the surface that opened the editor (Media Sources or News →
+    // Feeds Finding); fall back to the Sources dashboard.
+    const from = searchParams.get('from') || '/platform/sources';
 
     const { data: source, isLoading, error } = useSource(id);
     const updateMutation = useUpdateSource();
@@ -32,7 +37,7 @@ export default function SourceDetailPage({ params }: SourceDetailPageProps) {
             { id, data },
             {
                 onSuccess: () => {
-                    router.push('/platform/sources');
+                    router.push(from);
                 },
             }
         );
@@ -70,7 +75,7 @@ export default function SourceDetailPage({ params }: SourceDetailPageProps) {
             <div className="space-y-6">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" asChild>
-                        <Link href="/platform/sources">
+                        <Link href={from}>
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>
@@ -80,7 +85,7 @@ export default function SourceDetailPage({ params }: SourceDetailPageProps) {
                     The source you are looking for does not exist or has been deleted.
                 </p>
                 <Button asChild>
-                    <Link href="/platform/sources">Back to Sources</Link>
+                    <Link href={from}>Back to Sources</Link>
                 </Button>
             </div>
         );
@@ -92,7 +97,7 @@ export default function SourceDetailPage({ params }: SourceDetailPageProps) {
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="icon" asChild>
-                        <Link href="/platform/sources">
+                        <Link href={from}>
                             <ArrowLeft className="h-4 w-4" />
                         </Link>
                     </Button>

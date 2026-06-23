@@ -6,12 +6,15 @@ import {
   updateSource,
   deleteSource,
   runSource,
+  getSourceStats,
 } from '@/lib/api/cms/sources';
 import type {
   ContentSource,
   ListSourcesParams,
   CreateSourceRequest,
   UpdateSourceRequest,
+  SourceStatsParams,
+  SourceCategory,
 } from '@/types/platform/source';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
@@ -23,7 +26,56 @@ export const sourceKeys = {
   list: (params: ListSourcesParams) => [...sourceKeys.lists(), params] as const,
   details: () => [...sourceKeys.all, 'detail'] as const,
   detail: (id: string) => [...sourceKeys.details(), id] as const,
+  stats: (params: SourceStatsParams) => [...sourceKeys.all, 'stats', params] as const,
 };
+
+/**
+ * Hook to load the ENTIRE source fleet client-side (all pages), powering the
+ * Sources command center: the fleet grid, client-side health/category filtering,
+ * cross-category bulk-select, and chart/table reconciliation. Admin fleets are
+ * tens–low-hundreds of sources, so a bounded page-loop is fine.
+ *
+ * `options.paused` suspends the auto-refresh interval during bulk actions.
+ */
+export function useAllSources(
+  options: { paused?: boolean; category?: SourceCategory } = {}
+) {
+  const { paused = false, category } = options;
+  return useQuery({
+    queryKey: [...sourceKeys.all, 'fleet', category ?? 'all'] as const,
+    queryFn: async () => {
+      const PAGE = 100;
+      const first = await listSources({ page: 1, limit: PAGE, category });
+      const pages = first.total_pages ?? 1;
+      if (pages <= 1) return first.data;
+      const rest = await Promise.all(
+        Array.from({ length: pages - 1 }, (_, i) =>
+          listSources({ page: i + 2, limit: PAGE, category })
+        )
+      );
+      return [first.data, ...rest.map((r) => r.data)].flat();
+    },
+    staleTime: CACHE_CONFIG.lists.staleTime,
+    gcTime: CACHE_CONFIG.lists.gcTime,
+    refetchInterval: paused ? false : 30_000,
+    refetchIntervalInBackground: false,
+  });
+}
+
+/**
+ * Hook to fetch source monitoring aggregates for the Sources dashboard.
+ * Optionally scoped by category (news | media).
+ */
+export function useSourceStats(params: SourceStatsParams = {}) {
+  return useQuery({
+    queryKey: sourceKeys.stats(params),
+    queryFn: () => getSourceStats(params),
+    staleTime: CACHE_CONFIG.lists.staleTime,
+    gcTime: CACHE_CONFIG.lists.gcTime,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+  });
+}
 
 /**
  * Hook to fetch paginated list of sources.

@@ -12,7 +12,7 @@ import {
     Newspaper,
     Video,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -33,8 +33,13 @@ interface SourceRowActionsProps {
 
 export function SourceRowActions({ source, onDelete }: SourceRowActionsProps) {
     const router = useRouter();
+    const pathname = usePathname();
     const runMutation = useRunSource();
     const updateMutation = useUpdateSource();
+
+    // Editing returns to wherever the operator opened it from (Media Sources or
+    // News → Feeds Finding) rather than always the Sources dashboard.
+    const editHref = `/platform/sources/${source.id}?from=${encodeURIComponent(pathname)}`;
 
     const isRunning = runMutation.isPending && runMutation.variables === source.id;
 
@@ -70,9 +75,7 @@ export function SourceRowActions({ source, onDelete }: SourceRowActionsProps) {
                 >
                     <Play className="mr-2 h-4 w-4" /> Run now
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                    onClick={() => router.push(`/platform/sources/${source.id}`)}
-                >
+                <DropdownMenuItem onClick={() => router.push(editHref)}>
                     <Pencil className="mr-2 h-4 w-4" /> Open editor
                 </DropdownMenuItem>
                 <DropdownMenuItem

@@ -26,6 +26,7 @@ export interface ListSourcesParams {
     search?: string;
     is_active?: boolean;
     type?: SourceType;
+    category?: SourceCategory;
 }
 
 export interface ListSourcesResponse {
@@ -61,6 +62,56 @@ export interface UpdateSourceRequest {
 export interface RunSourceResponse {
     message: string;
     job_id?: string;
+}
+
+// --- Source monitoring stats (GET /admin/sources/stats) ---------------------
+// Mirrors sourceStatsResponse in CMS adminSourceController.go.
+
+export type SourceHealth = 'healthy' | 'stale' | 'never_run' | 'disabled';
+
+export interface SourceFreshness {
+    overdue_count: number;
+    due_soon_count: number;
+    fresh_count: number;
+    never_run_count: number;
+    oldest_fetched_at: string | null;
+}
+
+/** A source ranked by the content it has produced (joined by source name). */
+export interface SourceOutputStat {
+    name: string;
+    type: SourceType | '';
+    category: SourceCategory | '';
+    items: number;
+    ready: number;
+    failed: number;
+    last_item_at?: string;
+}
+
+/** A source that needs attention (active but stale or never run). */
+export interface SourceAttention {
+    id: string;
+    name: string;
+    type: SourceType;
+    category: SourceCategory;
+    health: SourceHealth;
+    last_fetched_at?: string;
+}
+
+export interface SourceStats {
+    total: number;
+    by_category: Record<SourceCategory, number>;
+    by_type: Record<string, number>;
+    by_status: Record<'active' | 'disabled', number>;
+    by_health: Record<SourceHealth, number>;
+    by_type_health: Record<string, Record<SourceHealth, number>>;
+    freshness: SourceFreshness;
+    top_sources: SourceOutputStat[];
+    recent_failures: SourceAttention[];
+}
+
+export interface SourceStatsParams {
+    category?: SourceCategory;
 }
 
 // Source type display labels
