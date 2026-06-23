@@ -59,6 +59,15 @@ export interface MissingEnrichmentsResponse {
     offset: number;
 }
 
+export interface MissingEnrichmentCounts {
+    transcript: number;
+    embedding: number;
+    sparse: number;
+    image: number;
+    transcript_image: number;
+    embedding_sparse: number;
+}
+
 export interface MissingEnrichmentsParams {
     missing?: string;
     type?: string;

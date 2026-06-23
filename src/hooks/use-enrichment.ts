@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     getEnrichmentStats,
     getMissingEnrichments,
+    getMissingEnrichmentCounts,
     getEnrichmentHealth,
     triggerEnrichment,
     triggerBatchEnrichment,
@@ -21,8 +22,8 @@ export const enrichmentKeys = {
     missing: () => [...enrichmentKeys.all, 'missing'] as const,
     missingList: (params: MissingEnrichmentsParams) =>
         [...enrichmentKeys.missing(), params] as const,
-    missingCount: (missing: string, type: string) =>
-        [...enrichmentKeys.missing(), 'count', missing, type] as const,
+    missingCounts: (type: string, status: string) =>
+        [...enrichmentKeys.missing(), 'counts', type, status] as const,
     bulkStatus: () => [...enrichmentKeys.all, 'bulk-status'] as const,
 };
 
@@ -52,6 +53,15 @@ export function useMissingEnrichments(params: MissingEnrichmentsParams = {}) {
     return useQuery({
         queryKey: enrichmentKeys.missingList(params),
         queryFn: () => getMissingEnrichments(params),
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+    });
+}
+
+export function useMissingEnrichmentCounts(type: string, status = 'READY') {
+    return useQuery({
+        queryKey: enrichmentKeys.missingCounts(type, status),
+        queryFn: () => getMissingEnrichmentCounts({ type, status }),
         staleTime: CACHE_CONFIG.lists.staleTime,
         gcTime: CACHE_CONFIG.lists.gcTime,
     });
@@ -113,22 +123,6 @@ export function useTriggerBatchEnrichment() {
                 variant: 'destructive',
             });
         },
-    });
-}
-
-/**
- * Count of items missing a single artifact, scoped to a content-type filter.
- * Reuses the missing endpoint with limit=1 and reads `.total` — cheap COUNT.
- */
-export function useMissingCount(missing: string, type: string, enabled = true) {
-    return useQuery({
-        queryKey: enrichmentKeys.missingCount(missing, type),
-        queryFn: () =>
-            getMissingEnrichments({ missing, type, status: 'READY', limit: 1, offset: 0 }),
-        select: (data) => data.total,
-        enabled,
-        staleTime: CACHE_CONFIG.lists.staleTime,
-        gcTime: CACHE_CONFIG.lists.gcTime,
     });
 }
 

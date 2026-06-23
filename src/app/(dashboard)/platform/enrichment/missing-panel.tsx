@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/table';
 import {
     useMissingEnrichments,
-    useMissingCount,
+    useMissingEnrichmentCounts,
     useTriggerEnrichment,
     useTriggerAllEnrichment,
 } from '@/hooks/use-enrichment';
@@ -23,6 +23,7 @@ import type {
     MissingEnrichmentsParams,
     MissingEnrichmentItem,
     EnrichmentArtifact,
+    MissingEnrichmentCounts,
 } from '@/types/platform/enrichment';
 
 // ── Artifact metadata ───────────────────────────────────────
@@ -59,16 +60,37 @@ function formatDate(iso: string): string {
 
 const limit = 20;
 
-// ── "Enrich all" button (owns its own live count) ───────────
+function countForMissingKey(
+    counts: MissingEnrichmentCounts | undefined,
+    missingKey: string
+): number {
+    if (!counts) return 0;
+    switch (missingKey) {
+        case 'transcript':
+            return counts.transcript;
+        case 'embedding':
+            return counts.embedding;
+        case 'sparse':
+            return counts.sparse;
+        case 'image':
+            return counts.image;
+        case 'transcript,image':
+            return counts.transcript_image;
+        case 'embedding,sparse':
+            return counts.embedding_sparse;
+        default:
+            return 0;
+    }
+}
+
+// ── "Enrich all" button ────────────────────────────────────
 
 interface EnrichAllButtonProps {
     label: string;
     /** `missing` query value used to count matching items (artifact or comma-list). */
-    missingKey: string;
-    /** Artifact types to trigger. */
     triggerTypes: string[];
-    /** Content-type scope (e.g. "VIDEO,PODCAST"). */
-    type: string;
+    count: number;
+    isCountLoading: boolean;
     disabled: boolean;
     primary?: boolean;
     onTrigger: (types: string[]) => void;
@@ -76,15 +98,13 @@ interface EnrichAllButtonProps {
 
 function EnrichAllButton({
     label,
-    missingKey,
     triggerTypes,
-    type,
+    count,
+    isCountLoading,
     disabled,
     primary,
     onTrigger,
 }: EnrichAllButtonProps) {
-    const { data: count = 0, isLoading } = useMissingCount(missingKey, type);
-
     const cls = primary
         ? 'bg-primary text-primary-foreground hover:bg-primary/90'
         : 'bg-primary/10 text-primary hover:bg-primary/20';
@@ -99,7 +119,7 @@ function EnrichAllButton({
             <Zap className="h-4 w-4" />
             <span>Enrich all {label}</span>
             <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-background/30 text-xs font-semibold">
-                {isLoading ? '…' : count}
+                {isCountLoading ? '…' : count}
             </span>
         </button>
     );
@@ -155,6 +175,8 @@ export function MissingPanel({
     );
 
     const { data: missing, isLoading } = useMissingEnrichments(params);
+    const { data: missingCounts, isLoading: countsLoading } =
+        useMissingEnrichmentCounts(effectiveType, 'READY');
 
     const items = missing?.items ?? [];
     const total = missing?.total ?? 0;
@@ -226,9 +248,9 @@ export function MissingPanel({
                         <EnrichAllButton
                             key={a.value}
                             label={a.label}
-                            missingKey={a.value}
                             triggerTypes={[a.value]}
-                            type={effectiveType}
+                            count={countForMissingKey(missingCounts, a.value)}
+                            isCountLoading={countsLoading}
                             disabled={triggersDisabled}
                             onTrigger={handleEnrichAll}
                         />
@@ -236,9 +258,9 @@ export function MissingPanel({
                     {artifacts.length > 1 && (
                         <EnrichAllButton
                             label="Missing"
-                            missingKey={allArtifacts}
                             triggerTypes={artifacts.map((a) => a.value)}
-                            type={effectiveType}
+                            count={countForMissingKey(missingCounts, allArtifacts)}
+                            isCountLoading={countsLoading}
                             disabled={triggersDisabled}
                             primary
                             onTrigger={handleEnrichAll}

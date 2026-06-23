@@ -1,6 +1,7 @@
 import { cmsClient } from '@/lib/api/client';
 import type {
     EnrichmentStats,
+    MissingEnrichmentCounts,
     MissingEnrichmentsResponse,
     MissingEnrichmentsParams,
     EnrichmentHealthResponse,
@@ -31,6 +32,11 @@ export const getEnrichmentStats = () =>
 export const getMissingEnrichments = (params?: MissingEnrichmentsParams) =>
     unwrapCmsData(
         cmsClient.get<CmsEnvelope<MissingEnrichmentsResponse>>('/admin/enrichment/missing', params)
+    );
+
+export const getMissingEnrichmentCounts = (params?: Pick<MissingEnrichmentsParams, 'type' | 'status'>) =>
+    unwrapCmsData(
+        cmsClient.get<CmsEnvelope<MissingEnrichmentCounts>>('/admin/enrichment/missing-counts', params)
     );
 
 // ── Trigger Single ──────────────────────────────────────────
