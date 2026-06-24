@@ -5,6 +5,7 @@ import type { WizardAction, WizardState } from './types';
 import { ConnectYoutube } from './connect/youtube';
 import { ConnectTelegram } from './connect/telegram';
 import { ConnectRss } from './connect/rss';
+import { ConnectPodcast } from './connect/podcast';
 import { ConnectGeneric, ConnectManual } from './connect/generic';
 
 interface StepConnectProps {
@@ -17,7 +18,17 @@ export function StepConnect({ state, dispatch }: StepConnectProps) {
 
     switch (state.type) {
         case 'YOUTUBE':
-            return <ConnectYoutube value={state.feedUrl} onChange={setUrl} />;
+            return (
+                <ConnectYoutube
+                    value={state.feedUrl}
+                    onChange={setUrl}
+                    onResolved={(channel) => {
+                        if (channel.thumbnail) dispatch({ kind: 'set_image_url', url: channel.thumbnail });
+                        if (channel.title && !state.name.trim())
+                            dispatch({ kind: 'set_name', name: channel.title });
+                    }}
+                />
+            );
         case 'TELEGRAM':
             return (
                 <ConnectTelegram
@@ -42,12 +53,14 @@ export function StepConnect({ state, dispatch }: StepConnectProps) {
             );
         case 'PODCAST':
             return (
-                <ConnectRss
+                <ConnectPodcast
                     value={state.feedUrl}
                     onChange={setUrl}
-                    label="Podcast feed URL"
-                    placeholder="https://feeds.example.com/podcast.xml"
-                    enableDiscover={false}
+                    onPick={(podcast) => {
+                        dispatch({ kind: 'set_feed_url', url: podcast.feed_url });
+                        if (podcast.image_url) dispatch({ kind: 'set_image_url', url: podcast.image_url });
+                        if (podcast.name) dispatch({ kind: 'set_name', name: podcast.name });
+                    }}
                 />
             );
         case 'TWITTER':

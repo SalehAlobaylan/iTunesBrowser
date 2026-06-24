@@ -159,6 +159,29 @@ export interface PreviewItem {
     author?: string;
     originalUrl: string;
     publishedAt?: string;
+    // Rich media metadata (media sources) for the add-source preview.
+    thumbnailUrl?: string;
+    durationSec?: number;
+}
+
+// --- Media-add discovery (podcast search, youtube resolve) ------------------
+
+export interface ItunesPodcast {
+    id: number;
+    name: string;
+    feed_url: string;
+    image_url?: string;
+}
+
+export interface PodcastSearchResponse {
+    results: ItunesPodcast[];
+}
+
+export interface YoutubeResolved {
+    channel_id: string;
+    title: string;
+    thumbnail?: string;
+    subscriber_count?: number;
 }
 
 export interface PreviewSourceResponse {

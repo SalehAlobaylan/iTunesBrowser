@@ -1,10 +1,12 @@
 import { useMutation } from '@tanstack/react-query';
-import { previewSource, discoverFeeds } from '@/lib/api/cms/sources';
+import { previewSource, discoverFeeds, searchPodcasts, resolveYoutube } from '@/lib/api/cms/sources';
 import type {
     PreviewSourceRequest,
     PreviewSourceResponse,
     DiscoverFeedsRequest,
     DiscoverFeedsResponse,
+    PodcastSearchResponse,
+    YoutubeResolved,
 } from '@/types/platform/source';
 import { toast } from '@/components/ui/toast';
 
@@ -34,6 +36,38 @@ export function useDiscoverFeeds() {
         onError: (error) => {
             toast({
                 title: 'Discover failed',
+                description: error.message,
+                variant: 'destructive',
+            });
+        },
+    });
+}
+
+/**
+ * Search iTunes for podcasts by name. User-triggered — mutation.
+ */
+export function useSearchPodcasts() {
+    return useMutation<PodcastSearchResponse, Error, string>({
+        mutationFn: (term) => searchPodcasts(term),
+        onError: (error) => {
+            toast({
+                title: 'Podcast search failed',
+                description: error.message,
+                variant: 'destructive',
+            });
+        },
+    });
+}
+
+/**
+ * Resolve a YouTube channel URL/@handle to channel metadata. User-triggered.
+ */
+export function useResolveYoutube() {
+    return useMutation<YoutubeResolved, Error, string>({
+        mutationFn: (url) => resolveYoutube(url),
+        onError: (error) => {
+            toast({
+                title: 'Channel resolve failed',
                 description: error.message,
                 variant: 'destructive',
             });

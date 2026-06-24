@@ -23,6 +23,15 @@ function formatDate(value?: string): string {
     return d.toLocaleString();
 }
 
+function formatDuration(sec?: number): string | null {
+    if (!sec || sec <= 0) return null;
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 export function PreviewTable({ items }: PreviewTableProps) {
     // Defensive: a failed/error preview response (e.g. timeout) may omit `items`
     // entirely. Guard against undefined so the wizard shows the empty state
@@ -36,12 +45,14 @@ export function PreviewTable({ items }: PreviewTableProps) {
         );
     }
 
+    const hasThumbs = items.some((i) => i.thumbnailUrl);
+
     return (
         <div className="overflow-hidden rounded-md border">
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead className="w-[40%]">Title</TableHead>
+                        <TableHead className="w-[45%]">Title</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Author</TableHead>
                         <TableHead>Published</TableHead>
@@ -49,42 +60,74 @@ export function PreviewTable({ items }: PreviewTableProps) {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {items.map((item) => (
-                        <TableRow key={item.idempotencyKey}>
-                            <TableCell className="max-w-0">
-                                <div className="truncate font-medium">{item.title}</div>
-                                {item.excerpt && (
-                                    <div className="truncate text-xs text-muted-foreground">
-                                        {item.excerpt}
+                    {items.map((item) => {
+                        const duration = formatDuration(item.durationSec);
+                        return (
+                            <TableRow key={item.idempotencyKey}>
+                                <TableCell className="max-w-0">
+                                    <div className="flex items-center gap-3">
+                                        {hasThumbs && (
+                                            <div className="relative h-10 w-16 shrink-0 overflow-hidden rounded bg-muted">
+                                                {item.thumbnailUrl && (
+                                                    // eslint-disable-next-line @next/next/no-img-element
+                                                    <img
+                                                        src={item.thumbnailUrl}
+                                                        alt=""
+                                                        loading="lazy"
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                )}
+                                                {duration && (
+                                                    <span className="absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 text-[9px] font-medium tabular-nums text-white">
+                                                        {duration}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div className="min-w-0">
+                                            <div className="truncate font-medium">{item.title}</div>
+                                            {item.excerpt && (
+                                                <div className="truncate text-xs text-muted-foreground">
+                                                    {item.excerpt}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                )}
-                            </TableCell>
-                            <TableCell>
-                                <Badge variant="secondary" className="text-[10px]">
-                                    {item.type}
-                                </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                                {item.author || '—'}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                                {formatDate(item.publishedAt)}
-                            </TableCell>
-                            <TableCell>
-                                {item.originalUrl && (
-                                    <a
-                                        href={item.originalUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-muted-foreground hover:text-foreground"
-                                        aria-label="Open original"
-                                    >
-                                        <ExternalLink className="h-4 w-4" />
-                                    </a>
-                                )}
-                            </TableCell>
-                        </TableRow>
-                    ))}
+                                </TableCell>
+                                <TableCell>
+                                    <div className="flex flex-col gap-1">
+                                        <Badge variant="secondary" className="w-fit text-[10px]">
+                                            {item.type}
+                                        </Badge>
+                                        {duration && !hasThumbs && (
+                                            <span className="text-xs tabular-nums text-muted-foreground">
+                                                {duration}
+                                            </span>
+                                        )}
+                                    </div>
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                    {item.author || '—'}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                    {formatDate(item.publishedAt)}
+                                </TableCell>
+                                <TableCell>
+                                    {item.originalUrl && (
+                                        <a
+                                            href={item.originalUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-muted-foreground hover:text-foreground"
+                                            aria-label="Open original"
+                                        >
+                                            <ExternalLink className="h-4 w-4" />
+                                        </a>
+                                    )}
+                                </TableCell>
+                            </TableRow>
+                        );
+                    })}
                 </TableBody>
             </Table>
         </div>

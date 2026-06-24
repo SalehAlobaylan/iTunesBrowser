@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import type { ContentSource, CreateSourceRequest } from '@/types/platform/source';
+import type { ContentSource, CreateSourceRequest, SourceType } from '@/types/platform/source';
 
 import {
     initialWizardState,
@@ -27,6 +27,10 @@ interface SourceWizardProps {
     isSubmitting?: boolean;
     /** Pass an existing source to enter edit mode. */
     source?: ContentSource;
+    /** Restrict the type picker (e.g. media-only add flow). */
+    allowedTypes?: SourceType[];
+    /** Apply media-friendly defaults (e.g. Telegram audio/voice/video). */
+    mediaDefaults?: boolean;
 }
 
 const STEPS: { id: WizardStep; title: string; subtitle: string }[] = [
@@ -36,7 +40,13 @@ const STEPS: { id: WizardStep; title: string; subtitle: string }[] = [
     { id: 4, title: 'Settings', subtitle: 'Name, schedule, filters' },
 ];
 
-export function SourceWizard({ onSubmit, isSubmitting, source }: SourceWizardProps) {
+export function SourceWizard({
+    onSubmit,
+    isSubmitting,
+    source,
+    allowedTypes,
+    mediaDefaults,
+}: SourceWizardProps) {
     const isEdit = Boolean(source);
     const editInit = useMemo(
         () => (source ? sourceToWizardState(source) : undefined),
@@ -100,8 +110,13 @@ export function SourceWizard({ onSubmit, isSubmitting, source }: SourceWizardPro
                 {state.step === 1 && !isEdit && (
                     <StepTypeSelect
                         selected={state.type}
+                        allowedTypes={allowedTypes}
                         onSelect={(type) => {
                             dispatch({ kind: 'set_type', type });
+                            // Media flow: default Telegram to the For-You media kinds.
+                            if (mediaDefaults && type === 'TELEGRAM') {
+                                dispatch({ kind: 'toggle_telegram_media', media: 'video', on: true });
+                            }
                             dispatch({ kind: 'set_step', step: 2 });
                         }}
                     />

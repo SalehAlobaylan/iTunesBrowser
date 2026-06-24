@@ -7,26 +7,28 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAllSources, useSourceStats, sourceKeys } from '@/hooks/use-sources';
-import { useListQueryState } from '@/components/platform/sources/list/use-list-query-state';
 import { FleetStatRibbon } from '@/components/platform/sources/fleet/fleet-stat-ribbon';
 import { SourceFleetGrid } from '@/components/platform/sources/fleet/source-fleet-grid';
 import { SourceTypeChart } from '@/components/platform/sources/fleet/source-type-chart';
 import { SourceOutputChart } from '@/components/platform/sources/fleet/source-output-chart';
 import { FetchCadenceChart } from '@/components/platform/sources/fleet/fetch-cadence-chart';
-import { SourcesManager } from '@/components/platform/sources/fleet/sources-manager';
+import { SourcesManagement, type ManageTab } from '@/components/platform/sources/manage/sources-management';
 
 const RETURN_TO = '/platform/sources';
 
+// Clicking a Fleet-Grid lane jumps to the manager tab that owns that type.
+const laneToTab = (type: string): ManageTab =>
+    type === 'YOUTUBE' || type === 'PODCAST' ? 'media' : 'news';
+
 /**
  * Sources — the fleet operations command center. A signature Fleet Grid (every
- * source as a health-colored tile) sits above focused charts and a cross-category
- * management table with bulk actions. News sources are also curated in News →
- * Feeds Finding and media in Media → Media Sources; this is the all-fleet view.
+ * source as a health-colored tile) sits above focused charts and a tabbed
+ * management section (News ingestion-flow table · Media card gallery).
  */
 export default function SourcesPage() {
     const queryClient = useQueryClient();
-    const { state, setState, toggleSort } = useListQueryState();
     const [bulkBusy, setBulkBusy] = useState(false);
+    const [tab, setTab] = useState<ManageTab>('news');
 
     const fleet = useAllSources({ paused: bulkBusy });
     const stats = useSourceStats();
@@ -81,11 +83,8 @@ export default function SourcesPage() {
                     <SourceFleetGrid
                         sources={sources}
                         isLoading={fleet.isLoading}
-                        activeType={state.type}
-                        activeHealth={state.health}
-                        onSelectType={(type) => setState({ type })}
-                        onSelectHealth={(health) => setState({ health })}
                         returnTo={RETURN_TO}
+                        onLaneSelect={(type) => setTab(laneToTab(type))}
                     />
 
                     {/* Charts */}
@@ -95,16 +94,15 @@ export default function SourcesPage() {
                         <FetchCadenceChart sources={sources} isLoading={fleet.isLoading} />
                     </div>
 
-                    {/* Cross-category management */}
-                    <SourcesManager
-                        sources={sources}
+                    {/* Tabbed management — News · Media */}
+                    <SourcesManagement
+                        allSources={sources}
                         isLoading={fleet.isLoading}
-                        isError={Boolean(fleet.error)}
-                        state={state}
-                        setState={setState}
-                        toggleSort={toggleSort}
                         onBusyChange={setBulkBusy}
                         refetch={fleet.refetch}
+                        returnTo={RETURN_TO}
+                        value={tab}
+                        onValueChange={setTab}
                     />
                 </>
             )}

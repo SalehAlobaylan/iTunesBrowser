@@ -37,6 +37,9 @@ interface SourceActionMenuProps {
     onRequestDelete: (id: string) => void;
     /** Optional compact trigger (icon only) vs. default ghost icon button. */
     align?: 'start' | 'end';
+    /** Called after a successful mutation — surfaces that load from a different
+     *  query key (e.g. the news list) can refetch immediately. */
+    onChanged?: () => void;
 }
 
 /**
@@ -49,6 +52,7 @@ export function SourceActionMenu({
     returnTo,
     onRequestDelete,
     align = 'end',
+    onChanged,
 }: SourceActionMenuProps) {
     const router = useRouter();
     const queryClient = useQueryClient();
@@ -61,6 +65,7 @@ export function SourceActionMenu({
         try {
             await fn();
             invalidate();
+            onChanged?.();
             toast({ title: ok, variant: 'success' });
         } catch (e) {
             toast({

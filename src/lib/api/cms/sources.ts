@@ -12,6 +12,8 @@ import type {
     DiscoverFeedsResponse,
     SourceStats,
     SourceStatsParams,
+    PodcastSearchResponse,
+    YoutubeResolved,
 } from '@/types/platform/source';
 
 /**
@@ -88,4 +90,20 @@ export async function discoverFeeds(
     req: DiscoverFeedsRequest
 ): Promise<DiscoverFeedsResponse> {
     return cmsClient.post<DiscoverFeedsResponse>('/admin/sources/discover', req);
+}
+
+/**
+ * Search iTunes for podcasts by name (Add Media Source flow).
+ * GET /admin/sources/podcast-search
+ */
+export async function searchPodcasts(term: string): Promise<PodcastSearchResponse> {
+    return cmsClient.get<PodcastSearchResponse>('/admin/sources/podcast-search', { term });
+}
+
+/**
+ * Resolve a YouTube channel URL/@handle to channel metadata (name + avatar).
+ * GET /admin/sources/youtube-resolve
+ */
+export async function resolveYoutube(url: string): Promise<YoutubeResolved> {
+    return cmsClient.get<YoutubeResolved>('/admin/sources/youtube-resolve', { url });
 }

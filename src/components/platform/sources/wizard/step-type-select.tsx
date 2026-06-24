@@ -18,6 +18,8 @@ import { SourceTypeCard } from './source-type-card';
 interface StepTypeSelectProps {
     selected: SourceType | null;
     onSelect: (type: SourceType) => void;
+    /** When set, only these types are offered (e.g. media-only add flow). */
+    allowedTypes?: SourceType[];
 }
 
 interface TypeMeta {
@@ -81,7 +83,35 @@ const TYPE_ORDER: SourceType[] = [
     'MANUAL',
 ];
 
-export function StepTypeSelect({ selected, onSelect }: StepTypeSelectProps) {
+export function StepTypeSelect({ selected, onSelect, allowedTypes }: StepTypeSelectProps) {
+    // Media-only (or otherwise scoped) flow: one focused group, no priority split.
+    if (allowedTypes && allowedTypes.length > 0) {
+        const types = TYPE_ORDER.filter((t) => allowedTypes.includes(t));
+        return (
+            <div>
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Media source type
+                </h2>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {types.map((t) => {
+                        const meta = TYPE_META[t];
+                        return (
+                            <SourceTypeCard
+                                key={t}
+                                icon={meta.icon}
+                                label={SOURCE_TYPE_LABELS[t]}
+                                description={meta.description}
+                                feedHint={meta.feedHint}
+                                selected={selected === t}
+                                onSelect={() => onSelect(t)}
+                            />
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    }
+
     const priority = TYPE_ORDER.filter((t) => TYPE_META[t].priority === 1);
     const secondary = TYPE_ORDER.filter((t) => TYPE_META[t].priority === 2);
 
