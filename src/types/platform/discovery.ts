@@ -6,6 +6,7 @@ export interface DiscoveryProfile {
     description: string;
     keywords: string[];
     languages: string[];
+    category: 'news' | 'media';
     enabled: boolean;
     max_suggestions_per_run: number;
     last_run_at?: string;
@@ -18,6 +19,7 @@ export interface CreateProfileRequest {
     description?: string;
     keywords?: string[];
     languages?: string[];
+    category?: 'news' | 'media';
     enabled?: boolean;
     max_suggestions_per_run?: number;
 }
@@ -34,6 +36,15 @@ export interface SuggestionHealth {
     items_count?: number;
     last_item_at?: string | null;
     parse_ok?: boolean;
+    // Media (For You) channel signals stashed by the YouTube/podcast contributors.
+    bio?: string; // channel/show title (friendly display name)
+    subscribers?: number;
+    image?: string;
+    // Audio-first detection (YouTube): talk-driven (works as audio) vs visual
+    // (Music/Gaming/Sports). category = the dominant sampled YouTube category.
+    audio_first?: boolean;
+    category?: string;
+    duration_sec?: number;
 }
 
 export type SuggestionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -49,6 +60,10 @@ export interface SuggestionEvidence {
     subscribers?: number;
     // Deterministic source classification: official | news | person | other.
     source_class?: string;
+    // Media (For You) signals.
+    caption_state?: 'youtube_human' | 'youtube_auto' | 'none';
+    needs_chaptering?: boolean;
+    median_duration_sec?: number;
 }
 
 export interface SourceSuggestion {
@@ -66,6 +81,7 @@ export interface SourceSuggestion {
     sample_items?: SuggestionSampleItem[];
     evidence?: SuggestionEvidence;
     discovered_via?: string;
+    category?: 'news' | 'media';
     status: SuggestionStatus;
     reject_reason?: string;
     created_at: string;
@@ -114,6 +130,11 @@ export interface DiscoveryConfig {
     telegram_discovery_enabled: boolean;
     twitter_discovery_enabled: boolean;
     twitter_recommend_enabled: boolean;
+    youtube_discovery_enabled: boolean;
+    podcast_discovery_enabled: boolean;
+    youtube_related_enabled: boolean;
+    apple_related_enabled: boolean;
+    media_initial_max_episodes: number;
     graph_build_interval_hours: number;
     promotion_threshold: number;
     weight_citation: number;

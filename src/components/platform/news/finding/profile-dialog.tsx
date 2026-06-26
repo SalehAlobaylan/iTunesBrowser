@@ -27,10 +27,14 @@ export function ProfileDialog({
     open,
     onClose,
     profile,
+    category,
 }: {
     open: boolean;
     onClose: () => void;
     profile?: DiscoveryProfile | null;
+    // When set (e.g. 'media' for the For You hub), new interests are scoped to
+    // that discovery category. Defaults to news.
+    category?: 'news' | 'media';
 }) {
     const create = useCreateProfile();
     const update = useUpdateProfile();
@@ -83,6 +87,9 @@ export function ProfileDialog({
             keywords: finalKeywords,
             languages: languages.length ? languages : ['ar'],
             max_suggestions_per_run: Number(maxPerRun) || 15,
+            // Preserve the existing profile's category on edit; otherwise apply the
+            // hub default (media for For You, news otherwise).
+            ...(profile?.category || category ? { category: profile?.category ?? category } : {}),
         };
         if (!payload.name) return;
         if (profile) {
@@ -98,7 +105,11 @@ export function ProfileDialog({
             <DialogContent className="max-w-lg">
                 <DialogHeader>
                     <DialogTitle>{profile ? 'Edit interest' : 'New interest'}</DialogTitle>
-                    <DialogDescription>Wahb hunts for news sources matching this interest and ranks them for review.</DialogDescription>
+                    <DialogDescription>
+                        {(profile?.category ?? category) === 'media'
+                            ? 'Wahb hunts for podcasts and YouTube channels matching this interest and ranks them for review.'
+                            : 'Wahb hunts for news sources matching this interest and ranks them for review.'}
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">

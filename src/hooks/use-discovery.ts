@@ -25,8 +25,8 @@ import { CACHE_CONFIG } from '@/app/providers';
 export const discoveryKeys = {
     all: ['discovery'] as const,
     profiles: () => [...discoveryKeys.all, 'profiles'] as const,
-    suggestions: (profileId?: string, status?: string) =>
-        [...discoveryKeys.all, 'suggestions', profileId ?? 'all', status ?? 'PENDING'] as const,
+    suggestions: (profileId?: string, status?: string, category?: string) =>
+        [...discoveryKeys.all, 'suggestions', profileId ?? 'all', status ?? 'PENDING', category ?? 'all'] as const,
     sources: (profileId?: string) => [...discoveryKeys.all, 'sources', profileId ?? 'all'] as const,
     config: () => [...discoveryKeys.all, 'config'] as const,
 };
@@ -138,20 +138,20 @@ export function useSuggestProfiles() {
     });
 }
 
-export function useSuggestions(profileId?: string, status: string = 'PENDING') {
+export function useSuggestions(profileId?: string, status: string = 'PENDING', category?: string) {
     return useQuery({
-        queryKey: discoveryKeys.suggestions(profileId, status),
-        queryFn: () => listSuggestions({ profile_id: profileId, status, limit: 100 }),
+        queryKey: discoveryKeys.suggestions(profileId, status, category),
+        queryFn: () => listSuggestions({ profile_id: profileId, status, category, limit: 100 }),
         staleTime: CACHE_CONFIG.lists.staleTime,
         gcTime: CACHE_CONFIG.lists.gcTime,
         refetchInterval: 30_000,
     });
 }
 
-export function useNewsSources(profileId?: string) {
+export function useNewsSources(profileId?: string, category?: string) {
     return useQuery({
-        queryKey: discoveryKeys.sources(profileId),
-        queryFn: () => listNewsSources(profileId),
+        queryKey: [...discoveryKeys.sources(profileId), category ?? 'news'] as const,
+        queryFn: () => listNewsSources(profileId, category),
         staleTime: CACHE_CONFIG.lists.staleTime,
         gcTime: CACHE_CONFIG.lists.gcTime,
         // Reflect run/enable/disable/delete done via the shared source hooks

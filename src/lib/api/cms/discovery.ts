@@ -42,6 +42,7 @@ export async function suggestProfiles(): Promise<ListResponse<SuggestedProfileDr
 export async function listSuggestions(params: {
     status?: string;
     profile_id?: string;
+    category?: string;
     page?: number;
     limit?: number;
 }): Promise<SuggestionsResponse> {
@@ -66,10 +67,13 @@ export async function bulkRejectSuggestions(ids: string[]): Promise<unknown> {
 
 // ---------- Active news sources (hub) ----------
 
-export async function listNewsSources(profileId?: string): Promise<ListResponse<NewsSource>> {
+export async function listNewsSources(profileId?: string, category?: string): Promise<ListResponse<NewsSource>> {
+    const params: Record<string, string> = {};
+    if (profileId) params.profile_id = profileId;
+    if (category) params.category = category;
     return cmsClient.get<ListResponse<NewsSource>>(
         '/admin/discovery/sources',
-        profileId ? { profile_id: profileId } : undefined
+        Object.keys(params).length ? params : undefined
     );
 }
 

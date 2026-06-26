@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { Radar } from 'lucide-react';
 
 import { useAllSources, useSourceStats } from '@/hooks/use-sources';
 import { isMediaSource } from '@/lib/sources/media';
@@ -36,17 +37,25 @@ export default function MediaSourcesPage() {
     return (
         <div className="space-y-5">
             {/* Header */}
-            <div>
-                <span className="brand-overline text-gold">For You</span>
-                <h1 className="text-2xl font-semibold">Media Sources</h1>
-                <p className="text-sm text-muted-foreground">
-                    Channels feeding the For You pipeline — video, podcast, and Telegram channels
-                    that pull audio/video. Text-only Telegram news channels live in{' '}
-                    <Link href="/platform/news/finding" className="underline">
-                        Feeds Finding
-                    </Link>
-                    .
-                </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <span className="brand-overline text-gold">For You</span>
+                    <h1 className="text-2xl font-semibold">Media Sources</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Channels feeding the For You pipeline — video, podcast, and Telegram channels
+                        that pull audio/video. Text-only Telegram news channels live in{' '}
+                        <Link href="/platform/news/finding" className="underline">
+                            Feeds Finding
+                        </Link>
+                        .
+                    </p>
+                </div>
+                <Link
+                    href="/platform/media/finding"
+                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+                >
+                    <Radar className="h-4 w-4 text-gold" /> Find more sources
+                </Link>
             </div>
 
             {/* Summary + output chart */}
