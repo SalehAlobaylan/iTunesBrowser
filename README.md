@@ -58,8 +58,9 @@ By design there is **no direct DB or queue access** — tuning knobs live behind
 
 The Atomization page is the command center for long-media chaptering. It consumes CMS `/admin/media-atomization/*` APIs only; Console must not infer state from queues or write atomization records directly.
 
-- Shows policy invariants: atomize only >40m, feed floor 4:30, hard max 40m, short chapters merge.
-- Pipeline rail columns: Ready, Transcript, Planning, Cutting, Embedding, Review, Published, Failed.
+- Shows editable tenant policy, source overrides, episode controls, and policy invariants: atomize only >40m, feed floor 4:30, hard max 40m, short chapters merge.
+- Operators can exclude whole media sources, exclude/enable one parent episode, and queue or re-queue eligible >40m parents through CMS.
+- Pipeline rail columns: Ready, Transcript, Planning, Cutting, Embedding, Review, Published, Disabled, Failed.
 - Review queue exposes confidence, duration bucket, review reason, playback preview, Media Studio link, and approve/reject actions.
 - Stale/offline states should identify the failed API and disable mutating actions when live data is unavailable.
 

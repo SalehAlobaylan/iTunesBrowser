@@ -56,6 +56,9 @@ export interface MediaAtomizationOverview {
     visible_over_hard_max_count?: number;
     short_parent_active_child_count?: number;
     short_chapter_review_count?: number;
+    disabled_episode_count?: number;
+    disabled_source_count?: number;
+    manual_requested_count?: number;
     invariants?: MediaAtomizationInvariants;
     policy?: MediaAtomizationPolicySnapshot;
     average_chapters_per_parent: number;
@@ -70,6 +73,39 @@ export interface MediaAtomizationPolicySnapshot {
     min_feed_unit_seconds: number;
     atomization_min_parent_seconds: number;
     hard_max_feed_unit_seconds: number;
+}
+
+export interface MediaAtomizationPolicy {
+    chaptering_enabled: boolean;
+    auto_publish_high_confidence: boolean;
+    parent_feed_visible: boolean;
+    preserve_video: boolean;
+    remove_sponsor_segments: boolean;
+    min_chapter_minutes: number;
+    min_feed_unit_seconds: number;
+    soft_max_chapter_minutes: number;
+    hard_max_chapter_minutes: number;
+    atomization_min_parent_seconds: number;
+    max_chapters_per_parent: number;
+    chaptering_mode: string;
+    high_confidence_threshold: number;
+    preferred_playback_rendition: string;
+    fallback_playback_rendition: string;
+    audio_only_allowed: boolean;
+}
+
+export type MediaAtomizationPolicyPatch = Partial<MediaAtomizationPolicy>;
+
+export interface MediaAtomizationSourcePolicy {
+    id: string;
+    name: string;
+    type: string;
+    feed_url?: string | null;
+    is_active: boolean;
+    chaptering_enabled: boolean;
+    policy: MediaAtomizationPolicy;
+    overrides: Record<string, unknown>;
+    updated_at: string;
 }
 
 export interface MediaAtomizationInvariants {
@@ -117,6 +153,9 @@ export interface MediaAtomizationParent {
     review_count: number;
     embedding_pending_count: number;
     latest_error?: string | null;
+    atomization_override?: 'inherit' | 'disabled' | 'enabled' | string | null;
+    atomization_override_reason?: string | null;
+    manual_atomization_requested_at?: string | null;
     updated_at: string;
 }
 
@@ -174,6 +213,9 @@ export interface MediaAtomizationPipelineItem {
     latest_error?: string | null;
     run_status?: string | null;
     run_phase?: string | null;
+    atomization_override?: 'inherit' | 'disabled' | 'enabled' | string | null;
+    atomization_override_reason?: string | null;
+    manual_atomization_requested_at?: string | null;
     updated_at: string;
     age_seconds: number;
     primary_action: string;

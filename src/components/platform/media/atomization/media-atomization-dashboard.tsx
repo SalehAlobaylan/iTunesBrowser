@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -33,14 +33,21 @@ import {
 } from '@/components/ui/select';
 import {
     useApproveAtomizedChapter,
+    useAtomizeMediaParent,
+    useMediaAtomizationPolicy,
     useMediaAtomizationChapters,
     useMediaAtomizationOverview,
     useMediaAtomizationParents,
     useMediaAtomizationPipeline,
     useMediaAtomizationRuns,
+    useMediaAtomizationSources,
+    useReatomizeMediaParent,
     useRepairMediaAtomizationLeaks,
     useRejectAtomizedChapter,
     useRunMediaAtomizationSweep,
+    useUpdateMediaAtomizationParentOverride,
+    useUpdateMediaAtomizationPolicy,
+    useUpdateMediaAtomizationSourcePolicy,
 } from '@/hooks/use-media-atomization';
 import { cn } from '@/lib/utils';
 import type {
@@ -51,7 +58,9 @@ import type {
     MediaAtomizationPipeline,
     MediaAtomizationPipelineColumn,
     MediaAtomizationPipelineItem,
+    MediaAtomizationPolicy,
     MediaAtomizationRun,
+    MediaAtomizationSourcePolicy,
 } from '@/types/platform/media-atomization';
 
 const buckets = ['5m', '10m', '15m', '20m', '30m', '40m'];
@@ -254,6 +263,102 @@ function PolicyPill({ label, value, accent }: { label: string; value: string; ac
     );
 }
 
+function PolicyEditor({
+    policy,
+    saving,
+    onPatch,
+}: {
+    policy?: MediaAtomizationPolicy;
+    saving: boolean;
+    onPatch: (patch: Partial<MediaAtomizationPolicy>) => void;
+}) {
+    return (
+        <section className="rounded-md border bg-card">
+            <SectionHeader icon={<SlidersHorizontal className="h-4 w-4 text-[#2CBAC6]" />} title="Policy Controls" sub="Tenant defaults. Source and episode overrides can narrow these rules, but cannot atomize <=40m parents." />
+            <div className="grid gap-3 p-4 pt-0 md:grid-cols-2 xl:grid-cols-4">
+                <PolicyToggle label="Chaptering" value={policy?.chaptering_enabled ?? true} disabled={saving} onChange={(value) => onPatch({ chaptering_enabled: value })} />
+                <PolicyToggle label="Auto-publish" value={policy?.auto_publish_high_confidence ?? true} disabled={saving} onChange={(value) => onPatch({ auto_publish_high_confidence: value })} />
+                <PolicyToggle label="Preserve video" value={policy?.preserve_video ?? true} disabled={saving} onChange={(value) => onPatch({ preserve_video: value })} />
+                <PolicyToggle label="Remove sponsors" value={policy?.remove_sponsor_segments ?? true} disabled={saving} onChange={(value) => onPatch({ remove_sponsor_segments: value })} />
+                <PolicyNumber label="Confidence" value={policy?.high_confidence_threshold ?? 0.82} step={0.01} disabled={saving} onCommit={(value) => onPatch({ high_confidence_threshold: value })} />
+                <PolicyNumber label="Max chapters" value={policy?.max_chapters_per_parent ?? 5} disabled={saving} onCommit={(value) => onPatch({ max_chapters_per_parent: Math.round(value) })} />
+                <PolicyNumber label="Feed floor sec" value={policy?.min_feed_unit_seconds ?? 270} disabled={saving} onCommit={(value) => onPatch({ min_feed_unit_seconds: Math.round(value) })} />
+                <PolicyNumber label="Parent min sec" value={policy?.atomization_min_parent_seconds ?? 2400} disabled={saving} onCommit={(value) => onPatch({ atomization_min_parent_seconds: Math.round(value) })} />
+            </div>
+        </section>
+    );
+}
+
+function PolicyToggle({ label, value, disabled, onChange }: { label: string; value: boolean; disabled: boolean; onChange: (value: boolean) => void }) {
+    return (
+        <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange(!value)}
+            className={cn('flex items-center justify-between rounded-md border bg-muted/35 px-3 py-2 text-left text-sm transition hover:border-[#2CBAC6]', disabled && 'cursor-not-allowed opacity-60')}
+        >
+            <span>{label}</span>
+            <Badge variant={value ? 'success' : 'secondary'}>{value ? 'on' : 'off'}</Badge>
+        </button>
+    );
+}
+
+function PolicyNumber({ label, value, step = 1, disabled, onCommit }: { label: string; value: number; step?: number; disabled: boolean; onCommit: (value: number) => void }) {
+    const [draft, setDraft] = useState(String(value));
+    useEffect(() => {
+        setDraft(String(value));
+    }, [value]);
+
+    return (
+        <label className="grid gap-1 rounded-md border bg-muted/35 px-3 py-2 text-sm">
+            <span className="text-xs text-muted-foreground">{label}</span>
+            <Input
+                type="number"
+                step={step}
+                value={draft}
+                disabled={disabled}
+                onChange={(event) => setDraft(event.target.value)}
+                onBlur={() => {
+                    const next = Number(draft);
+                    if (Number.isFinite(next)) onCommit(next);
+                }}
+                className="h-8 font-mono"
+            />
+        </label>
+    );
+}
+
+function SourceOverrides({
+    sources,
+    saving,
+    onToggle,
+}: {
+    sources: MediaAtomizationSourcePolicy[];
+    saving: boolean;
+    onToggle: (source: MediaAtomizationSourcePolicy) => void;
+}) {
+    const safeSources = Array.isArray(sources) ? sources : [];
+    return (
+        <section className="rounded-md border bg-card">
+            <SectionHeader icon={<ShieldCheck className="h-4 w-4 text-[#D7A83E]" />} title="Source Overrides" sub="Disable automatic atomization for a whole show/source while keeping episodes in the library." />
+            <div className="space-y-2 p-4 pt-0">
+                {safeSources.length === 0 ? <EmptyBox text="No media sources loaded." /> : safeSources.slice(0, 8).map((source) => (
+                    <div key={source.id} className="grid gap-3 rounded-md border bg-muted/35 p-3 md:grid-cols-[1fr_130px_120px] md:items-center">
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-medium" dir="auto">{source.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">{source.feed_url ?? source.type}</p>
+                        </div>
+                        <Badge variant={source.chaptering_enabled ? 'success' : 'secondary'}>{source.chaptering_enabled ? 'atomizing' : 'excluded'}</Badge>
+                        <Button size="sm" variant="outline" disabled={saving} onClick={() => onToggle(source)}>
+                            {source.chaptering_enabled ? 'Exclude' : 'Enable'}
+                        </Button>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+}
+
 function Invariant({ label, value }: { label: string; value: number }) {
     return (
         <div className={cn('flex items-center justify-between rounded border px-3 py-2', value > 0 ? 'border-destructive/45 bg-destructive/15 text-background dark:text-destructive' : 'border-background/10 bg-background/5 dark:border-border dark:bg-muted/30')}>
@@ -264,7 +369,7 @@ function Invariant({ label, value }: { label: string; value: number }) {
 }
 
 function AtomizationRail({ pipeline }: { pipeline?: MediaAtomizationPipeline }) {
-    const columns = pipeline?.columns ?? [];
+    const columns = Array.isArray(pipeline?.columns) ? pipeline.columns : [];
     const firstActive = columns.find((column) => column.count > 0)?.key ?? columns[0]?.key ?? 'ready';
     const [selectedStage, setSelectedStage] = useState(firstActive);
     const selected = columns.find((column) => column.key === selectedStage) ?? columns[0];
@@ -292,7 +397,7 @@ function AtomizationRail({ pipeline }: { pipeline?: MediaAtomizationPipeline }) 
             </div>
 
             <div className="hidden overflow-x-auto p-3 md:block">
-                <div className="grid min-w-[1180px] grid-cols-8 gap-2">
+                <div className="grid min-w-[1320px] grid-cols-9 gap-2">
                     {columns.map((column) => <RailLane key={column.key} column={column} />)}
                 </div>
             </div>
@@ -304,6 +409,7 @@ function AtomizationRail({ pipeline }: { pipeline?: MediaAtomizationPipeline }) 
 }
 
 function RailLane({ column, mobile = false }: { column: MediaAtomizationPipelineColumn; mobile?: boolean }) {
+    const items = Array.isArray(column.items) ? column.items : [];
     return (
         <div className={cn('min-h-64 rounded-md border bg-card', !mobile && 'min-w-0')}>
             <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-card px-3 py-2">
@@ -311,9 +417,9 @@ function RailLane({ column, mobile = false }: { column: MediaAtomizationPipeline
                 <span className="rounded bg-foreground px-2 py-0.5 font-mono text-xs tabular-nums text-background">{column.count}</span>
             </div>
             <div className="space-y-2 p-2">
-                {column.items.length === 0 ? (
+                {items.length === 0 ? (
                     <p className="rounded border border-dashed p-3 text-xs text-muted-foreground">No parents in lane.</p>
-                ) : column.items.map((item) => <RailCard key={item.id} item={item} />)}
+                ) : items.map((item) => <RailCard key={item.id} item={item} />)}
             </div>
         </div>
     );
@@ -335,6 +441,10 @@ function RailCard({ item }: { item: MediaAtomizationPipelineItem }) {
                 <Badge variant="outline">{formatDurationSec(item.duration_sec)}</Badge>
                 <StatusBadge value={item.chaptering_status} />
                 <Badge variant={item.transcript_state === 'ready' ? 'success' : 'warning'}>{item.transcript_state === 'ready' ? 'transcript' : 'no transcript'}</Badge>
+                {item.atomization_override && item.atomization_override !== 'inherit' && (
+                    <Badge variant={item.atomization_override === 'disabled' ? 'secondary' : 'info'}>{item.atomization_override}</Badge>
+                )}
+                {item.manual_atomization_requested_at && <Badge variant="info">manual</Badge>}
             </div>
             <div className="mt-2 grid grid-cols-3 gap-1 text-center font-mono tabular-nums text-foreground">
                 <MiniStat label="child" value={item.child_count} />
@@ -374,13 +484,14 @@ function ReviewQueue({
     onApprove: (id: string) => void;
     onReject: (id: string) => void;
 }) {
+    const safeChapters = Array.isArray(chapters) ? chapters : [];
     return (
         <section className="rounded-md border bg-card">
             <SectionHeader icon={<Scissors className="h-4 w-4 text-[#D7A83E]" />} title="Review Triage" sub="Approve only valid 4:30-40:00 chapters. Shorter cuts need merge or boundary edits in Studio." />
             <div className="space-y-2 p-4 pt-0">
-                {chapters.length === 0 ? (
+                {safeChapters.length === 0 ? (
                     <EmptyBox text="No chapters in this queue." />
-                ) : chapters.slice(0, 10).map((chapter) => {
+                ) : safeChapters.slice(0, 10).map((chapter) => {
                     const invalidDuration = chapter.duration_ms < MIN_FEED_UNIT_SECONDS * 1000 || chapter.duration_ms > HARD_MAX_SECONDS * 1000;
                     return (
                         <div key={chapter.id} className="grid gap-3 rounded-md border bg-muted/35 p-3 lg:grid-cols-[1fr_170px_280px] lg:items-center">
@@ -434,7 +545,8 @@ function ReviewQueue({
 }
 
 function DurationDistribution({ overview }: { overview?: MediaAtomizationOverview }) {
-    const rows = buckets.map((bucket) => overview?.duration_distribution.find((row) => row.bucket === bucket) ?? {
+    const distribution = Array.isArray(overview?.duration_distribution) ? overview.duration_distribution : [];
+    const rows = buckets.map((bucket) => distribution.find((row) => row.bucket === bucket) ?? {
         bucket,
         published: 0,
         needs_review: 0,
@@ -469,7 +581,7 @@ function DurationDistribution({ overview }: { overview?: MediaAtomizationOvervie
 }
 
 function SourcePerformance({ overview }: { overview?: MediaAtomizationOverview }) {
-    const rows = overview?.source_performance ?? [];
+    const rows = Array.isArray(overview?.source_performance) ? overview.source_performance : [];
     const max = Math.max(1, ...rows.map((row) => row.children_produced));
     return (
         <section className="rounded-md border bg-card">
@@ -504,13 +616,14 @@ function SourcePerformance({ overview }: { overview?: MediaAtomizationOverview }
 }
 
 function ParentLifecycle({ parents }: { parents: MediaAtomizationParent[] }) {
+    const safeParents = Array.isArray(parents) ? parents : [];
     return (
         <section className="rounded-md border bg-card">
             <SectionHeader icon={<Clock3 className="h-4 w-4 text-muted-foreground" />} title="Parent Lifecycle" sub="Recent parent media and their child chapter output." />
             <div className="space-y-2 p-4 pt-0">
-                {parents.length === 0 ? (
+                {safeParents.length === 0 ? (
                     <EmptyBox text="No parents match these filters." />
-                ) : parents.slice(0, 10).map((parent) => (
+                ) : safeParents.slice(0, 10).map((parent) => (
                     <div key={parent.id} className="grid gap-3 rounded-md border bg-muted/35 p-3 lg:grid-cols-[1fr_150px_220px] lg:items-center">
                         <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
@@ -539,6 +652,61 @@ function ParentLifecycle({ parents }: { parents: MediaAtomizationParent[] }) {
     );
 }
 
+function EpisodeControls({
+    parents,
+    actionsDisabled,
+    mutating,
+    onDisable,
+    onEnable,
+    onInherit,
+    onAtomize,
+    onReatomize,
+}: {
+    parents: MediaAtomizationParent[];
+    actionsDisabled: boolean;
+    mutating: boolean;
+    onDisable: (id: string) => void;
+    onEnable: (id: string) => void;
+    onInherit: (id: string) => void;
+    onAtomize: (id: string) => void;
+    onReatomize: (id: string) => void;
+}) {
+    const safeParents = Array.isArray(parents) ? parents : [];
+    return (
+        <section className="rounded-md border bg-card">
+            <SectionHeader icon={<Scissors className="h-4 w-4 text-[#2CBAC6]" />} title="Episode Controls" sub="One-off overrides and manual queueing. Parents at or under 40m cannot be atomized." />
+            <div className="space-y-2 p-4 pt-0">
+                {safeParents.length === 0 ? <EmptyBox text="No parent media loaded." /> : safeParents.slice(0, 8).map((parent) => {
+                    const tooShort = (parent.duration_sec ?? 0) <= HARD_MAX_SECONDS;
+                    const disabled = parent.atomization_override === 'disabled';
+                    return (
+                        <div key={parent.id} className="grid gap-3 rounded-md border bg-muted/35 p-3 xl:grid-cols-[1fr_180px_390px] xl:items-center">
+                            <div className="min-w-0">
+                                <p className="truncate text-sm font-medium" dir="auto">{parent.title ?? 'Untitled media'}</p>
+                                <p className="truncate text-xs text-muted-foreground" dir="auto">{parent.source_name ?? 'Unknown source'}</p>
+                                {parent.atomization_override_reason && <p className="mt-1 text-xs text-[#D7A83E]">{parent.atomization_override_reason}</p>}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                                <Badge variant="outline">{formatDurationSec(parent.duration_sec)}</Badge>
+                                <Badge variant={disabled ? 'secondary' : 'success'}>{parent.atomization_override ?? 'inherit'}</Badge>
+                                {parent.manual_atomization_requested_at && <Badge variant="info">manual</Badge>}
+                            </div>
+                            <div className="flex flex-wrap gap-2 xl:justify-end">
+                                <Button size="sm" variant="outline" disabled={actionsDisabled || mutating || disabled} onClick={() => onDisable(parent.id)}>Exclude</Button>
+                                <Button size="sm" variant="outline" disabled={actionsDisabled || mutating} onClick={() => onEnable(parent.id)}>Enable</Button>
+                                <Button size="sm" variant="outline" disabled={actionsDisabled || mutating} onClick={() => onInherit(parent.id)}>Inherit</Button>
+                                <Button size="sm" disabled={actionsDisabled || mutating || tooShort || disabled} onClick={() => onAtomize(parent.id)}>Queue</Button>
+                                <Button size="sm" variant="outline" disabled={actionsDisabled || mutating || tooShort || disabled || parent.child_count === 0} onClick={() => onReatomize(parent.id)}>Re-atomize</Button>
+                            </div>
+                            {tooShort && <p className="xl:col-span-3 text-xs text-muted-foreground">Manual atomization disabled because this parent is at or under 40 minutes.</p>}
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
 function MetricPill({ label, value }: { label: string; value: number }) {
     return (
         <div className="rounded bg-background px-2 py-1 font-mono tabular-nums">
@@ -549,13 +717,14 @@ function MetricPill({ label, value }: { label: string; value: number }) {
 }
 
 function RunPanel({ runs }: { runs: MediaAtomizationRun[] }) {
+    const safeRuns = Array.isArray(runs) ? runs : [];
     return (
         <section className="rounded-md border bg-card">
             <SectionHeader icon={<RefreshCw className="h-4 w-4 text-[#2CBAC6]" />} title="Run Diagnostics" sub="Latest atomization attempts and failure phases." />
             <div className="space-y-2 p-4 pt-0">
-                {runs.length === 0 ? (
+                {safeRuns.length === 0 ? (
                     <EmptyBox text="No atomization runs recorded." />
-                ) : runs.slice(0, 8).map((run) => (
+                ) : safeRuns.slice(0, 8).map((run) => (
                     <div key={run.id} className="grid gap-2 rounded-md border bg-muted/35 p-3 sm:grid-cols-[1fr_130px_92px] sm:items-center">
                         <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
@@ -599,6 +768,8 @@ export function MediaAtomizationDashboard() {
     const filters = useMemo(() => readFilters(searchParams), [searchParams]);
 
     const overview = useMediaAtomizationOverview();
+    const policy = useMediaAtomizationPolicy();
+    const sources = useMediaAtomizationSources();
     const pipeline = useMediaAtomizationPipeline(filters);
     const parentFilters = useMemo(() => ({ ...filters, review: filters.review === 'needed' ? undefined : filters.review }), [filters]);
     const chapterFilters = useMemo(() => ({ ...filters, review: filters.review ?? 'needed' }), [filters]);
@@ -609,6 +780,11 @@ export function MediaAtomizationDashboard() {
     const reject = useRejectAtomizedChapter();
     const repairLeaks = useRepairMediaAtomizationLeaks();
     const runSweep = useRunMediaAtomizationSweep();
+    const updatePolicy = useUpdateMediaAtomizationPolicy();
+    const updateSourcePolicy = useUpdateMediaAtomizationSourcePolicy();
+    const updateParentOverride = useUpdateMediaAtomizationParentOverride();
+    const atomizeParent = useAtomizeMediaParent();
+    const reatomizeParent = useReatomizeMediaParent();
 
     const setFilter = (key: keyof AtomizationFilters, value?: string) => {
         const params = new URLSearchParams(Array.from(searchParams.entries()));
@@ -621,13 +797,15 @@ export function MediaAtomizationDashboard() {
 
     const failedApis = [
         overview.isError && 'overview',
+        policy.isError && 'policy',
+        sources.isError && 'sources',
         pipeline.isError && 'pipeline',
         parents.isError && 'parents',
         chapters.isError && 'chapters',
         runs.isError && 'runs',
     ].filter(Boolean) as string[];
     const failed = failedApis.length > 0;
-    const loading = overview.isLoading || pipeline.isLoading || parents.isLoading || chapters.isLoading || runs.isLoading;
+    const loading = overview.isLoading || policy.isLoading || sources.isLoading || pipeline.isLoading || parents.isLoading || chapters.isLoading || runs.isLoading;
     const overviewData = overview.data;
     const parentRows = parents.data ?? [];
     const chapterRows = chapters.data ?? [];
@@ -675,6 +853,22 @@ export function MediaAtomizationDashboard() {
                 disabled={actionsDisabled}
             />
 
+            <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+                <PolicyEditor
+                    policy={policy.data}
+                    saving={updatePolicy.isPending}
+                    onPatch={(patch) => updatePolicy.mutate(patch)}
+                />
+                <SourceOverrides
+                    sources={sources.data ?? []}
+                    saving={updateSourcePolicy.isPending}
+                    onToggle={(source) => updateSourcePolicy.mutate({
+                        sourceId: source.id,
+                        patch: { chaptering_enabled: !source.chaptering_enabled },
+                    })}
+                />
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <KpiCard label="Waiting transcript" value={statusCount(overviewData, ['waiting_transcript'])} sub="parents" />
                 <KpiCard label="Planning + cutting" value={statusCount(overviewData, ['planning', 'cutting', 'renditions', 'children'])} sub="active" />
@@ -683,6 +877,9 @@ export function MediaAtomizationDashboard() {
                 <KpiCard label="Embedding pending" value={childVisibilityCount(overviewData, 'embedding_pending')} sub="hidden from feed" />
                 <KpiCard label="Failed or stuck" value={overviewData?.failed_stuck_count ?? 0} tone="bad" />
                 <KpiCard label="Duration violations" value={durationViolations} sub="visible feed units" tone={durationViolations > 0 ? 'bad' : 'ok'} />
+                <KpiCard label="Excluded episodes" value={overviewData?.disabled_episode_count ?? 0} sub="manual opt-outs" />
+                <KpiCard label="Excluded sources" value={overviewData?.disabled_source_count ?? 0} sub="source opt-outs" />
+                <KpiCard label="Manual requests" value={overviewData?.manual_requested_count ?? 0} sub="queued by admins" />
                 <KpiCard label="Avg chapters" value={(overviewData?.average_chapters_per_parent ?? 0).toFixed(1)} sub="per parent" />
                 <KpiCard label="Avg run time" value={formatSeconds(overviewData?.average_processing_seconds)} sub="completed runs" />
             </div>
@@ -710,6 +907,17 @@ export function MediaAtomizationDashboard() {
             )}
 
             <AtomizationRail pipeline={pipeline.data} />
+
+            <EpisodeControls
+                parents={parentRows}
+                actionsDisabled={actionsDisabled}
+                mutating={updateParentOverride.isPending || atomizeParent.isPending || reatomizeParent.isPending}
+                onDisable={(id) => updateParentOverride.mutate({ parentId: id, override: 'disabled', reason: 'Excluded manually from Atomization dashboard.' })}
+                onEnable={(id) => updateParentOverride.mutate({ parentId: id, override: 'enabled' })}
+                onInherit={(id) => updateParentOverride.mutate({ parentId: id, override: 'inherit' })}
+                onAtomize={(id) => atomizeParent.mutate(id)}
+                onReatomize={(id) => reatomizeParent.mutate(id)}
+            />
 
             <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
                 <ReviewQueue
