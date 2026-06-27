@@ -40,7 +40,15 @@ export const saveChapters = (id: string, chapters: StudioChapter[]) =>
                     title: c.title,
                     summary: c.summary ?? null,
                     start_ms: c.start_ms,
+                    end_ms: c.end_ms,
                     source: c.source,
+                    status: c.status,
+                    confidence: c.confidence,
+                    context_label: c.context_label ?? null,
+                    boundary_reason: c.boundary_reason ?? null,
+                    standalone_score: c.standalone_score,
+                    contains_sponsor_intro: c.contains_sponsor_intro ?? false,
+                    needs_review_reason: c.needs_review_reason ?? null,
                 })),
             }
         )

@@ -1,0 +1,740 @@
+'use client';
+
+import { useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import {
+    AlertTriangle,
+    Check,
+    Clock3,
+    ExternalLink,
+    Eye,
+    Filter,
+    Loader2,
+    Play,
+    RefreshCw,
+    Search,
+    Scissors,
+    ShieldCheck,
+    SlidersHorizontal,
+    Waves,
+    X,
+} from 'lucide-react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    useApproveAtomizedChapter,
+    useMediaAtomizationChapters,
+    useMediaAtomizationOverview,
+    useMediaAtomizationParents,
+    useMediaAtomizationPipeline,
+    useMediaAtomizationRuns,
+    useRepairMediaAtomizationLeaks,
+    useRejectAtomizedChapter,
+    useRunMediaAtomizationSweep,
+} from '@/hooks/use-media-atomization';
+import { cn } from '@/lib/utils';
+import type {
+    AtomizationFilters,
+    MediaAtomizationChapter,
+    MediaAtomizationOverview,
+    MediaAtomizationParent,
+    MediaAtomizationPipeline,
+    MediaAtomizationPipelineColumn,
+    MediaAtomizationPipelineItem,
+    MediaAtomizationRun,
+} from '@/types/platform/media-atomization';
+
+const buckets = ['5m', '10m', '15m', '20m', '30m', '40m'];
+const statusOptions = ['all', 'schema_missing', 'queued', 'waiting_transcript', 'planning', 'cutting', 'embedding', 'needs_review', 'completed', 'failed'];
+const reviewOptions = ['all', 'needed', 'published', 'embedding_pending', 'rejected'];
+const MIN_FEED_UNIT_SECONDS = 270;
+const HARD_MAX_SECONDS = 2400;
+
+function readFilters(params: URLSearchParams): AtomizationFilters {
+    return {
+        status: params.get('status') || undefined,
+        source: params.get('source') || undefined,
+        bucket: params.get('bucket') || undefined,
+        review: params.get('review') || undefined,
+        q: params.get('q') || undefined,
+    };
+}
+
+function compactNumber(value: number | undefined | null): string {
+    const n = value ?? 0;
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+    return String(n);
+}
+
+function formatDurationMs(ms?: number | null): string {
+    if (!ms || ms <= 0) return '0:00';
+    return formatDurationSec(Math.round(ms / 1000));
+}
+
+function formatDurationSec(seconds?: number | null): string {
+    if (!seconds || seconds <= 0) return 'n/a';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    if (mins >= 60) return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatAge(seconds?: number | null): string {
+    if (!seconds || seconds < 60) return '<1m';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
+    return `${Math.floor(seconds / 86400)}d`;
+}
+
+function formatSeconds(seconds?: number | null): string {
+    if (!seconds || seconds <= 0) return 'n/a';
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    return `${Math.round(seconds / 60)}m`;
+}
+
+function statusCount(data: MediaAtomizationOverview | undefined, names: string[]): number {
+    return data?.parent_status_counts
+        ?.filter((row) => names.includes(row.name))
+        .reduce((sum, row) => sum + row.count, 0) ?? 0;
+}
+
+function childVisibilityCount(data: MediaAtomizationOverview | undefined, visibility: string): number {
+    return data?.child_state_counts
+        ?.filter((row) => row.feed_visibility === visibility)
+        .reduce((sum, row) => sum + row.count, 0) ?? 0;
+}
+
+function statusVariant(status?: string | null): 'success' | 'warning' | 'destructive' | 'secondary' | 'outline' | 'info' {
+    if (status === 'completed' || status === 'published' || status === 'visible') return 'success';
+    if (status === 'failed' || status === 'rejected') return 'destructive';
+    if (status === 'needs_review' || status === 'review') return 'warning';
+    if (status === 'embedding_pending' || status === 'embedding' || status === 'planning' || status === 'cutting') return 'info';
+    return 'secondary';
+}
+
+function StatusBadge({ value }: { value?: string | null }) {
+    if (!value) return <Badge variant="secondary">unstarted</Badge>;
+    return <Badge variant={statusVariant(value)}>{value.replaceAll('_', ' ')}</Badge>;
+}
+
+function KpiCard({ label, value, sub, tone = 'neutral' }: { label: string; value: number | string; sub?: string; tone?: 'neutral' | 'ok' | 'warn' | 'bad' }) {
+    return (
+        <div className="rounded-md border bg-card p-4 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-normal text-muted-foreground">{label}</p>
+            <div className="mt-2 flex min-h-9 items-end justify-between gap-3">
+                <p className={cn(
+                    'font-mono text-2xl font-semibold tabular-nums',
+                    tone === 'ok' && 'text-[#2CBAC6]',
+                    tone === 'warn' && 'text-[#D7A83E]',
+                    tone === 'bad' && 'text-[#C94B4B]',
+                    tone === 'neutral' && 'text-foreground',
+                )}>
+                    {typeof value === 'number' ? compactNumber(value) : value}
+                </p>
+                {sub && <p className="max-w-28 text-right text-xs leading-tight text-muted-foreground">{sub}</p>}
+            </div>
+        </div>
+    );
+}
+
+function FilterBar({
+    filters,
+    setFilter,
+    resetFilters,
+}: {
+    filters: AtomizationFilters;
+    setFilter: (key: keyof AtomizationFilters, value?: string) => void;
+    resetFilters: () => void;
+}) {
+    return (
+        <div className="grid gap-2 rounded-md border bg-card p-3 md:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_auto]">
+            <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                    value={filters.q ?? ''}
+                    onChange={(event) => setFilter('q', event.target.value || undefined)}
+                    placeholder="Search parent, chapter, source"
+                    className="pl-9"
+                />
+            </div>
+            <Input
+                value={filters.source ?? ''}
+                onChange={(event) => setFilter('source', event.target.value || undefined)}
+                placeholder="Source"
+            />
+            <Select value={filters.status ?? 'all'} onValueChange={(value) => setFilter('status', value === 'all' ? undefined : value)}>
+                <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                <SelectContent>
+                    {statusOptions.map((status) => <SelectItem key={status} value={status}>{status.replaceAll('_', ' ')}</SelectItem>)}
+                </SelectContent>
+            </Select>
+            <Select value={filters.bucket ?? 'all'} onValueChange={(value) => setFilter('bucket', value === 'all' ? undefined : value)}>
+                <SelectTrigger><SelectValue placeholder="Duration" /></SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All durations</SelectItem>
+                    {buckets.map((bucket) => <SelectItem key={bucket} value={bucket}>{bucket}</SelectItem>)}
+                </SelectContent>
+            </Select>
+            <Select value={filters.review ?? 'needed'} onValueChange={(value) => setFilter('review', value === 'all' ? undefined : value)}>
+                <SelectTrigger><SelectValue placeholder="Review" /></SelectTrigger>
+                <SelectContent>
+                    {reviewOptions.map((option) => <SelectItem key={option} value={option}>{option.replaceAll('_', ' ')}</SelectItem>)}
+                </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={resetFilters}>
+                <Filter className="mr-2 h-4 w-4" /> Reset
+            </Button>
+        </div>
+    );
+}
+
+function PolicyStrip({
+    overview,
+    onRepair,
+    repairing,
+    disabled,
+}: {
+    overview?: MediaAtomizationOverview;
+    onRepair: () => void;
+    repairing: boolean;
+    disabled: boolean;
+}) {
+    const invariants = overview?.invariants;
+    const violations = (invariants?.visible_under_floor_feed_units ?? overview?.visible_under_floor_count ?? 0)
+        + (invariants?.visible_over_hard_max_feed_units ?? overview?.visible_over_hard_max_count ?? 0)
+        + (invariants?.parents_under_40m_with_children ?? overview?.short_parent_active_child_count ?? 0);
+    const policy = overview?.policy;
+    return (
+        <section className="rounded-md border border-foreground/15 bg-foreground p-3 text-background dark:bg-card dark:text-card-foreground">
+            <div className="grid gap-2 md:grid-cols-[1fr_auto] md:items-center">
+                <div className="flex flex-wrap gap-2">
+                    <PolicyPill label="Atomize only" value={`>${Math.round((policy?.atomization_min_parent_seconds ?? 2400) / 60)}m`} />
+                    <PolicyPill label="Feed floor" value={formatDurationSec(policy?.min_feed_unit_seconds ?? MIN_FEED_UNIT_SECONDS)} accent="cyan" />
+                    <PolicyPill label="Hard max" value={`${Math.round((policy?.hard_max_feed_unit_seconds ?? HARD_MAX_SECONDS) / 60)}m`} />
+                    <PolicyPill label="Short chapters" value="merge" accent="amber" />
+                </div>
+                <Button
+                    size="sm"
+                    variant={violations > 0 ? 'destructive' : 'outline'}
+                    onClick={onRepair}
+                    disabled={disabled || repairing || violations === 0}
+                    className={cn(violations === 0 && 'border-background/30 bg-transparent text-background hover:bg-background/10 dark:text-card-foreground dark:hover:bg-muted/40')}
+                >
+                    {repairing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                    Repair invariants
+                </Button>
+            </div>
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
+                <Invariant label="visible under 4:30" value={invariants?.visible_under_floor_feed_units ?? overview?.visible_under_floor_count ?? 0} />
+                <Invariant label="visible over 40m" value={invariants?.visible_over_hard_max_feed_units ?? overview?.visible_over_hard_max_count ?? 0} />
+                <Invariant label="short parents with children" value={invariants?.parents_under_40m_with_children ?? overview?.short_parent_active_child_count ?? 0} />
+                <Invariant label="short chapters in review" value={invariants?.short_chapters_awaiting_review ?? overview?.short_chapter_review_count ?? 0} />
+            </div>
+        </section>
+    );
+}
+
+function PolicyPill({ label, value, accent }: { label: string; value: string; accent?: 'cyan' | 'amber' }) {
+    return (
+        <div className="rounded-md border border-background/15 px-3 py-2 dark:border-border">
+            <span className="block text-[10px] font-semibold uppercase tracking-normal text-background/60 dark:text-muted-foreground">{label}</span>
+            <span className={cn('font-mono text-sm tabular-nums', accent === 'cyan' && 'text-[#2CBAC6]', accent === 'amber' && 'text-[#D7A83E]')}>{value}</span>
+        </div>
+    );
+}
+
+function Invariant({ label, value }: { label: string; value: number }) {
+    return (
+        <div className={cn('flex items-center justify-between rounded border px-3 py-2', value > 0 ? 'border-destructive/45 bg-destructive/15 text-background dark:text-destructive' : 'border-background/10 bg-background/5 dark:border-border dark:bg-muted/30')}>
+            <span>{label}</span>
+            <span className="font-mono font-semibold tabular-nums">{value}</span>
+        </div>
+    );
+}
+
+function AtomizationRail({ pipeline }: { pipeline?: MediaAtomizationPipeline }) {
+    const columns = pipeline?.columns ?? [];
+    const firstActive = columns.find((column) => column.count > 0)?.key ?? columns[0]?.key ?? 'ready';
+    const [selectedStage, setSelectedStage] = useState(firstActive);
+    const selected = columns.find((column) => column.key === selectedStage) ?? columns[0];
+
+    return (
+        <section className="rounded-md border bg-muted/25">
+            <div className="flex flex-col gap-3 border-b p-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <div className="flex items-center gap-2 text-foreground">
+                        <Waves className="h-4 w-4 text-[#2CBAC6]" />
+                        <h2 className="text-base font-semibold">Atomization Rail</h2>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">Pipeline lanes are built by CMS from parent status, runs, transcript state, and child counts.</p>
+                </div>
+                <div className="md:hidden">
+                    <Select value={selected?.key ?? selectedStage} onValueChange={setSelectedStage}>
+                        <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            {columns.map((column) => (
+                                <SelectItem key={column.key} value={column.key}>{column.label} ({column.count})</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            <div className="hidden overflow-x-auto p-3 md:block">
+                <div className="grid min-w-[1180px] grid-cols-8 gap-2">
+                    {columns.map((column) => <RailLane key={column.key} column={column} />)}
+                </div>
+            </div>
+            <div className="p-3 md:hidden">
+                {selected ? <RailLane column={selected} mobile /> : <EmptyBox text="No pipeline data yet." />}
+            </div>
+        </section>
+    );
+}
+
+function RailLane({ column, mobile = false }: { column: MediaAtomizationPipelineColumn; mobile?: boolean }) {
+    return (
+        <div className={cn('min-h-64 rounded-md border bg-card', !mobile && 'min-w-0')}>
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-card px-3 py-2">
+                <h3 className="truncate text-sm font-semibold text-foreground">{column.label}</h3>
+                <span className="rounded bg-foreground px-2 py-0.5 font-mono text-xs tabular-nums text-background">{column.count}</span>
+            </div>
+            <div className="space-y-2 p-2">
+                {column.items.length === 0 ? (
+                    <p className="rounded border border-dashed p-3 text-xs text-muted-foreground">No parents in lane.</p>
+                ) : column.items.map((item) => <RailCard key={item.id} item={item} />)}
+            </div>
+        </div>
+    );
+}
+
+function RailCard({ item }: { item: MediaAtomizationPipelineItem }) {
+    const error = item.latest_error;
+    return (
+        <Link
+            href={item.action_href || `/platform/media-studio/${item.id}`}
+            className="block rounded-md border bg-muted/35 p-3 text-xs transition hover:border-[#2CBAC6] hover:bg-card focus:outline-none focus:ring-2 focus:ring-[#2CBAC6]"
+        >
+            <div className="flex items-start justify-between gap-2">
+                <span className="line-clamp-2 font-medium text-foreground" dir="auto">{item.title ?? 'Untitled media'}</span>
+                <span className="font-mono text-[11px] tabular-nums text-muted-foreground">{formatAge(item.age_seconds)}</span>
+            </div>
+            <p className="mt-1 line-clamp-1 text-muted-foreground" dir="auto">{item.source_name ?? 'Unknown source'}</p>
+            <div className="mt-2 flex flex-wrap gap-1">
+                <Badge variant="outline">{formatDurationSec(item.duration_sec)}</Badge>
+                <StatusBadge value={item.chaptering_status} />
+                <Badge variant={item.transcript_state === 'ready' ? 'success' : 'warning'}>{item.transcript_state === 'ready' ? 'transcript' : 'no transcript'}</Badge>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-1 text-center font-mono tabular-nums text-foreground">
+                <MiniStat label="child" value={item.child_count} />
+                <MiniStat label="review" value={item.review_count} />
+                <MiniStat label="embed" value={item.embedding_pending_count} />
+            </div>
+            {error && <p className="mt-2 line-clamp-2 rounded bg-destructive/10 px-2 py-1 text-destructive">{error}</p>}
+            <span className="mt-2 inline-flex items-center gap-1 font-medium text-[#2CBAC6]">
+                {item.primary_action}
+                <ExternalLink className="h-3.5 w-3.5" />
+            </span>
+        </Link>
+    );
+}
+
+function MiniStat({ label, value }: { label: string; value: number }) {
+    return (
+        <span className="rounded bg-background px-1.5 py-1">
+            <span className="block text-sm font-semibold">{value}</span>
+            <span className="block text-[10px] text-muted-foreground">{label}</span>
+        </span>
+    );
+}
+
+function ReviewQueue({
+    chapters,
+    approving,
+    rejecting,
+    actionsDisabled,
+    onApprove,
+    onReject,
+}: {
+    chapters: MediaAtomizationChapter[];
+    approving: boolean;
+    rejecting: boolean;
+    actionsDisabled: boolean;
+    onApprove: (id: string) => void;
+    onReject: (id: string) => void;
+}) {
+    return (
+        <section className="rounded-md border bg-card">
+            <SectionHeader icon={<Scissors className="h-4 w-4 text-[#D7A83E]" />} title="Review Triage" sub="Approve only valid 4:30-40:00 chapters. Shorter cuts need merge or boundary edits in Studio." />
+            <div className="space-y-2 p-4 pt-0">
+                {chapters.length === 0 ? (
+                    <EmptyBox text="No chapters in this queue." />
+                ) : chapters.slice(0, 10).map((chapter) => {
+                    const invalidDuration = chapter.duration_ms < MIN_FEED_UNIT_SECONDS * 1000 || chapter.duration_ms > HARD_MAX_SECONDS * 1000;
+                    return (
+                        <div key={chapter.id} className="grid gap-3 rounded-md border bg-muted/35 p-3 lg:grid-cols-[1fr_170px_280px] lg:items-center">
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="min-w-0 truncate font-medium text-foreground" dir="auto">{chapter.title}</h3>
+                                    <StatusBadge value={chapter.feed_visibility ?? chapter.status} />
+                                    <Badge variant="outline">{chapter.duration_bucket ?? formatDurationMs(chapter.duration_ms)}</Badge>
+                                    <Badge variant={chapter.confidence && chapter.confidence >= 0.82 ? 'success' : 'warning'}>
+                                        {Math.round((chapter.confidence ?? 0) * 100)}%
+                                    </Badge>
+                                    {invalidDuration && <Badge variant="destructive">invalid duration</Badge>}
+                                </div>
+                                <p className="mt-1 line-clamp-1 text-sm text-muted-foreground" dir="auto">
+                                    {chapter.parent_title ?? 'Untitled parent'} · {chapter.source_name ?? 'Unknown source'}
+                                </p>
+                                {chapter.needs_review_reason && (
+                                    <p className="mt-1 text-xs text-[#D7A83E]">{chapter.needs_review_reason}</p>
+                                )}
+                            </div>
+                            <div className="font-mono text-sm tabular-nums text-muted-foreground">
+                                <p>{formatDurationMs(chapter.duration_ms)}</p>
+                                <p>{formatDurationSec(Math.round(chapter.start_ms / 1000))} → {chapter.end_ms ? formatDurationSec(Math.round(chapter.end_ms / 1000)) : 'open'}</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 lg:justify-end">
+                                {chapter.playback_url && (
+                                    <Button size="sm" variant="outline" asChild>
+                                        <a href={chapter.playback_url} target="_blank" rel="noreferrer">
+                                            <Play className="mr-2 h-4 w-4" /> Preview
+                                        </a>
+                                    </Button>
+                                )}
+                                <Button size="sm" variant="outline" asChild>
+                                    <Link href={`/platform/media-studio/${chapter.parent_id}`}>
+                                        <ExternalLink className="mr-2 h-4 w-4" /> Studio
+                                    </Link>
+                                </Button>
+                                <Button size="sm" onClick={() => onApprove(chapter.id)} disabled={actionsDisabled || approving || rejecting || invalidDuration}>
+                                    <Check className="mr-2 h-4 w-4" /> Approve
+                                </Button>
+                                <Button size="sm" variant="destructive" onClick={() => onReject(chapter.id)} disabled={actionsDisabled || approving || rejecting}>
+                                    <X className="mr-2 h-4 w-4" /> Reject
+                                </Button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+function DurationDistribution({ overview }: { overview?: MediaAtomizationOverview }) {
+    const rows = buckets.map((bucket) => overview?.duration_distribution.find((row) => row.bucket === bucket) ?? {
+        bucket,
+        published: 0,
+        needs_review: 0,
+        embedding_pending: 0,
+    });
+    const max = Math.max(1, ...rows.map((row) => row.published + row.needs_review + row.embedding_pending));
+    return (
+        <section className="rounded-md border bg-card">
+            <SectionHeader icon={<SlidersHorizontal className="h-4 w-4 text-[#2CBAC6]" />} title="Duration Distribution" sub="Published, review, and embedding-pending chapter units by bucket." />
+            <div className="space-y-3 p-4 pt-0">
+                {rows.map((row) => {
+                    const total = row.published + row.needs_review + row.embedding_pending;
+                    return (
+                        <div key={row.bucket} className="grid grid-cols-[48px_1fr] items-center gap-3">
+                            <span className="font-mono text-sm font-semibold tabular-nums">{row.bucket}</span>
+                            <div>
+                                <div className="flex h-7 overflow-hidden rounded bg-muted" aria-label={`${row.bucket}: ${total} chapters`}>
+                                    <div className="bg-[#2CBAC6]" style={{ width: `${(row.published / max) * 100}%` }} />
+                                    <div className="bg-[#D7A83E]" style={{ width: `${(row.needs_review / max) * 100}%` }} />
+                                    <div className="bg-foreground/70" style={{ width: `${(row.embedding_pending / max) * 100}%` }} />
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {total} total · {row.published} published · {row.needs_review} review · {row.embedding_pending} embedding
+                                </p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+function SourcePerformance({ overview }: { overview?: MediaAtomizationOverview }) {
+    const rows = overview?.source_performance ?? [];
+    const max = Math.max(1, ...rows.map((row) => row.children_produced));
+    return (
+        <section className="rounded-md border bg-card">
+            <SectionHeader icon={<Eye className="h-4 w-4 text-[#2CBAC6]" />} title="Source Performance" sub="Which sources produce review pressure, failed runs, and feed-ready chapters." />
+            <div className="space-y-3 p-4 pt-0">
+                {rows.length === 0 ? (
+                    <EmptyBox text="No source output yet." />
+                ) : rows.map((row) => {
+                    const autoPublishRate = row.children_produced ? Math.round((row.published_count / row.children_produced) * 100) : 0;
+                    const reviewRate = row.children_produced ? Math.round((row.review_count / row.children_produced) * 100) : 0;
+                    const failureRate = row.parents_processed ? Math.round((row.failed_count / row.parents_processed) * 100) : 0;
+                    return (
+                        <div key={`${row.source_name}-${row.source_feed_url ?? ''}`} className="grid gap-2 rounded-md border bg-muted/35 p-3 sm:grid-cols-[1fr_190px] sm:items-center">
+                            <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-foreground" dir="auto">{row.source_name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {row.parents_processed} parents · {row.children_produced} chapters · {autoPublishRate}% auto · {reviewRate}% review · {failureRate}% failed
+                                </p>
+                            </div>
+                            <div>
+                                <div className="h-2 rounded bg-muted">
+                                    <div className="h-2 rounded bg-[#D7A83E]" style={{ width: `${(row.children_produced / max) * 100}%` }} />
+                                </div>
+                                <p className="mt-1 text-right text-xs text-muted-foreground">{row.published_count} published</p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+function ParentLifecycle({ parents }: { parents: MediaAtomizationParent[] }) {
+    return (
+        <section className="rounded-md border bg-card">
+            <SectionHeader icon={<Clock3 className="h-4 w-4 text-muted-foreground" />} title="Parent Lifecycle" sub="Recent parent media and their child chapter output." />
+            <div className="space-y-2 p-4 pt-0">
+                {parents.length === 0 ? (
+                    <EmptyBox text="No parents match these filters." />
+                ) : parents.slice(0, 10).map((parent) => (
+                    <div key={parent.id} className="grid gap-3 rounded-md border bg-muted/35 p-3 lg:grid-cols-[1fr_150px_220px] lg:items-center">
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Link href={`/platform/media-studio/${parent.id}`} className="min-w-0 truncate font-medium text-foreground hover:underline" dir="auto">
+                                    {parent.title ?? 'Untitled media'}
+                                </Link>
+                                <StatusBadge value={parent.chaptering_status} />
+                            </div>
+                            <p className="mt-1 text-sm text-muted-foreground" dir="auto">{parent.source_name ?? 'Unknown source'}</p>
+                            {parent.latest_error && <p className="mt-1 text-xs text-destructive">{parent.latest_error}</p>}
+                        </div>
+                        <div className="font-mono text-sm tabular-nums text-muted-foreground">
+                            <p>{formatDurationSec(parent.duration_sec)}</p>
+                            <p>{parent.transcript_id ? 'transcript ready' : 'transcript missing'}</p>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                            <MetricPill label="children" value={parent.child_count} />
+                            <MetricPill label="published" value={parent.published_count} />
+                            <MetricPill label="review" value={parent.review_count} />
+                            <MetricPill label="embed" value={parent.embedding_pending_count} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+}
+
+function MetricPill({ label, value }: { label: string; value: number }) {
+    return (
+        <div className="rounded bg-background px-2 py-1 font-mono tabular-nums">
+            <p className="font-semibold">{value}</p>
+            <p className="truncate text-[10px] text-muted-foreground">{label}</p>
+        </div>
+    );
+}
+
+function RunPanel({ runs }: { runs: MediaAtomizationRun[] }) {
+    return (
+        <section className="rounded-md border bg-card">
+            <SectionHeader icon={<RefreshCw className="h-4 w-4 text-[#2CBAC6]" />} title="Run Diagnostics" sub="Latest atomization attempts and failure phases." />
+            <div className="space-y-2 p-4 pt-0">
+                {runs.length === 0 ? (
+                    <EmptyBox text="No atomization runs recorded." />
+                ) : runs.slice(0, 8).map((run) => (
+                    <div key={run.id} className="grid gap-2 rounded-md border bg-muted/35 p-3 sm:grid-cols-[1fr_130px_92px] sm:items-center">
+                        <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <StatusBadge value={run.status} />
+                                <Badge variant="outline">{run.phase}</Badge>
+                                <span className="text-xs text-muted-foreground">{run.child_count} children · {run.review_count} review</span>
+                            </div>
+                            {run.error_message && <p className="mt-1 line-clamp-1 text-xs text-destructive">{run.error_message}</p>}
+                        </div>
+                        <p className="font-mono text-sm tabular-nums text-muted-foreground">{run.started_at ? new Date(run.started_at).toLocaleTimeString() : 'not started'}</p>
+                        <Button size="sm" variant="outline" asChild>
+                            <Link href={`/platform/media-studio/${run.parent_content_item_id}`}>Open</Link>
+                        </Button>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+}
+
+function SectionHeader({ icon, title, sub }: { icon: ReactNode; title: string; sub?: string }) {
+    return (
+        <div className="flex flex-col gap-1 p-4">
+            <div className="flex items-center gap-2">
+                {icon}
+                <h2 className="text-base font-semibold text-foreground">{title}</h2>
+            </div>
+            {sub && <p className="text-sm text-muted-foreground">{sub}</p>}
+        </div>
+    );
+}
+
+function EmptyBox({ text }: { text: string }) {
+    return <div className="rounded-md border border-dashed p-5 text-sm text-muted-foreground">{text}</div>;
+}
+
+export function MediaAtomizationDashboard() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const filters = useMemo(() => readFilters(searchParams), [searchParams]);
+
+    const overview = useMediaAtomizationOverview();
+    const pipeline = useMediaAtomizationPipeline(filters);
+    const parentFilters = useMemo(() => ({ ...filters, review: filters.review === 'needed' ? undefined : filters.review }), [filters]);
+    const chapterFilters = useMemo(() => ({ ...filters, review: filters.review ?? 'needed' }), [filters]);
+    const parents = useMediaAtomizationParents(parentFilters);
+    const chapters = useMediaAtomizationChapters(chapterFilters);
+    const runs = useMediaAtomizationRuns();
+    const approve = useApproveAtomizedChapter();
+    const reject = useRejectAtomizedChapter();
+    const repairLeaks = useRepairMediaAtomizationLeaks();
+    const runSweep = useRunMediaAtomizationSweep();
+
+    const setFilter = (key: keyof AtomizationFilters, value?: string) => {
+        const params = new URLSearchParams(Array.from(searchParams.entries()));
+        if (value && value !== 'all') params.set(key, value);
+        else params.delete(key);
+        const qs = params.toString();
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    };
+    const resetFilters = () => router.replace(pathname, { scroll: false });
+
+    const failedApis = [
+        overview.isError && 'overview',
+        pipeline.isError && 'pipeline',
+        parents.isError && 'parents',
+        chapters.isError && 'chapters',
+        runs.isError && 'runs',
+    ].filter(Boolean) as string[];
+    const failed = failedApis.length > 0;
+    const loading = overview.isLoading || pipeline.isLoading || parents.isLoading || chapters.isLoading || runs.isLoading;
+    const overviewData = overview.data;
+    const parentRows = parents.data ?? [];
+    const chapterRows = chapters.data ?? [];
+    const schemaStatus = overviewData?.schema_status ?? pipeline.data?.schema_status;
+    const schemaDegraded = schemaStatus?.ready === false;
+    const missingSchema = schemaStatus?.missing ?? [];
+    const durationViolations = overviewData?.duration_violation_count ?? 0;
+    const lastUpdated = pipeline.data?.updated_at ?? overviewData?.updated_at;
+    const actionsDisabled = failed || Boolean(schemaDegraded);
+
+    return (
+        <div className="space-y-5 text-foreground">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <span className="brand-overline text-[#D7A83E]">For You Media</span>
+                    <h1 className="text-2xl font-semibold">Media Atomization</h1>
+                    <p className="max-w-3xl text-sm text-muted-foreground">
+                        Command center for chapter cuts, transcript readiness, embedding gates, review pressure, and duration policy violations.
+                    </p>
+                </div>
+                <div className="flex flex-col items-start gap-2 md:items-end">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        <span>{lastUpdated ? `Updated ${new Date(lastUpdated).toLocaleTimeString()}` : 'Waiting for data'}</span>
+                        {failed && <span className="inline-flex items-center gap-1 text-destructive"><AlertTriangle className="h-3.5 w-3.5" /> stale</span>}
+                    </div>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => runSweep.mutate()}
+                        disabled={runSweep.isPending || actionsDisabled}
+                    >
+                        {runSweep.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Queue eligible parents
+                    </Button>
+                </div>
+            </div>
+
+            <FilterBar filters={filters} setFilter={setFilter} resetFilters={resetFilters} />
+
+            <PolicyStrip
+                overview={overviewData}
+                onRepair={() => repairLeaks.mutate()}
+                repairing={repairLeaks.isPending}
+                disabled={actionsDisabled}
+            />
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <KpiCard label="Waiting transcript" value={statusCount(overviewData, ['waiting_transcript'])} sub="parents" />
+                <KpiCard label="Planning + cutting" value={statusCount(overviewData, ['planning', 'cutting', 'renditions', 'children'])} sub="active" />
+                <KpiCard label="Published chapters" value={overviewData?.auto_published_count ?? 0} tone="ok" />
+                <KpiCard label="Review needed" value={overviewData?.review_needed_count ?? 0} tone="warn" />
+                <KpiCard label="Embedding pending" value={childVisibilityCount(overviewData, 'embedding_pending')} sub="hidden from feed" />
+                <KpiCard label="Failed or stuck" value={overviewData?.failed_stuck_count ?? 0} tone="bad" />
+                <KpiCard label="Duration violations" value={durationViolations} sub="visible feed units" tone={durationViolations > 0 ? 'bad' : 'ok'} />
+                <KpiCard label="Avg chapters" value={(overviewData?.average_chapters_per_parent ?? 0).toFixed(1)} sub="per parent" />
+                <KpiCard label="Avg run time" value={formatSeconds(overviewData?.average_processing_seconds)} sub="completed runs" />
+            </div>
+
+            {(failed || schemaDegraded) && (
+                <div className={cn(
+                    'rounded-md border p-3 text-sm',
+                    failed ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-[#D7A83E]/40 bg-[#D7A83E]/10 text-foreground'
+                )}>
+                    <div className="flex items-center gap-2 font-medium">
+                        <AlertTriangle className="h-4 w-4" />
+                        {failed ? `Live data unavailable from: ${failedApis.join(', ')}` : 'Atomization schema is incomplete.'}
+                    </div>
+                    <p className="mt-1">
+                        {failed
+                            ? `Showing cached data where available. Last successful update: ${lastUpdated ? new Date(lastUpdated).toLocaleString() : 'not available'}.`
+                            : schemaStatus?.message ?? 'CMS is serving degraded inventory until migrations are applied.'}
+                    </p>
+                    {schemaDegraded && missingSchema.length > 0 && (
+                        <p className="mt-1 text-xs">
+                            Missing: {missingSchema.slice(0, 6).join(', ')}{missingSchema.length > 6 ? ` +${missingSchema.length - 6} more` : ''}
+                        </p>
+                    )}
+                </div>
+            )}
+
+            <AtomizationRail pipeline={pipeline.data} />
+
+            <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+                <ReviewQueue
+                    chapters={chapterRows}
+                    approving={approve.isPending}
+                    rejecting={reject.isPending}
+                    actionsDisabled={actionsDisabled}
+                    onApprove={(id) => approve.mutate(id)}
+                    onReject={(id) => reject.mutate(id)}
+                />
+                <RunPanel runs={runs.data ?? []} />
+            </div>
+
+            <div className="grid gap-5 xl:grid-cols-2">
+                <SourcePerformance overview={overviewData} />
+                <DurationDistribution overview={overviewData} />
+            </div>
+
+            <ParentLifecycle parents={parentRows} />
+
+            {loading && !overviewData && !pipeline.data && (
+                <div className="flex items-center justify-center rounded-md border p-8 text-sm text-muted-foreground">
+                    <Clock3 className="mr-2 h-4 w-4" /> Loading atomization state
+                </div>
+            )}
+        </div>
+    );
+}

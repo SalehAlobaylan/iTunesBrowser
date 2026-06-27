@@ -17,20 +17,20 @@ interface SidebarProps {
 function WahbSidebarMark({ size = 26 }: { size?: 24 | 26 }) {
   const className =
     size === 24
-      ? 'h-6 w-6 rounded-md bg-cover bg-center'
-      : 'h-[26px] w-[26px] rounded-md bg-cover bg-center';
+      ? 'h-6 w-6 bg-contain bg-center bg-no-repeat'
+      : 'h-[26px] w-[26px] bg-contain bg-center bg-no-repeat';
 
   return (
     <>
       <span
         aria-hidden="true"
         className={cn('block dark:hidden', className)}
-        style={{ backgroundImage: "url('/images/wahb_favicon_white_bg.png')" }}
+        style={{ backgroundImage: "url('/images/wahb_mark_transparent.png')" }}
       />
       <span
         aria-hidden="true"
         className={cn('hidden dark:block', className)}
-        style={{ backgroundImage: "url('/images/wahb_favicon_dark_bg.png')" }}
+        style={{ backgroundImage: "url('/images/wahb_mark_transparent_dark.png')" }}
       />
       <span className="sr-only">Wahb</span>
     </>

@@ -17,6 +17,15 @@ export interface StudioChapter {
     start_ms: number;
     end_ms: number;
     source: ChapterSource;
+    status?: 'draft' | 'needs_review' | 'published' | 'rejected' | string;
+    confidence?: number;
+    context_label?: string | null;
+    boundary_reason?: string | null;
+    standalone_score?: number;
+    contains_sponsor_intro?: boolean;
+    needs_review_reason?: string | null;
+    duration_bucket?: string | null;
+    child_content_item_id?: string | null;
 }
 
 export interface HeatmapPoint {

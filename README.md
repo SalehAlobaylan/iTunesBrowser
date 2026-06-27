@@ -4,7 +4,7 @@
 
 # Platform-Console
 
-The internal admin / operations console for the Wahb platform. Operators manage content sources, moderate ingested content, tune the ranking engine, run news-discovery, edit transcripts (Media Studio), and watch system health — all by proxying to CMS, Aggregation, Enrichment, Media, and IAM.
+The internal admin / operations console for the Wahb platform. Operators manage content sources, moderate ingested content, tune the ranking engine, run news-discovery, review media atomization, edit transcripts (Media Studio), and watch system health — all by proxying to CMS, Aggregation, Enrichment, Media, and IAM.
 
 It is a thin **backend-for-frontend (BFF)**: it holds **no business logic and no direct DB or queue access**. Its own `/api/*` routes attach the operator's token server-side and forward to the right backend, so the browser never holds the token and never calls the backends directly.
 
@@ -31,6 +31,7 @@ npm run dev                 # http://localhost:3005
 | **Intelligence** | `/platform/intelligence` | Ranking engine, flags, analytics, preview (see below) |
 | Enrichment | `/platform/enrichment` | Embedding / enrichment batches |
 | Media | `/platform/media` | Media items + transcription pipeline |
+| Atomization | `/platform/media/atomization` | Media Atomization operations dashboard: KPIs, policy invariants, pipeline rail, review queue, source/run diagnostics |
 | Media Studio | `/platform/media-studio` | Per-item transcript + chapter editor |
 | Pipeline | `/platform/pipeline` | Ingestion / processing state |
 | Quality | `/platform/quality` | Content quality profiles |
@@ -52,6 +53,15 @@ The browser only ever talks to the Console's own origin. Catch-all proxy routes 
 | `/api/auth/*` | IAM (login / refresh / me / logout) |
 
 By design there is **no direct DB or queue access** — tuning knobs live behind CMS config tables surfaced as admin pages, and jobs are triggered through CMS/Aggregation APIs.
+
+## Media Atomization Dashboard
+
+The Atomization page is the command center for long-media chaptering. It consumes CMS `/admin/media-atomization/*` APIs only; Console must not infer state from queues or write atomization records directly.
+
+- Shows policy invariants: atomize only >40m, feed floor 4:30, hard max 40m, short chapters merge.
+- Pipeline rail columns: Ready, Transcript, Planning, Cutting, Embedding, Review, Published, Failed.
+- Review queue exposes confidence, duration bucket, review reason, playback preview, Media Studio link, and approve/reject actions.
+- Stale/offline states should identify the failed API and disable mutating actions when live data is unavailable.
 
 ## Authentication
 

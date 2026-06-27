@@ -17,13 +17,13 @@ function WahbLoginMark() {
         <>
             <span
                 aria-hidden="true"
-                className="block h-8 w-8 rounded-lg bg-cover bg-center dark:hidden"
-                style={{ backgroundImage: "url('/images/wahb_favicon_white_bg.png')" }}
+                className="block h-9 w-8 bg-contain bg-center bg-no-repeat dark:hidden"
+                style={{ backgroundImage: "url('/images/wahb_mark_transparent.png')" }}
             />
             <span
                 aria-hidden="true"
-                className="hidden h-8 w-8 rounded-lg bg-cover bg-center dark:block"
-                style={{ backgroundImage: "url('/images/wahb_favicon_dark_bg.png')" }}
+                className="hidden h-9 w-8 bg-contain bg-center bg-no-repeat dark:block"
+                style={{ backgroundImage: "url('/images/wahb_mark_transparent_dark.png')" }}
             />
             <span className="sr-only">Wahb</span>
         </>

@@ -76,6 +76,21 @@ export function ChapterList({
                                 >
                                     {CHAPTER_SOURCE_LABELS[ch.source]}
                                 </Badge>
+                                {typeof ch.confidence === 'number' && (
+                                    <Badge variant={ch.confidence >= 0.82 ? 'default' : 'outline'} className="shrink-0">
+                                        {Math.round(ch.confidence * 100)}%
+                                    </Badge>
+                                )}
+                                {ch.status && ch.status !== 'draft' && (
+                                    <Badge variant={ch.status === 'needs_review' ? 'destructive' : 'outline'} className="shrink-0">
+                                        {ch.status.replaceAll('_', ' ')}
+                                    </Badge>
+                                )}
+                                {ch.duration_bucket && (
+                                    <Badge variant="outline" className="shrink-0">
+                                        {ch.duration_bucket}
+                                    </Badge>
+                                )}
                                 <div className="flex-1" />
                                 <Button
                                     size="sm"
@@ -101,6 +116,15 @@ export function ChapterList({
                                 dir="auto"
                                 className="text-sm text-muted-foreground"
                             />
+                            {(ch.context_label || ch.boundary_reason || ch.needs_review_reason) && (
+                                <div className="space-y-1 text-xs text-muted-foreground">
+                                    {ch.context_label && <p>{ch.context_label}</p>}
+                                    {ch.boundary_reason && <p>{ch.boundary_reason}</p>}
+                                    {ch.needs_review_reason && (
+                                        <p className="text-destructive">{ch.needs_review_reason}</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
