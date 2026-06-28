@@ -17,6 +17,8 @@ import {
     sweepNow,
     buildGraph,
     getAuthorities,
+    importYouTubeFeed,
+    importYouTubeLinks,
 } from '@/lib/api/cms/discovery';
 import type { CreateProfileRequest, UpdateProfileRequest, DiscoveryConfig } from '@/types/platform/discovery';
 import { toast } from '@/components/ui/toast';
@@ -65,6 +67,40 @@ export function useBuildGraph() {
         mutationFn: buildGraph,
         onSuccess: (r) => toast({ title: 'Building source graph', description: r.message ?? 'Mapping your network — new sources will surface shortly.', variant: 'success' }),
         onError: (e) => toast({ title: 'Failed to build graph', description: String(e), variant: 'destructive' }),
+    });
+}
+
+export function useImportYouTubeFeed() {
+    const invalidate = useInvalidateHub();
+    return useMutation({
+        mutationFn: ({ raw, profileId }: { raw: unknown; profileId?: string }) => importYouTubeFeed(raw, profileId),
+        onSuccess: (r) => {
+            invalidate();
+            const n = r.imported ?? 0;
+            toast({
+                title: n > 0 ? `Imported ${n} channel${n === 1 ? '' : 's'}` : 'Nothing to import',
+                description: n > 0 ? 'Review them below and approve the ones you want.' : 'No channels were found in the pasted payload.',
+                variant: n > 0 ? 'success' : 'destructive',
+            });
+        },
+        onError: (e) => toast({ title: 'Import failed', description: String(e), variant: 'destructive' }),
+    });
+}
+
+export function useImportYouTubeLinks() {
+    const invalidate = useInvalidateHub();
+    return useMutation({
+        mutationFn: ({ inputs, profileId }: { inputs: string[]; profileId?: string }) => importYouTubeLinks(inputs, profileId),
+        onSuccess: (r) => {
+            invalidate();
+            const n = r.imported ?? 0;
+            toast({
+                title: n > 0 ? `Imported ${n} channel${n === 1 ? '' : 's'}` : 'Nothing to import',
+                description: n > 0 ? 'Review them below and approve the ones you want.' : 'None of those links resolved to a channel.',
+                variant: n > 0 ? 'success' : 'destructive',
+            });
+        },
+        onError: (e) => toast({ title: 'Import failed', description: String(e), variant: 'destructive' }),
     });
 }
 

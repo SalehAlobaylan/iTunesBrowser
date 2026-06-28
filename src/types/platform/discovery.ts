@@ -45,6 +45,10 @@ export interface SuggestionHealth {
     audio_first?: boolean;
     category?: string;
     duration_sec?: number;
+    // YouTube tagged it a podcast, or it was found via podcast-intent search / a
+    // pasted podcast shelf — drives the card's "Podcast" badge.
+    is_podcast?: boolean;
+    episode_count?: number;
 }
 
 export type SuggestionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';

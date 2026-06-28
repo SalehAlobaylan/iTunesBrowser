@@ -95,6 +95,44 @@ export async function buildGraph(): Promise<{ message?: string }> {
     return cmsClient.post<{ message?: string }>('/admin/discovery/build-graph');
 }
 
+// ---------- Import from YouTube (manual seed) ----------
+
+export interface ImportYouTubeResult {
+    success?: boolean;
+    channels?: number;
+    imported?: number;
+    upserted?: number;
+    skipped?: number;
+    message?: string;
+}
+
+// Paste a raw youtubei/v1 response (e.g. a personalized home feed); the backend
+// parses the channels, enriches each via guest InnerTube, and queues them as
+// suggestions for review under the given interest.
+export async function importYouTubeFeed(
+    raw: unknown,
+    profileId?: string,
+): Promise<ImportYouTubeResult> {
+    return cmsClient.post<ImportYouTubeResult>('/admin/discovery/import-youtube', {
+        raw,
+        profile_id: profileId,
+    });
+}
+
+// Paste YouTube references (one per line: a @handle, channel URL, or any video/
+// share link); the backend resolves each to its channel via guest InnerTube,
+// enriches it, and queues it as a suggestion for review. The low-friction seed
+// path — no DevTools JSON.
+export async function importYouTubeLinks(
+    inputs: string[],
+    profileId?: string,
+): Promise<ImportYouTubeResult> {
+    return cmsClient.post<ImportYouTubeResult>('/admin/discovery/import-youtube-links', {
+        inputs,
+        profile_id: profileId,
+    });
+}
+
 export async function getAuthorities(kind?: string): Promise<ListResponse<NetworkAuthority>> {
     const q = kind ? `?kind=${encodeURIComponent(kind)}` : '';
     return cmsClient.get<ListResponse<NetworkAuthority>>(`/admin/discovery/authorities${q}`);

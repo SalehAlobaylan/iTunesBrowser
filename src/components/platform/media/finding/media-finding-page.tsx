@@ -4,14 +4,20 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
     Plus, Play, Trash2, Loader2, Radar, Check, X, Youtube, Podcast,
-    Captions, Scissors, Network, Settings2, Radio, Eye, AudioLines,
+    Captions, Scissors, Network, Settings2, Radio, Eye, AudioLines, Upload,
+    ChevronDown, TrendingDown,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+    DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+    DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { ROUTES } from '@/lib/constants/routes';
 import {
@@ -23,9 +29,12 @@ import {
     useApproveSuggestion,
     useRejectSuggestion,
     useBulkApprove,
+    useBulkReject,
     useDiscoveryConfig,
     useUpdateDiscoveryConfig,
     useBuildGraph,
+    useImportYouTubeFeed,
+    useImportYouTubeLinks,
 } from '@/hooks/use-discovery';
 import type { DiscoveryProfile, SourceSuggestion, DiscoveryConfig } from '@/types/platform/discovery';
 import { ProfileDialog } from '@/components/platform/news/finding/profile-dialog';
@@ -87,6 +96,11 @@ function MediaSuggestionCard({ suggestion, onApprove, onReject, busy }: {
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs text-muted-foreground">
                             {subs > 0 && <span className="rounded bg-muted px-1.5 py-0.5">{formatSubscribers(subs)} subscribers</span>}
+                            {suggestion.health?.is_podcast && (
+                                <span className="inline-flex items-center gap-1 rounded bg-gold/10 px-1.5 py-0.5 text-gold">
+                                    <Podcast className="h-3 w-3" /> Podcast{suggestion.health?.episode_count ? ` · ${suggestion.health.episode_count} ep` : ''}
+                                </span>
+                            )}
                             {audioFirst === false && (
                                 <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-600">
                                     <Eye className="h-3 w-3" /> Visual{category ? ` · ${category}` : ''}
@@ -197,6 +211,141 @@ function MediaSettings({ config }: { config: DiscoveryConfig }) {
     );
 }
 
+function ClearItem({ icon: Icon, label, ids, onPick, destructive }: {
+    icon: typeof Eye;
+    label: string;
+    ids: string[];
+    onPick: (ids: string[]) => void;
+    destructive?: boolean;
+}) {
+    return (
+        <DropdownMenuItem
+            disabled={ids.length === 0}
+            onClick={() => onPick(ids)}
+            className={cn('gap-2', destructive && 'text-destructive focus:text-destructive')}
+        >
+            <Icon className="h-4 w-4" />
+            <span>{label}</span>
+            <span className="ml-auto text-xs text-muted-foreground">{ids.length}</span>
+        </DropdownMenuItem>
+    );
+}
+
+function YouTubeImportPanel({ profiles, defaultProfileId, onDone }: {
+    profiles: DiscoveryProfile[];
+    defaultProfileId: string;
+    onDone: () => void;
+}) {
+    // Links is the primary path (two taps off the Share button); JSON paste is the
+    // advanced fallback (the personalized home-feed dump) kept for power users.
+    const [mode, setMode] = useState<'links' | 'json'>('links');
+    const [links, setLinks] = useState('');
+    const [raw, setRaw] = useState('');
+    const [profileId, setProfileId] = useState(defaultProfileId);
+    const importLinks = useImportYouTubeLinks();
+    const importFeed = useImportYouTubeFeed();
+    const pending = importLinks.isPending || importFeed.isPending;
+
+    const submitLinks = () => {
+        const inputs = links.split('\n').map((s) => s.trim()).filter(Boolean);
+        if (inputs.length === 0) return;
+        importLinks.mutate(
+            { inputs, profileId: profileId || undefined },
+            { onSuccess: () => { setLinks(''); onDone(); } },
+        );
+    };
+
+    const submitJson = () => {
+        const text = raw.trim();
+        if (!text) return;
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(text);
+        } catch {
+            toast({ title: 'Invalid JSON', description: 'Paste the full youtubei/v1 response body (valid JSON).', variant: 'destructive' });
+            return;
+        }
+        importFeed.mutate(
+            { raw: parsed, profileId: profileId || undefined },
+            { onSuccess: () => { setRaw(''); onDone(); } },
+        );
+    };
+
+    return (
+        <Card>
+            <CardContent className="space-y-3 py-4">
+                <div className="flex items-start gap-2">
+                    <Youtube className="mt-0.5 h-5 w-5 shrink-0 text-gold" />
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">Import channels from YouTube</p>
+                        <p className="text-xs text-muted-foreground">
+                            Paste YouTube links — a channel <span dir="ltr">@handle</span>, a channel URL, or any
+                            video/share link (one per line). We resolve each to its channel via guest InnerTube, enrich
+                            it, and queue it below for review. No credentials are stored.
+                        </p>
+                    </div>
+                </div>
+
+                {mode === 'links' ? (
+                    <textarea
+                        value={links}
+                        onChange={(e) => setLinks(e.target.value)}
+                        placeholder={'@thmanyahPodcasts\nhttps://www.youtube.com/@MicsPodc\nhttps://youtu.be/YowLeR_piTw'}
+                        spellCheck={false}
+                        dir="ltr"
+                        className="h-32 w-full resize-y rounded-md border bg-muted/30 p-2 font-mono text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                ) : (
+                    <textarea
+                        value={raw}
+                        onChange={(e) => setRaw(e.target.value)}
+                        placeholder="Paste the raw youtubei/v1 JSON response here…"
+                        spellCheck={false}
+                        dir="ltr"
+                        className="h-40 w-full resize-y rounded-md border bg-muted/30 p-2 font-mono text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                )}
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        Attach to interest
+                        <select
+                            value={profileId}
+                            onChange={(e) => setProfileId(e.target.value)}
+                            className="h-8 rounded-md border bg-background px-2 text-xs"
+                        >
+                            <option value="">— none —</option>
+                            {profiles.map((p) => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                    </label>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setMode(mode === 'links' ? 'json' : 'links')}
+                            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                        >
+                            {mode === 'links' ? 'Advanced: paste JSON' : 'Back to links'}
+                        </button>
+                        {mode === 'links' ? (
+                            <Button size="sm" disabled={!links.trim() || pending} onClick={submitLinks}>
+                                {pending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
+                                Import
+                            </Button>
+                        ) : (
+                            <Button size="sm" disabled={!raw.trim() || pending} onClick={submitJson}>
+                                {pending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
+                                Import
+                            </Button>
+                        )}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 export function MediaFindingPage() {
     const { data: profilesData } = useProfiles();
     const { data: config } = useDiscoveryConfig();
@@ -209,6 +358,7 @@ export function MediaFindingPage() {
     const [showProfile, setShowProfile] = useState(false);
     const [editProfile, setEditProfile] = useState<DiscoveryProfile | null>(null);
     const [showSettings, setShowSettings] = useState(false);
+    const [showImport, setShowImport] = useState(false);
 
     const buildGraph = useBuildGraph();
     const runProfile = useRunProfile();
@@ -216,6 +366,7 @@ export function MediaFindingPage() {
     const approve = useApproveSuggestion();
     const reject = useRejectSuggestion();
     const bulkApprove = useBulkApprove();
+    const bulkReject = useBulkReject();
 
     // Media-only profiles + suggestions (the spine is shared; isolate by category).
     const mediaProfiles = useMemo(
@@ -235,6 +386,37 @@ export function MediaFindingPage() {
         () => (activeProfile === ALL ? suggestions : suggestions.filter((s) => s.profile_id === activeProfile)),
         [suggestions, activeProfile],
     );
+
+    // Hand-imported channels (pasted links / JSON) are kept in their own section so
+    // they don't get lost among the auto-discovered results — these are the ones the
+    // admin deliberately seeded and most wants to find again.
+    const isImported = (s: SourceSuggestion) => s.discovered_via === 'youtube-import';
+    const imported = useMemo(() => visible.filter(isImported), [visible]);
+    const discovered = useMemo(() => visible.filter((s) => !isImported(s)), [visible]);
+
+    // One-click "clear" filters for the review queue (bulk-reject the matches).
+    // "Weak" is relative to the current view's best score (with a small floor) so
+    // it adapts to each topic's score distribution instead of a fixed cutoff.
+    const clearGroups = useMemo(() => {
+        const scoreOf = (s: SourceSuggestion) => s.relevance_score ?? s.confidence ?? 0;
+        const maxScore = visible.reduce((m, s) => Math.max(m, scoreOf(s)), 0);
+        const weakCutoff = Math.max(0.15, maxScore * 0.5);
+        const ids = (pred: (s: SourceSuggestion) => boolean) => visible.filter(pred).map((s) => s.id);
+        return {
+            weak: ids((s) => scoreOf(s) < weakCutoff),
+            visual: ids((s) => s.health?.audio_first === false),
+            nonPodcast: ids((s) => !(s.type === 'PODCAST' || s.health?.is_podcast)),
+            noTranscript: ids((s) => s.evidence?.caption_state === 'none'),
+            needsTrim: ids((s) => Boolean(s.evidence?.needs_chaptering)),
+            imported: ids(isImported),
+            discovered: ids((s) => !isImported(s)),
+            all: visible.map((s) => s.id),
+        };
+    }, [visible]);
+
+    const clearWhere = (ids: string[]) => {
+        if (ids.length && !bulkReject.isPending) bulkReject.mutate(ids);
+    };
 
     // Active media source counts per interest (the roster the hub has built).
     const activeByProfile = useMemo(() => {
@@ -265,6 +447,9 @@ export function MediaFindingPage() {
                             <Radio className="mr-1 h-4 w-4" /> Media Sources{totalActive ? ` · ${totalActive}` : ''}
                         </Button>
                     </Link>
+                    <Button variant="outline" onClick={() => setShowImport((s) => !s)}>
+                        <Upload className="mr-1 h-4 w-4" /> Import from YouTube
+                    </Button>
                     <Button variant="outline" onClick={() => setShowSettings((s) => !s)}>
                         <Settings2 className="mr-1 h-4 w-4" /> Settings
                     </Button>
@@ -283,6 +468,13 @@ export function MediaFindingPage() {
             </div>
 
             {showSettings && config && <MediaSettings config={config} />}
+            {showImport && (
+                <YouTubeImportPanel
+                    profiles={mediaProfiles}
+                    defaultProfileId={activeProfile === ALL ? (mediaProfiles[0]?.id ?? '') : activeProfile}
+                    onDone={() => setShowImport(false)}
+                />
+            )}
 
             <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
                 {/* Interests rail */}
@@ -353,14 +545,37 @@ export function MediaFindingPage() {
                     {visible.length > 0 && (
                         <div className="flex items-center justify-between">
                             <p className="text-sm text-muted-foreground">{visible.length} pending</p>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={bulkApprove.isPending}
-                                onClick={() => bulkApprove.mutate(visible.map((s) => s.id))}
-                            >
-                                <Check className="mr-1 h-4 w-4" /> Approve all
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button size="sm" variant="outline" disabled={bulkReject.isPending}>
+                                            {bulkReject.isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1 h-4 w-4" />}
+                                            Clear <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-60">
+                                        <DropdownMenuLabel>Clear from this view</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        <ClearItem icon={TrendingDown} label="Weak (low relevance)" ids={clearGroups.weak} onPick={clearWhere} />
+                                        <ClearItem icon={Eye} label="Visual (not audio-first)" ids={clearGroups.visual} onPick={clearWhere} />
+                                        <ClearItem icon={Podcast} label="Non-podcasts" ids={clearGroups.nonPodcast} onPick={clearWhere} />
+                                        <ClearItem icon={Captions} label="No transcript" ids={clearGroups.noTranscript} onPick={clearWhere} />
+                                        <ClearItem icon={Scissors} label="Needs trimming" ids={clearGroups.needsTrim} onPick={clearWhere} />
+                                        <ClearItem icon={Youtube} label="Imported from YouTube" ids={clearGroups.imported} onPick={clearWhere} />
+                                        <ClearItem icon={Radar} label="Auto-discovered (not imported)" ids={clearGroups.discovered} onPick={clearWhere} />
+                                        <DropdownMenuSeparator />
+                                        <ClearItem icon={X} label="Clear all shown" ids={clearGroups.all} onPick={clearWhere} destructive />
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={bulkApprove.isPending}
+                                    onClick={() => bulkApprove.mutate(visible.map((s) => s.id))}
+                                >
+                                    <Check className="mr-1 h-4 w-4" /> Approve all
+                                </Button>
+                            </div>
                         </div>
                     )}
 
@@ -380,16 +595,50 @@ export function MediaFindingPage() {
                             </CardContent>
                         </Card>
                     ) : (
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                            {visible.map((s) => (
-                                <MediaSuggestionCard
-                                    key={s.id}
-                                    suggestion={s}
-                                    busy={busy}
-                                    onApprove={() => approve.mutate(s.id)}
-                                    onReject={() => reject.mutate({ id: s.id })}
-                                />
-                            ))}
+                        <div className="space-y-5">
+                            {imported.length > 0 && (
+                                <section className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <Youtube className="h-4 w-4 text-gold" />
+                                        <h3 className="text-sm font-semibold">Imported from YouTube</h3>
+                                        <Badge variant="secondary">{imported.length}</Badge>
+                                        <span className="text-xs text-muted-foreground">channels you pasted in</span>
+                                    </div>
+                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                        {imported.map((s) => (
+                                            <MediaSuggestionCard
+                                                key={s.id}
+                                                suggestion={s}
+                                                busy={busy}
+                                                onApprove={() => approve.mutate(s.id)}
+                                                onReject={() => reject.mutate({ id: s.id })}
+                                            />
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
+                            {discovered.length > 0 && (
+                                <section className="space-y-2">
+                                    {imported.length > 0 && (
+                                        <div className="flex items-center gap-2">
+                                            <Radar className="h-4 w-4 text-muted-foreground" />
+                                            <h3 className="text-sm font-semibold">Auto-discovered</h3>
+                                            <Badge variant="secondary">{discovered.length}</Badge>
+                                        </div>
+                                    )}
+                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                        {discovered.map((s) => (
+                                            <MediaSuggestionCard
+                                                key={s.id}
+                                                suggestion={s}
+                                                busy={busy}
+                                                onApprove={() => approve.mutate(s.id)}
+                                                onReject={() => reject.mutate({ id: s.id })}
+                                            />
+                                        ))}
+                                    </div>
+                                </section>
+                            )}
                         </div>
                     )}
                 </div>
