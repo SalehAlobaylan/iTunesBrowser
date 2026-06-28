@@ -1,14 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     atomizeMediaParent,
-	    approveAtomizedChapter,
+    approveAtomizedChapter,
     getMediaAtomizationPolicy,
-	    getMediaAtomizationOverview,
-	    getMediaAtomizationPipeline,
-    listMediaAtomizationSources,
+    getMediaAtomizationOverview,
+    getMediaAtomizationPipeline,
     listMediaAtomizationChapters,
+    listMediaAtomizationFeedUnits,
     listMediaAtomizationParents,
     listMediaAtomizationRuns,
+    listMediaAtomizationSources,
     reatomizeMediaParent,
     repairMediaAtomizationLeaks,
     rejectAtomizedChapter,
@@ -20,13 +21,16 @@ import {
 import type { AtomizationFilters, MediaAtomizationOverview, MediaAtomizationPolicyPatch } from '@/types/platform/media-atomization';
 import { toast } from '@/components/ui/toast';
 
+type QueryEnabledOption = { enabled?: boolean };
+
 export const mediaAtomizationKeys = {
     all: ['media-atomization'] as const,
-	    overview: () => [...mediaAtomizationKeys.all, 'overview'] as const,
+    overview: () => [...mediaAtomizationKeys.all, 'overview'] as const,
     policy: () => [...mediaAtomizationKeys.all, 'policy'] as const,
     sources: () => [...mediaAtomizationKeys.all, 'sources'] as const,
-	    pipeline: (filters: AtomizationFilters) => [...mediaAtomizationKeys.all, 'pipeline', filters] as const,
+    pipeline: (filters: AtomizationFilters) => [...mediaAtomizationKeys.all, 'pipeline', filters] as const,
     parents: (filters: AtomizationFilters) => [...mediaAtomizationKeys.all, 'parents', filters] as const,
+    feedUnits: (filters: Pick<AtomizationFilters, 'path' | 'source' | 'q'>) => [...mediaAtomizationKeys.all, 'feed-units', filters] as const,
     chapters: (filters: AtomizationFilters) => [...mediaAtomizationKeys.all, 'chapters', filters] as const,
     runs: () => [...mediaAtomizationKeys.all, 'runs'] as const,
 };
@@ -51,19 +55,21 @@ function overviewPollMs(data?: MediaAtomizationOverview): number {
     return hasActiveParents || hasEmbeddingPending ? 5_000 : 60_000;
 }
 
-export function useMediaAtomizationPolicy() {
+export function useMediaAtomizationPolicy(options: QueryEnabledOption = {}) {
     return useQuery({
         queryKey: mediaAtomizationKeys.policy(),
         queryFn: getMediaAtomizationPolicy,
         staleTime: 10_000,
+        enabled: options.enabled ?? true,
     });
 }
 
-export function useMediaAtomizationSources() {
+export function useMediaAtomizationSources(options: QueryEnabledOption = {}) {
     return useQuery({
         queryKey: mediaAtomizationKeys.sources(),
         queryFn: () => listMediaAtomizationSources({ limit: 80 }),
         staleTime: 10_000,
+        enabled: options.enabled ?? true,
     });
 }
 
@@ -76,39 +82,53 @@ export function useMediaAtomizationOverview() {
     });
 }
 
-export function useMediaAtomizationParents(filters: AtomizationFilters) {
+export function useMediaAtomizationParents(filters: AtomizationFilters, options: QueryEnabledOption = {}) {
     return useQuery({
         queryKey: mediaAtomizationKeys.parents(filters),
         queryFn: () => listMediaAtomizationParents({ ...filters, limit: 80 }),
         refetchInterval: 10_000,
         staleTime: 5_000,
+        enabled: options.enabled ?? true,
     });
 }
 
-export function useMediaAtomizationPipeline(filters: AtomizationFilters) {
+export function useMediaAtomizationFeedUnits(filters: Pick<AtomizationFilters, 'path' | 'source' | 'q'>, options: QueryEnabledOption = {}) {
+    return useQuery({
+        queryKey: mediaAtomizationKeys.feedUnits(filters),
+        queryFn: () => listMediaAtomizationFeedUnits({ ...filters, limit: 200 }),
+        refetchInterval: filters.path === 'blocked_transcript' || filters.path === 'invalid' ? 5_000 : 60_000,
+        staleTime: 5_000,
+        enabled: options.enabled ?? true,
+    });
+}
+
+export function useMediaAtomizationPipeline(filters: AtomizationFilters, options: QueryEnabledOption = {}) {
     return useQuery({
         queryKey: mediaAtomizationKeys.pipeline(filters),
         queryFn: () => getMediaAtomizationPipeline({ ...filters, limit: 320 }),
         refetchInterval: 5_000,
         staleTime: 5_000,
+        enabled: options.enabled ?? true,
     });
 }
 
-export function useMediaAtomizationChapters(filters: AtomizationFilters) {
+export function useMediaAtomizationChapters(filters: AtomizationFilters, options: QueryEnabledOption = {}) {
     return useQuery({
         queryKey: mediaAtomizationKeys.chapters(filters),
         queryFn: () => listMediaAtomizationChapters({ ...filters, limit: 80 }),
         refetchInterval: filters.review === 'needed' || filters.review === 'embedding_pending' ? 5_000 : 60_000,
         staleTime: 5_000,
+        enabled: options.enabled ?? true,
     });
 }
 
-export function useMediaAtomizationRuns() {
+export function useMediaAtomizationRuns(options: QueryEnabledOption = {}) {
     return useQuery({
         queryKey: mediaAtomizationKeys.runs(),
         queryFn: () => listMediaAtomizationRuns({ limit: 30 }),
         refetchInterval: 5_000,
         staleTime: 5_000,
+        enabled: options.enabled ?? true,
     });
 }
 

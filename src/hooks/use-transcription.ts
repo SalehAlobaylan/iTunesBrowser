@@ -13,6 +13,7 @@ import {
 import type { ListTranscriptionBatchesParams, ListTranscriptionJobsParams } from '@/lib/api/cms/transcription';
 import type { UpdateTranscriptionConfigRequest } from '@/types/platform/media';
 import { contentKeys } from '@/hooks/use-content';
+import { mediaAtomizationKeys } from '@/hooks/use-media-atomization';
 import { toast } from '@/components/ui/toast';
 
 export const transcriptionKeys = {
@@ -55,6 +56,7 @@ export function useTriggerStt() {
         onSuccess: (res) => {
             queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
             queryClient.invalidateQueries({ queryKey: ['transcription', 'batches'] });
+            queryClient.invalidateQueries({ queryKey: mediaAtomizationKeys.all });
             toast({
                 title: res.triggered ? 'STT job queued' : 'STT skipped',
                 description: res.reason || `Job ${res.job.id}`,
@@ -74,6 +76,7 @@ export function useBulkTriggerStt() {
         onSuccess: (res) => {
             queryClient.invalidateQueries({ queryKey: contentKeys.lists() });
             queryClient.invalidateQueries({ queryKey: ['transcription', 'batches'] });
+            queryClient.invalidateQueries({ queryKey: mediaAtomizationKeys.all });
             toast({
                 title: 'Bulk STT batch queued',
                 description: `${res.total_count} items accepted into batch`,

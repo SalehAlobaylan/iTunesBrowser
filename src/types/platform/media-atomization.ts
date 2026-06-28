@@ -59,6 +59,7 @@ export interface MediaAtomizationOverview {
     disabled_episode_count?: number;
     disabled_source_count?: number;
     manual_requested_count?: number;
+    publication_summary?: MediaPublicationSummary;
     invariants?: MediaAtomizationInvariants;
     policy?: MediaAtomizationPolicySnapshot;
     average_chapters_per_parent: number;
@@ -67,6 +68,22 @@ export interface MediaAtomizationOverview {
     source_performance: AtomizationSourcePerformance[];
     schema_status?: MediaAtomizationSchemaStatus;
     updated_at: string;
+}
+
+export type MediaPublicationPath =
+    | 'atomized'
+    | 'direct_transcript'
+    | 'direct_no_transcript'
+    | 'blocked_transcript'
+    | 'invalid';
+
+export interface MediaPublicationSummary {
+    atomized_published_count: number;
+    direct_with_transcript_count: number;
+    direct_without_transcript_count: number;
+    blocked_waiting_transcript_count: number;
+    hidden_long_parent_count: number;
+    invalid_visible_count: number;
 }
 
 export interface MediaAtomizationPolicySnapshot {
@@ -149,6 +166,8 @@ export interface MediaAtomizationParent {
     duration_sec?: number | null;
     transcript_id?: string | null;
     child_count: number;
+    child_duration_sec?: number | null;
+    coverage_percent?: number | null;
     published_count: number;
     review_count: number;
     embedding_pending_count: number;
@@ -197,6 +216,27 @@ export interface MediaAtomizationRun {
     updated_at: string;
 }
 
+export interface MediaAtomizationFeedUnit {
+    id: string;
+    title?: string | null;
+    source_name?: string | null;
+    duration_sec?: number | null;
+    transcript_id?: string | null;
+    transcript_state: 'ready' | 'missing' | string;
+    publication_path: MediaPublicationPath | string;
+    feed_visibility: string;
+    status: string;
+    parent_id?: string | null;
+    parent_title?: string | null;
+    child_count: number;
+    latest_error?: string | null;
+    playback_url?: string | null;
+    playback_type?: string | null;
+    fallback_playback_url?: string | null;
+    has_video?: boolean | null;
+    updated_at: string;
+}
+
 export interface MediaAtomizationPipelineItem {
     id: string;
     title?: string | null;
@@ -207,6 +247,8 @@ export interface MediaAtomizationPipelineItem {
     transcript_id?: string | null;
     transcript_state: string;
     child_count: number;
+    child_duration_sec?: number | null;
+    coverage_percent?: number | null;
     published_count: number;
     review_count: number;
     embedding_pending_count: number;
@@ -240,5 +282,6 @@ export interface AtomizationFilters {
     source?: string;
     bucket?: string;
     review?: string;
+    path?: string;
     q?: string;
 }

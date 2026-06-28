@@ -1,16 +1,17 @@
 import { cmsClient } from '@/lib/api/client';
 import type {
     AtomizationFilters,
-	    MediaAtomizationChapter,
-	    MediaAtomizationOverview,
-	    MediaAtomizationParent,
-	    MediaAtomizationPipeline,
+    MediaAtomizationChapter,
+    MediaAtomizationFeedUnit,
+    MediaAtomizationOverview,
+    MediaAtomizationParent,
+    MediaAtomizationPipeline,
     MediaAtomizationPolicy,
     MediaAtomizationPolicyPatch,
-	    MediaAtomizationRepairResult,
+    MediaAtomizationRepairResult,
+    MediaAtomizationRun,
     MediaAtomizationSourcePolicy,
     MediaAtomizationSweepResult,
-    MediaAtomizationRun,
 } from '@/types/platform/media-atomization';
 
 interface CmsEnvelope<T> {
@@ -72,6 +73,14 @@ export const listMediaAtomizationParents = (filters?: AtomizationFilters & { lim
     unwrap(
         cmsClient.get<CmsEnvelope<{ items: MediaAtomizationParent[] }>>(
             '/admin/media-atomization/parents',
+            cleanParams(filters)
+        )
+    ).then((d) => asArray(d?.items));
+
+export const listMediaAtomizationFeedUnits = (filters?: Pick<AtomizationFilters, 'path' | 'source' | 'q'> & { limit?: number }) =>
+    unwrap(
+        cmsClient.get<CmsEnvelope<{ items: MediaAtomizationFeedUnit[] }>>(
+            '/admin/media-atomization/feed-units',
             cleanParams(filters)
         )
     ).then((d) => asArray(d?.items));
