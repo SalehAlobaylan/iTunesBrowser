@@ -14,6 +14,7 @@ import type {
     StudioSegment,
 } from '@/types/platform/studio';
 import { toast } from '@/components/ui/toast';
+import { mediaAtomizationKeys } from '@/hooks/use-media-atomization';
 
 export const studioKeys = {
     detail: (id: string) => ['studio', id] as const,
@@ -44,6 +45,7 @@ export function useSaveChapters(id: string) {
         mutationFn: (chapters: StudioChapter[]) => saveChapters(id, chapters),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: studioKeys.detail(id) });
+            queryClient.invalidateQueries({ queryKey: mediaAtomizationKeys.all });
             toast({ title: 'Chapters saved', variant: 'success' });
         },
         onError: (error: Error) => {
@@ -58,6 +60,7 @@ export function useSaveTranscript(id: string) {
         mutationFn: (segments: StudioSegment[]) => saveTranscript(id, segments),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: studioKeys.detail(id) });
+            queryClient.invalidateQueries({ queryKey: mediaAtomizationKeys.all });
             toast({ title: 'Transcript saved', variant: 'success' });
         },
         onError: (error: Error) => {
@@ -72,6 +75,7 @@ export function useApproveTranscript(id: string) {
         mutationFn: (reason?: string) => approveTranscript(id, reason),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: studioKeys.detail(id) });
+            queryClient.invalidateQueries({ queryKey: mediaAtomizationKeys.all });
             toast({ title: 'Transcript approved', variant: 'success' });
         },
         onError: (error: Error) => {
@@ -86,6 +90,7 @@ export function useUnapproveTranscript(id: string) {
         mutationFn: () => unapproveTranscript(id),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: studioKeys.detail(id) });
+            queryClient.invalidateQueries({ queryKey: mediaAtomizationKeys.all });
             toast({ title: 'Transcript approval cleared', variant: 'success' });
         },
         onError: (error: Error) => {

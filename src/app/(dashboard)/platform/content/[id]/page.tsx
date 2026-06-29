@@ -148,7 +148,7 @@ export default function ContentDetailPage({ params }: ContentDetailPageProps) {
                     )}
                     {isMediaItem && (
                         <Button variant="outline" asChild>
-                            <Link href={`/platform/media-studio/${item.id}`}>
+                            <Link href={`/platform/media/atomization?tab=studio&item=${item.id}`}>
                                 <Clapperboard className="mr-2 h-4 w-4" />
                                 Open in Media Studio
                             </Link>

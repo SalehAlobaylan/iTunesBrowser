@@ -242,7 +242,7 @@ function EngagementStat({
 function FailureRow({ item }: { item: ContentItem }) {
     const href =
         item.type === 'VIDEO' || item.type === 'PODCAST'
-            ? `/platform/media-studio/${item.id}`
+            ? `/platform/media/atomization?tab=studio&item=${item.id}`
             : `/platform/content/${item.id}`;
     return (
         <Link

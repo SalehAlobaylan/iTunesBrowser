@@ -71,7 +71,7 @@ export function EngagementLeaderboard({ typeFilter }: EngagementLeaderboardProps
 function LeaderRow({ item, metric, rank }: { item: ContentItem; metric: Metric; rank: number }) {
     const href =
         item.type === 'VIDEO' || item.type === 'PODCAST'
-            ? `/platform/media-studio/${item.id}`
+            ? `/platform/media/atomization?tab=studio&item=${item.id}`
             : `/platform/content/${item.id}`;
     return (
         <Link

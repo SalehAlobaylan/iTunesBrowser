@@ -146,7 +146,7 @@ export function DetailActionsMenu({ item }: DetailActionsMenuProps) {
                 <DropdownMenuContent align="end" className="w-56">
                     {isMediaItem && (
                         <>
-                            <DropdownMenuItem onClick={() => router.push(`/platform/media-studio/${item.id}`)}>
+                            <DropdownMenuItem onClick={() => router.push(`/platform/media/atomization?tab=studio&item=${item.id}`)}>
                                 <Clapperboard className="mr-2 h-4 w-4" /> Open in Media Studio
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />

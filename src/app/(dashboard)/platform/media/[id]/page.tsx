@@ -8,5 +8,5 @@ export default async function LegacyMediaStudioRedirect({
     params,
 }: LegacyMediaStudioRedirectProps) {
     const { id } = await params;
-    redirect(`/platform/media-studio/${id}`);
+    redirect(`/platform/media/atomization?tab=studio&item=${encodeURIComponent(id)}`);
 }

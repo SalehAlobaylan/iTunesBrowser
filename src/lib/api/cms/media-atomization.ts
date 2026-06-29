@@ -2,6 +2,7 @@ import { cmsClient } from '@/lib/api/client';
 import type {
     AtomizationFilters,
     MediaAtomizationChapter,
+    MediaAtomizationParentContext,
     MediaAtomizationFeedUnit,
     MediaAtomizationOverview,
     MediaAtomizationParent,
@@ -76,6 +77,18 @@ export const listMediaAtomizationParents = (filters?: AtomizationFilters & { lim
             cleanParams(filters)
         )
     ).then((d) => asArray(d?.items));
+
+export const getMediaAtomizationParentContext = (id: string) =>
+    unwrap(
+        cmsClient.get<CmsEnvelope<MediaAtomizationParentContext>>(
+            `/admin/media-atomization/parents/${id}/context`
+        )
+    ).then((d) => ({
+        ...d,
+        chapters: asArray(d?.chapters),
+        children: asArray(d?.children),
+        recent_runs: asArray(d?.recent_runs),
+    }));
 
 export const listMediaAtomizationFeedUnits = (filters?: Pick<AtomizationFilters, 'path' | 'source' | 'q'> & { limit?: number }) =>
     unwrap(

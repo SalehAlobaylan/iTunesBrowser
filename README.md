@@ -31,8 +31,7 @@ npm run dev                 # http://localhost:3005
 | **Intelligence** | `/platform/intelligence` | Ranking engine, flags, analytics, preview (see below) |
 | Enrichment | `/platform/enrichment` | Embedding / enrichment batches |
 | Media | `/platform/media` | Media items + transcription pipeline |
-| Atomization | `/platform/media/atomization` | Media Atomization operations dashboard: KPIs, policy invariants, pipeline rail, review queue, source/run diagnostics |
-| Media Studio | `/platform/media-studio` | Per-item transcript + chapter editor |
+| Media Studio | `/platform/media/atomization` | Unified media atomization + transcript/chapter workbench: publication paths, workflow rail, review queue, policy controls, per-item Studio editor, source/run diagnostics |
 | Pipeline | `/platform/pipeline` | Ingestion / processing state |
 | Quality | `/platform/quality` | Content quality profiles |
 | Storage | `/platform/storage` | Object-storage circulation / tiering |
@@ -54,14 +53,15 @@ The browser only ever talks to the Console's own origin. Catch-all proxy routes 
 
 By design there is **no direct DB or queue access** — tuning knobs live behind CMS config tables surfaced as admin pages, and jobs are triggered through CMS/Aggregation APIs.
 
-## Media Atomization Dashboard
+## Media Studio
 
-The Atomization page is the command center for long-media chaptering. It consumes CMS `/admin/media-atomization/*` APIs only; Console must not infer state from queues or write atomization records directly.
+Media Studio is the command center for long-media chaptering. It consumes CMS `/admin/media-atomization/*` and `/admin/content/:id/studio` APIs only; Console must not infer state from queues or write atomization records directly.
 
 - Shows editable tenant policy, source overrides, episode controls, and policy invariants: atomize only >40m, feed floor 4:30, hard max 40m, short chapters merge.
 - Operators can exclude whole media sources, exclude/enable one parent episode, and queue or re-queue eligible >40m parents through CMS.
 - Pipeline rail columns: Ready, Transcript, Planning, Cutting, Embedding, Review, Published, Disabled, Failed.
-- Review queue exposes confidence, duration bucket, review reason, playback preview, Media Studio link, and approve/reject actions.
+- Review queue exposes confidence, duration bucket, review reason, playback preview, in-page Studio selection, and approve/reject actions.
+- The Studio tab embeds per-item playback, transcript editing, transcript approval, chapter generation/editing, comparison, and STT actions. Legacy `/platform/media-studio` URLs redirect into `/platform/media/atomization?tab=studio`.
 - Stale/offline states should identify the failed API and disable mutating actions when live data is unavailable.
 
 ## Authentication

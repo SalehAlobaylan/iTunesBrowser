@@ -407,7 +407,7 @@ export function MediaList({ type }: { type: ContentType }) {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem onClick={() => router.push(`/platform/media-studio/${item.id}`)}>
+                    <DropdownMenuItem onClick={() => router.push(`/platform/media/atomization?tab=studio&item=${item.id}`)}>
                         <Clapperboard className="mr-2 h-4 w-4" /> Open in Media Studio
                     </DropdownMenuItem>
                     <DropdownMenuItem disabled={!hasMedia} onClick={() => setSttConfirm([item])}>
@@ -453,7 +453,7 @@ export function MediaList({ type }: { type: ContentType }) {
                 )}
             >
                 <div className="relative aspect-video w-full overflow-hidden bg-muted">
-                    <Link href={`/platform/media-studio/${item.id}`} className="absolute inset-0">
+                    <Link href={`/platform/media/atomization?tab=studio&item=${item.id}`} className="absolute inset-0">
                         {item.thumbnail_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -499,7 +499,7 @@ export function MediaList({ type }: { type: ContentType }) {
                 </div>
                 <div className="flex flex-1 flex-col gap-1.5 p-3">
                     <Link
-                        href={`/platform/media-studio/${item.id}`}
+                        href={`/platform/media/atomization?tab=studio&item=${item.id}`}
                         dir="auto"
                         title={item.title}
                         className="line-clamp-2 text-sm font-medium leading-snug hover:underline"
@@ -563,7 +563,7 @@ export function MediaList({ type }: { type: ContentType }) {
                 </TableCell>
                 <TableCell className="max-w-0">
                     <div className="flex items-center gap-3">
-                        <Link href={`/platform/media-studio/${item.id}`} className="relative h-10 w-16 shrink-0 overflow-hidden rounded bg-muted">
+                        <Link href={`/platform/media/atomization?tab=studio&item=${item.id}`} className="relative h-10 w-16 shrink-0 overflow-hidden rounded bg-muted">
                             {item.thumbnail_url ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={item.thumbnail_url} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -572,7 +572,7 @@ export function MediaList({ type }: { type: ContentType }) {
                             )}
                         </Link>
                         <div className="min-w-0">
-                            <Link href={`/platform/media-studio/${item.id}`} className="block truncate font-medium hover:underline" title={item.title}>
+                            <Link href={`/platform/media/atomization?tab=studio&item=${item.id}`} className="block truncate font-medium hover:underline" title={item.title}>
                                 {item.title || '(untitled)'}
                             </Link>
                             {item.source_name && !groupBy && (

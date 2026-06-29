@@ -237,6 +237,65 @@ export interface MediaAtomizationFeedUnit {
     updated_at: string;
 }
 
+export interface MediaAtomizationContextFeedUnit {
+    id: string;
+    title?: string | null;
+    status: string;
+    feed_visibility: string;
+    duration_sec?: number | null;
+    duration_bucket?: string | null;
+    chapter_index?: number | null;
+    chapter_start_ms?: number | null;
+    chapter_end_ms?: number | null;
+    playback_url?: string | null;
+    playback_type?: string | null;
+    fallback_playback_url?: string | null;
+    has_video?: boolean | null;
+    updated_at?: string | null;
+}
+
+export interface MediaAtomizationContextChapter {
+    id?: string;
+    title: string;
+    summary?: string | null;
+    start_ms: number;
+    end_ms: number;
+    status?: string;
+    confidence?: number | null;
+    duration_bucket?: string | null;
+    child_content_item_id?: string | null;
+}
+
+export interface MediaAtomizationParentContext {
+    parent?: Partial<MediaAtomizationParent> & {
+        media_url?: string | null;
+        thumbnail_url?: string | null;
+        playback_url?: string | null;
+        playback_type?: string | null;
+        fallback_playback_url?: string | null;
+        has_video?: boolean | null;
+    };
+    effective_policy?: MediaAtomizationPolicy;
+    policy_source?: string;
+    atomization_disabled_reason?: string | null;
+    manual_requested?: boolean;
+    transcript?: {
+        transcript_id: string;
+        language?: string | null;
+        source?: string | null;
+        provider?: string | null;
+        approved_at?: string | null;
+        approved_by?: string | null;
+        approval_reason?: string | null;
+    } | null;
+    chapters: MediaAtomizationContextChapter[];
+    children: MediaAtomizationContextFeedUnit[];
+    recent_runs: MediaAtomizationRun[];
+    selected_chapter?: MediaAtomizationContextChapter | null;
+    selected_child?: MediaAtomizationContextFeedUnit | null;
+    schema_status?: MediaAtomizationSchemaStatus;
+}
+
 export interface MediaAtomizationPipelineItem {
     id: string;
     title?: string | null;

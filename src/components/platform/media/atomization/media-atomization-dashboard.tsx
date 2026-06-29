@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
     AlertTriangle,
@@ -25,6 +24,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MediaStudioWorkbench } from '@/components/platform/media/studio/media-studio-workbench';
 import {
     Select,
     SelectContent,
@@ -40,6 +40,7 @@ import {
     useMediaAtomizationPolicy,
     useMediaAtomizationChapters,
     useMediaAtomizationOverview,
+    useMediaAtomizationParentContext,
     useMediaAtomizationParents,
     useMediaAtomizationPipeline,
     useMediaAtomizationRuns,
@@ -60,6 +61,7 @@ import type {
     MediaAtomizationFeedUnit,
     MediaAtomizationOverview,
     MediaAtomizationParent,
+    MediaAtomizationParentContext,
     MediaAtomizationPipeline,
     MediaAtomizationPipelineColumn,
     MediaAtomizationPipelineItem,
@@ -76,7 +78,7 @@ const MIN_FEED_UNIT_SECONDS = 270;
 const HARD_MAX_SECONDS = 2400;
 const publicationPathOptions: Array<MediaPublicationPath | 'all'> = ['all', 'atomized', 'direct_transcript', 'direct_no_transcript', 'blocked_transcript', 'invalid'];
 const publicationTracks: MediaPublicationPath[] = ['atomized', 'direct_transcript', 'direct_no_transcript', 'blocked_transcript'];
-const missionTabs = ['publish', 'workflow', 'review', 'policy', 'diagnostics'] as const;
+const missionTabs = ['publish', 'workflow', 'review', 'studio', 'policy', 'diagnostics'] as const;
 type MissionTab = typeof missionTabs[number];
 
 function readMissionTab(params: URLSearchParams): MissionTab {
@@ -89,6 +91,7 @@ function missionTabLabel(tab: MissionTab): string {
         case 'publish': return 'Publish';
         case 'workflow': return 'Workflow';
         case 'review': return 'Review';
+        case 'studio': return 'Studio';
         case 'policy': return 'Policy';
         case 'diagnostics': return 'Diagnostics';
     }
@@ -470,6 +473,7 @@ function PublicationMap({
     sttPending,
     overridePending,
     onSelectPath,
+    onOpenStudio,
     onRequestTranscript,
     onDisableAtomization,
 }: {
@@ -480,6 +484,7 @@ function PublicationMap({
     sttPending: boolean;
     overridePending: boolean;
     onSelectPath: (path?: string) => void;
+    onOpenStudio: (id: string) => void;
     onRequestTranscript: (id: string) => void;
     onDisableAtomization: (id: string) => void;
 }) {
@@ -543,6 +548,7 @@ function PublicationMap({
                                         actionsDisabled={actionsDisabled}
                                         sttPending={sttPending}
                                         overridePending={overridePending}
+                                        onOpenStudio={onOpenStudio}
                                         onRequestTranscript={onRequestTranscript}
                                         onDisableAtomization={onDisableAtomization}
                                     />
@@ -563,6 +569,7 @@ function PublicationLedger({
     sttPending,
     overridePending,
     onSelectPath,
+    onOpenStudio,
     onRequestTranscript,
     onDisableAtomization,
 }: {
@@ -572,6 +579,7 @@ function PublicationLedger({
     sttPending: boolean;
     overridePending: boolean;
     onSelectPath: (path?: string) => void;
+    onOpenStudio: (id: string) => void;
     onRequestTranscript: (id: string) => void;
     onDisableAtomization: (id: string) => void;
 }) {
@@ -603,6 +611,7 @@ function PublicationLedger({
                         actionsDisabled={actionsDisabled}
                         sttPending={sttPending}
                         overridePending={overridePending}
+                        onOpenStudio={onOpenStudio}
                         onRequestTranscript={onRequestTranscript}
                         onDisableAtomization={onDisableAtomization}
                     />
@@ -618,6 +627,7 @@ function PublicationCard({
     actionsDisabled,
     sttPending,
     overridePending,
+    onOpenStudio,
     onRequestTranscript,
     onDisableAtomization,
 }: {
@@ -626,6 +636,7 @@ function PublicationCard({
     actionsDisabled: boolean;
     sttPending: boolean;
     overridePending: boolean;
+    onOpenStudio: (id: string) => void;
     onRequestTranscript: (id: string) => void;
     onDisableAtomization: (id: string) => void;
 }) {
@@ -654,10 +665,8 @@ function PublicationCard({
                     <StatusBadge value={item.feed_visibility} />
                 </div>
                 <div className="flex flex-wrap gap-2 lg:justify-end">
-                    <Button size="sm" variant="outline" asChild>
-                        <Link href={`/platform/media-studio/${studioId}`}>
-                            <ExternalLink className="mr-2 h-4 w-4" /> Studio
-                        </Link>
+                    <Button size="sm" variant="outline" onClick={() => onOpenStudio(studioId)}>
+                        <ExternalLink className="mr-2 h-4 w-4" /> Studio
                     </Button>
                     {canRequestTranscript && (
                         <Button size="sm" variant="outline" disabled={actionsDisabled || sttPending} onClick={() => onRequestTranscript(studioId)}>
@@ -683,7 +692,7 @@ function PublicationCard({
     );
 }
 
-function AtomizationRail({ pipeline }: { pipeline?: MediaAtomizationPipeline }) {
+function AtomizationRail({ pipeline, onOpenStudio }: { pipeline?: MediaAtomizationPipeline; onOpenStudio: (id: string) => void }) {
     const columns = useMemo(() => Array.isArray(pipeline?.columns) ? pipeline.columns : [], [pipeline?.columns]);
     const firstActive = columns.find((column) => column.count > 0)?.key ?? columns[0]?.key ?? 'ready';
     const [selectedStage, setSelectedStage] = useState(firstActive);
@@ -720,17 +729,17 @@ function AtomizationRail({ pipeline }: { pipeline?: MediaAtomizationPipeline }) 
 
             <div className="hidden overflow-x-auto p-3 md:block">
                 <div className="grid min-w-[1320px] grid-cols-9 gap-2">
-                    {columns.map((column) => <RailLane key={column.key} column={column} />)}
+                    {columns.map((column) => <RailLane key={column.key} column={column} onOpenStudio={onOpenStudio} />)}
                 </div>
             </div>
             <div className="p-3 md:hidden">
-                {selected ? <RailLane column={selected} mobile /> : <EmptyBox text="No pipeline data yet." />}
+                {selected ? <RailLane column={selected} mobile onOpenStudio={onOpenStudio} /> : <EmptyBox text="No pipeline data yet." />}
             </div>
         </section>
     );
 }
 
-function RailLane({ column, mobile = false }: { column: MediaAtomizationPipelineColumn; mobile?: boolean }) {
+function RailLane({ column, mobile = false, onOpenStudio }: { column: MediaAtomizationPipelineColumn; mobile?: boolean; onOpenStudio: (id: string) => void }) {
     const items = Array.isArray(column.items) ? column.items : [];
     return (
         <div className={cn('min-h-64 rounded-md border bg-card', !mobile && 'min-w-0')}>
@@ -741,18 +750,19 @@ function RailLane({ column, mobile = false }: { column: MediaAtomizationPipeline
             <div className="space-y-2 p-2">
                 {items.length === 0 ? (
                     <p className="rounded border border-dashed p-3 text-xs text-muted-foreground">No parents in lane.</p>
-                ) : items.map((item) => <RailCard key={item.id} item={item} />)}
+                ) : items.map((item) => <RailCard key={item.id} item={item} onOpenStudio={onOpenStudio} />)}
             </div>
         </div>
     );
 }
 
-function RailCard({ item }: { item: MediaAtomizationPipelineItem }) {
+function RailCard({ item, onOpenStudio }: { item: MediaAtomizationPipelineItem; onOpenStudio: (id: string) => void }) {
     const error = item.latest_error;
     return (
-        <Link
-            href={item.action_href || `/platform/media-studio/${item.id}`}
-            className="block rounded-md border bg-muted/35 p-3 text-xs transition hover:border-[#2CBAC6] hover:bg-card focus:outline-none focus:ring-2 focus:ring-[#2CBAC6]"
+        <button
+            type="button"
+            onClick={() => onOpenStudio(item.id)}
+            className="block w-full rounded-md border bg-muted/35 p-3 text-left text-xs transition hover:border-[#2CBAC6] hover:bg-card focus:outline-none focus:ring-2 focus:ring-[#2CBAC6]"
         >
             <div className="flex items-start justify-between gap-2">
                 <span className="line-clamp-2 font-medium text-foreground" dir="auto">{item.title ?? 'Untitled media'}</span>
@@ -779,7 +789,7 @@ function RailCard({ item }: { item: MediaAtomizationPipelineItem }) {
                 {item.primary_action}
                 <ExternalLink className="h-3.5 w-3.5" />
             </span>
-        </Link>
+        </button>
     );
 }
 
@@ -797,6 +807,7 @@ function ReviewQueue({
     approving,
     rejecting,
     actionsDisabled,
+    onOpenStudio,
     onApprove,
     onReject,
 }: {
@@ -804,6 +815,7 @@ function ReviewQueue({
     approving: boolean;
     rejecting: boolean;
     actionsDisabled: boolean;
+    onOpenStudio: (id: string, chapterId?: string) => void;
     onApprove: (id: string) => void;
     onReject: (id: string) => void;
 }) {
@@ -847,10 +859,8 @@ function ReviewQueue({
                                         </a>
                                     </Button>
                                 )}
-                                <Button size="sm" variant="outline" asChild>
-                                    <Link href={`/platform/media-studio/${chapter.parent_id}`}>
-                                        <ExternalLink className="mr-2 h-4 w-4" /> Studio
-                                    </Link>
+                                <Button size="sm" variant="outline" onClick={() => onOpenStudio(chapter.parent_id, chapter.id)}>
+                                    <ExternalLink className="mr-2 h-4 w-4" /> Studio
                                 </Button>
                                 <Button size="sm" onClick={() => onApprove(chapter.id)} disabled={actionsDisabled || approving || rejecting || invalidDuration}>
                                     <Check className="mr-2 h-4 w-4" /> Approve
@@ -938,7 +948,7 @@ function SourcePerformance({ overview }: { overview?: MediaAtomizationOverview }
     );
 }
 
-function ParentLifecycle({ parents }: { parents: MediaAtomizationParent[] }) {
+function ParentLifecycle({ parents, onOpenStudio }: { parents: MediaAtomizationParent[]; onOpenStudio: (id: string) => void }) {
     const safeParents = Array.isArray(parents) ? parents : [];
     return (
         <section className="rounded-md border bg-card">
@@ -950,9 +960,9 @@ function ParentLifecycle({ parents }: { parents: MediaAtomizationParent[] }) {
                     <div key={parent.id} className="grid gap-3 rounded-md border bg-muted/35 p-3 lg:grid-cols-[1fr_150px_220px] lg:items-center">
                         <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                                <Link href={`/platform/media-studio/${parent.id}`} className="min-w-0 truncate font-medium text-foreground hover:underline" dir="auto">
+                                <button type="button" onClick={() => onOpenStudio(parent.id)} className="min-w-0 truncate text-left font-medium text-foreground hover:underline" dir="auto">
                                     {parent.title ?? 'Untitled media'}
-                                </Link>
+                                </button>
                                 <StatusBadge value={parent.chaptering_status} />
                             </div>
                             <p className="mt-1 text-sm text-muted-foreground" dir="auto">{parent.source_name ?? 'Unknown source'}</p>
@@ -1041,7 +1051,7 @@ function MetricPill({ label, value }: { label: string; value: ReactNode }) {
     );
 }
 
-function RunPanel({ runs }: { runs: MediaAtomizationRun[] }) {
+function RunPanel({ runs, onOpenStudio }: { runs: MediaAtomizationRun[]; onOpenStudio: (id: string) => void }) {
     const safeRuns = Array.isArray(runs) ? runs : [];
     return (
         <section className="rounded-md border bg-card">
@@ -1060,12 +1070,48 @@ function RunPanel({ runs }: { runs: MediaAtomizationRun[] }) {
                             {run.error_message && <p className="mt-1 line-clamp-1 text-xs text-destructive">{run.error_message}</p>}
                         </div>
                         <p className="font-mono text-sm tabular-nums text-muted-foreground">{run.started_at ? new Date(run.started_at).toLocaleTimeString() : 'not started'}</p>
-                        <Button size="sm" variant="outline" asChild>
-                            <Link href={`/platform/media-studio/${run.parent_content_item_id}`}>Open</Link>
+                        <Button size="sm" variant="outline" onClick={() => onOpenStudio(run.parent_content_item_id)}>
+                            Open
                         </Button>
                     </div>
                 ))}
             </div>
+        </section>
+    );
+}
+
+function StudioContextStrip({
+    context,
+    loading,
+}: {
+    context?: MediaAtomizationParentContext;
+    loading: boolean;
+}) {
+    if (loading) {
+        return <TabLoading label="Loading studio context" />;
+    }
+    if (!context?.parent) {
+        return null;
+    }
+    const latestRun = context.recent_runs?.[0];
+    return (
+        <section className="rounded-md border bg-muted/25 p-3">
+            <div className="grid gap-3 md:grid-cols-4">
+                <MetricPill label="policy" value={context.policy_source ?? 'tenant'} />
+                <MetricPill label="children" value={context.children?.length ?? 0} />
+                <MetricPill label="runs" value={context.recent_runs?.length ?? 0} />
+                <MetricPill label="latest" value={latestRun?.status ?? 'no run'} />
+            </div>
+            {(context.atomization_disabled_reason || context.selected_chapter) && (
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                    {context.atomization_disabled_reason && (
+                        <Badge variant="secondary">{context.atomization_disabled_reason}</Badge>
+                    )}
+                    {context.selected_chapter && (
+                        <Badge variant="warning">Selected: {context.selected_chapter.title}</Badge>
+                    )}
+                </div>
+            )}
         </section>
     );
 }
@@ -1107,8 +1153,11 @@ export function MediaAtomizationDashboard() {
     const publishActive = activeTab === 'publish';
     const workflowActive = activeTab === 'workflow';
     const reviewActive = activeTab === 'review';
+    const studioActive = activeTab === 'studio';
     const policyActive = activeTab === 'policy';
     const diagnosticsActive = activeTab === 'diagnostics';
+    const selectedStudioItem = searchParams.get('item');
+    const selectedStudioChapter = searchParams.get('chapter');
 
     const overview = useMediaAtomizationOverview();
     const policy = useMediaAtomizationPolicy({ enabled: policyActive });
@@ -1120,7 +1169,8 @@ export function MediaAtomizationDashboard() {
     const feedUnitLedgerFilters = useMemo(() => ({ path: filters.path, source: filters.source, q: filters.q }), [filters.path, filters.source, filters.q]);
     const feedUnitMap = useMediaAtomizationFeedUnits(feedUnitMapFilters, { enabled: publishActive });
     const feedUnitLedger = useMediaAtomizationFeedUnits(feedUnitLedgerFilters, { enabled: publishActive });
-    const parents = useMediaAtomizationParents(parentFilters, { enabled: policyActive || diagnosticsActive });
+    const parents = useMediaAtomizationParents(parentFilters, { enabled: policyActive || diagnosticsActive || studioActive });
+    const studioContext = useMediaAtomizationParentContext(selectedStudioItem, { enabled: studioActive && Boolean(selectedStudioItem) });
     const chapters = useMediaAtomizationChapters(chapterFilters, { enabled: reviewActive });
     const runs = useMediaAtomizationRuns({ enabled: diagnosticsActive });
     const approve = useApproveAtomizedChapter();
@@ -1147,6 +1197,14 @@ export function MediaAtomizationDashboard() {
         const qs = params.toString();
         router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     };
+    const openStudio = (id: string, chapterId?: string) => {
+        const params = new URLSearchParams(Array.from(searchParams.entries()));
+        params.set('tab', 'studio');
+        params.set('item', id);
+        if (chapterId) params.set('chapter', chapterId);
+        else params.delete('chapter');
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    };
     const resetFilters = () => router.replace(`${pathname}?tab=${activeTab}`, { scroll: false });
 
     const failedApis = [
@@ -1156,8 +1214,9 @@ export function MediaAtomizationDashboard() {
         publishActive && feedUnitMap.isError && 'publication map',
         publishActive && feedUnitLedger.isError && 'publication ledger',
         workflowActive && pipeline.isError && 'pipeline',
-        (policyActive || diagnosticsActive) && parents.isError && 'parents',
+        (policyActive || diagnosticsActive || studioActive) && parents.isError && 'parents',
         reviewActive && chapters.isError && 'chapters',
+        studioActive && studioContext.isError && 'studio context',
         diagnosticsActive && runs.isError && 'runs',
     ].filter(Boolean) as string[];
     const failed = failedApis.length > 0;
@@ -1165,8 +1224,9 @@ export function MediaAtomizationDashboard() {
     const workflowLoading = workflowActive && pipeline.isLoading;
     const reviewLoading = reviewActive && chapters.isLoading;
     const policyLoading = policyActive && (policy.isLoading || sources.isLoading || parents.isLoading);
+    const studioLoading = studioActive && (parents.isLoading || studioContext.isLoading);
     const diagnosticsLoading = diagnosticsActive && (runs.isLoading || parents.isLoading);
-    const loading = overview.isLoading || policyLoading || publishLoading || workflowLoading || reviewLoading || diagnosticsLoading;
+    const loading = overview.isLoading || policyLoading || publishLoading || workflowLoading || reviewLoading || studioLoading || diagnosticsLoading;
     const overviewData = overview.data;
     const parentRows = parents.data ?? [];
     const chapterRows = chapters.data ?? [];
@@ -1176,15 +1236,20 @@ export function MediaAtomizationDashboard() {
     const durationViolations = overviewData?.duration_violation_count ?? 0;
     const lastUpdated = pipeline.data?.updated_at ?? overviewData?.updated_at;
     const actionsDisabled = failed || Boolean(schemaDegraded);
+    const resolvedStudioItem = studioContext.data?.parent?.id ?? selectedStudioItem;
+    const resolvedStudioChapter = selectedStudioChapter
+        ?? studioContext.data?.selected_chapter?.id
+        ?? studioContext.data?.selected_child?.id
+        ?? null;
 
     return (
         <div className="space-y-5 text-foreground">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
                     <span className="brand-overline text-[#D7A83E]">For You Media</span>
-                    <h1 className="text-2xl font-semibold">Media Atomization</h1>
+                    <h1 className="text-2xl font-semibold">Media Studio</h1>
                     <p className="max-w-3xl text-sm text-muted-foreground">
-                        Command center for chapter cuts, transcript readiness, embedding gates, review pressure, and duration policy violations.
+                        Command center for atomization, transcript readiness, chapter cuts, For You publication, and duration policy violations.
                     </p>
                 </div>
                 <div className="flex flex-col items-start gap-2 md:items-end">
@@ -1262,6 +1327,7 @@ export function MediaAtomizationDashboard() {
                             sttPending={triggerStt.isPending}
                             overridePending={updateParentOverride.isPending}
                             onSelectPath={(path) => setFilter('path', path)}
+                            onOpenStudio={openStudio}
                             onRequestTranscript={(id) => triggerStt.mutate(id)}
                             onDisableAtomization={(id) => updateParentOverride.mutate({ parentId: id, override: 'disabled', reason: 'Blocked long media excluded from Atomization dashboard.' })}
                         />
@@ -1278,6 +1344,7 @@ export function MediaAtomizationDashboard() {
                             sttPending={triggerStt.isPending}
                             overridePending={updateParentOverride.isPending}
                             onSelectPath={(path) => setFilter('path', path)}
+                            onOpenStudio={openStudio}
                             onRequestTranscript={(id) => triggerStt.mutate(id)}
                             onDisableAtomization={(id) => updateParentOverride.mutate({ parentId: id, override: 'disabled', reason: 'Blocked long media excluded from Atomization dashboard.' })}
                         />
@@ -1295,7 +1362,7 @@ export function MediaAtomizationDashboard() {
                             <KpiCard label="Embedding pending" value={childVisibilityCount(overviewData, 'embedding_pending')} sub="hidden from feed" />
                             <KpiCard label="Failed or stuck" value={overviewData?.failed_stuck_count ?? 0} tone="bad" />
                         </SummaryStrip>
-                        <AtomizationRail pipeline={pipeline.data} />
+                        <AtomizationRail pipeline={pipeline.data} onOpenStudio={openStudio} />
                     </>
                     )}
                 </TabsContent>
@@ -1315,9 +1382,75 @@ export function MediaAtomizationDashboard() {
                             approving={approve.isPending}
                             rejecting={reject.isPending}
                             actionsDisabled={actionsDisabled}
+                            onOpenStudio={openStudio}
                             onApprove={(id) => approve.mutate(id)}
                             onReject={(id) => reject.mutate(id)}
                         />
+                    </>
+                    )}
+                </TabsContent>
+
+                <TabsContent value="studio" className="space-y-5">
+                    {activeTab === 'studio' && (
+                    <>
+                        <SummaryStrip>
+                            <KpiCard label="Review pressure" value={overviewData?.review_needed_count ?? 0} sub="chapters" tone="warn" />
+                            <KpiCard label="Waiting transcript" value={statusCount(overviewData, ['waiting_transcript'])} sub="parents" />
+                            <KpiCard label="Published in For You" value={
+                                publicationPathCount(overviewData, 'atomized')
+                                + publicationPathCount(overviewData, 'direct_transcript')
+                                + publicationPathCount(overviewData, 'direct_no_transcript')
+                            } tone="ok" />
+                            <KpiCard label="Failed or stuck" value={overviewData?.failed_stuck_count ?? 0} tone="bad" />
+                        </SummaryStrip>
+                        <div className="grid gap-5 xl:grid-cols-[minmax(260px,0.45fr)_minmax(0,1fr)]">
+                            <section className="rounded-md border bg-card">
+                                <SectionHeader icon={<Scissors className="h-4 w-4 text-[#D7A83E]" />} title="Studio Queue" sub="Pick a parent from the atomization workspace, or open recent parent media here." />
+                                <div className="space-y-2 p-4 pt-0">
+                                    {studioLoading && <TabLoading label="Loading parent media" />}
+                                    {!studioLoading && parentRows.length === 0 ? (
+                                        <EmptyBox text="No parent media matches the current filters." />
+                                    ) : parentRows.slice(0, 12).map((parent) => (
+                                        <button
+                                            key={parent.id}
+                                            type="button"
+                                            onClick={() => openStudio(parent.id)}
+                                            className={cn(
+                                                'w-full rounded-md border bg-muted/35 p-3 text-left transition hover:border-[#2CBAC6] hover:bg-card focus:outline-none focus:ring-2 focus:ring-[#2CBAC6]',
+                                                resolvedStudioItem === parent.id && 'border-[#2CBAC6] bg-card'
+                                            )}
+                                        >
+                                            <p className="line-clamp-2 text-sm font-medium" dir="auto">{parent.title ?? 'Untitled media'}</p>
+                                            <div className="mt-2 flex flex-wrap gap-1">
+                                                <Badge variant="outline">{formatDurationSec(parent.duration_sec)}</Badge>
+                                                <StatusBadge value={parent.chaptering_status} />
+                                                <Badge variant={parent.transcript_id ? 'success' : 'warning'}>{parent.transcript_id ? 'transcript' : 'no transcript'}</Badge>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </section>
+                            <section className="min-w-0 rounded-md border bg-card p-4">
+                                {selectedStudioItem ? (
+                                    <div className="space-y-4">
+                                        <StudioContextStrip context={studioContext.data} loading={studioContext.isLoading} />
+                                        {resolvedStudioItem ? (
+                                            <MediaStudioWorkbench
+                                                id={resolvedStudioItem}
+                                                selectedChapterId={resolvedStudioChapter}
+                                                compact
+                                            />
+                                        ) : (
+                                            <TabLoading label="Resolving selected media" />
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex min-h-72 items-center justify-center rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
+                                        Select a media item from Publish, Workflow, Review, Diagnostics, or the Studio queue to edit transcripts and chapters here.
+                                    </div>
+                                )}
+                            </section>
+                        </div>
                     </>
                     )}
                 </TabsContent>
@@ -1372,12 +1505,12 @@ export function MediaAtomizationDashboard() {
                             <KpiCard label="Failed or stuck" value={overviewData?.failed_stuck_count ?? 0} tone="bad" />
                         </SummaryStrip>
                         <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-                            <RunPanel runs={runs.data ?? []} />
+                            <RunPanel runs={runs.data ?? []} onOpenStudio={openStudio} />
                             <SourcePerformance overview={overviewData} />
                         </div>
                         <div className="grid gap-5 xl:grid-cols-2">
                             <DurationDistribution overview={overviewData} />
-                            <ParentLifecycle parents={parentRows} />
+                            <ParentLifecycle parents={parentRows} onOpenStudio={openStudio} />
                         </div>
                     </>
                     )}

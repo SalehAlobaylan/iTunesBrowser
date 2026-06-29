@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     atomizeMediaParent,
+    getMediaAtomizationParentContext,
     approveAtomizedChapter,
     getMediaAtomizationPolicy,
     getMediaAtomizationOverview,
@@ -33,6 +34,7 @@ export const mediaAtomizationKeys = {
     feedUnits: (filters: Pick<AtomizationFilters, 'path' | 'source' | 'q'>) => [...mediaAtomizationKeys.all, 'feed-units', filters] as const,
     chapters: (filters: AtomizationFilters) => [...mediaAtomizationKeys.all, 'chapters', filters] as const,
     runs: () => [...mediaAtomizationKeys.all, 'runs'] as const,
+    context: (id: string) => [...mediaAtomizationKeys.all, 'context', id] as const,
 };
 
 const activeStatuses = new Set([
@@ -89,6 +91,15 @@ export function useMediaAtomizationParents(filters: AtomizationFilters, options:
         refetchInterval: 10_000,
         staleTime: 5_000,
         enabled: options.enabled ?? true,
+    });
+}
+
+export function useMediaAtomizationParentContext(id?: string | null, options: QueryEnabledOption = {}) {
+    return useQuery({
+        queryKey: mediaAtomizationKeys.context(id ?? ''),
+        queryFn: () => getMediaAtomizationParentContext(id!),
+        staleTime: 10_000,
+        enabled: Boolean(id) && (options.enabled ?? true),
     });
 }
 

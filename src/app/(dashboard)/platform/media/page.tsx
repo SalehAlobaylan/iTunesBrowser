@@ -38,7 +38,7 @@ export default function MediaPage() {
                     </p>
                 </div>
                 <Button variant="outline" asChild>
-                    <Link href="/platform/media-studio">
+                    <Link href="/platform/media/atomization?tab=studio">
                         <Clapperboard className="mr-2 h-4 w-4" /> Open Studio
                     </Link>
                 </Button>
