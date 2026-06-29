@@ -172,3 +172,86 @@ export interface SuggestionsResponse {
     page: number;
     limit: number;
 }
+
+export interface MediaSourcesContextRollups {
+    pending: number;
+    imported: number;
+    auto_discovered: number;
+    active: number;
+    healthy: number;
+    stale: number;
+    never_run: number;
+    disabled: number;
+    failed: number;
+    no_transcript: number;
+    needs_trimming: number;
+    non_audio_first: number;
+}
+
+export type SuggestionRelationshipKind = 'new' | 'duplicate' | 'similar' | 'already_approved' | 'improves_existing';
+
+export interface SuggestionRelationship {
+    relationship: SuggestionRelationshipKind;
+    matched_source_id?: string;
+    matched_source_name?: string;
+    reasons: string[];
+}
+
+export interface MediaSourceApprovalPreview {
+    source_type: string;
+    category: 'news' | 'media' | string;
+    attached_profile_id?: string;
+    attached_profile_name?: string;
+    initial_episode_cap: number;
+    fetch_interval_minutes: number;
+    atomization_defaults: Record<string, unknown>;
+    first_fetch: 'queued_on_approve' | string;
+}
+
+export type MediaSourceHandoffStatus =
+    | 'approved'
+    | 'first_fetch_queued'
+    | 'waiting_for_items'
+    | 'producing'
+    | 'needs_attention';
+
+export interface MediaSourceApprovalHandoff {
+    suggestion_id: string;
+    source_id?: string;
+    source_name: string;
+    profile_id?: string;
+    profile_name?: string;
+    status: MediaSourceHandoffStatus;
+    approved_at: string;
+    items_count: number;
+    ready: number;
+    failed: number;
+}
+
+export interface MediaSourceRecentItem {
+    id: string;
+    title: string;
+    status: string;
+    published_at?: string;
+    duration_sec?: number;
+    caption_state?: string;
+    chaptering_status?: string;
+    feed_visibility: string;
+}
+
+export interface MediaSourcesContext {
+    profiles: DiscoveryProfile[];
+    suggestions: SourceSuggestion[];
+    sources: NewsSource[];
+    source_stats: import('./source').SourceStats;
+    config: DiscoveryConfig;
+    rollups: MediaSourcesContextRollups;
+    suggestion_relationships: Record<string, SuggestionRelationship>;
+    recent_approvals: MediaSourceApprovalHandoff[];
+    approval_preview?: MediaSourceApprovalPreview;
+    selected_profile?: DiscoveryProfile;
+    selected_suggestion?: SourceSuggestion;
+    selected_source?: NewsSource;
+    selected_source_recent_items?: MediaSourceRecentItem[];
+    schema_status: Record<string, boolean>;
+}

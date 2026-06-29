@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
     Plus, Play, Trash2, Loader2, Radar, Check, X, Youtube, Podcast,
-    Captions, Scissors, Network, Settings2, Radio, Eye, AudioLines, Upload,
+    Captions, Scissors, Settings2, Radio, Eye, AudioLines, Upload,
     ChevronDown, TrendingDown,
 } from 'lucide-react';
 
@@ -36,7 +38,7 @@ import {
     useImportYouTubeFeed,
     useImportYouTubeLinks,
 } from '@/hooks/use-discovery';
-import type { DiscoveryProfile, SourceSuggestion, DiscoveryConfig } from '@/types/platform/discovery';
+import type { DiscoveryProfile, SourceSuggestion, DiscoveryConfig, SuggestionRelationship } from '@/types/platform/discovery';
 import { ProfileDialog } from '@/components/platform/news/finding/profile-dialog';
 
 const ALL = '__all__';
@@ -59,10 +61,24 @@ function captionMeta(state?: string): { label: string; variant: 'success' | 'war
     return null;
 }
 
-function MediaSuggestionCard({ suggestion, onApprove, onReject, busy }: {
+function relationshipMeta(relationship?: SuggestionRelationship): {
+    label: string;
+    variant: 'secondary' | 'warning' | 'destructive' | 'success' | 'info';
+} | null {
+    if (!relationship || relationship.relationship === 'new') return null;
+    if (relationship.relationship === 'duplicate') return { label: 'Duplicate', variant: 'destructive' };
+    if (relationship.relationship === 'already_approved') return { label: 'Already live', variant: 'success' };
+    if (relationship.relationship === 'improves_existing') return { label: 'Improves existing', variant: 'info' };
+    return { label: 'Similar source', variant: 'warning' };
+}
+
+function MediaSuggestionCard({ suggestion, relationship, onApprove, onReject, onSelect, selected, busy }: {
     suggestion: SourceSuggestion;
+    relationship?: SuggestionRelationship;
     onApprove: () => void;
     onReject: () => void;
+    onSelect?: () => void;
+    selected?: boolean;
     busy: boolean;
 }) {
     const { label: platform, icon: Icon } = platformOf(suggestion.type);
@@ -71,83 +87,119 @@ function MediaSuggestionCard({ suggestion, onApprove, onReject, busy }: {
     const caption = captionMeta(ev?.caption_state);
     const subs = ev?.subscribers ?? suggestion.health?.subscribers ?? 0;
     const sample = suggestion.sample_items ?? [];
-    // Audio-first detection (YouTube). Podcasts are audio by nature → no badge.
+    const relationshipBadge = relationshipMeta(relationship);
+    const approveBlocked = relationship?.relationship === 'duplicate' || relationship?.relationship === 'already_approved';
+    const approveLabel = relationship?.relationship === 'already_approved'
+        ? 'Already added'
+        : relationship?.relationship === 'duplicate'
+          ? 'Duplicate'
+          : 'Approve';
     const audioFirst = suggestion.type === 'YOUTUBE' ? suggestion.health?.audio_first : undefined;
     const category = suggestion.health?.category;
+    const score = suggestion.relevance_score ?? suggestion.confidence;
+    const topSignals = [
+        subs > 0 ? `${formatSubscribers(subs)} subscribers` : null,
+        suggestion.health?.episode_count ? `${suggestion.health.episode_count} episodes` : null,
+        caption?.label,
+        ev?.cocitation_count ? `${ev.cocitation_count} source links` : null,
+    ].filter(Boolean).slice(0, 3);
 
     return (
-        <Card className="flex flex-col">
-            <CardContent className="flex flex-1 flex-col gap-3 p-4">
-                <div className="flex items-start gap-3">
+        <Card
+            className={cn(
+                'flex flex-col overflow-hidden transition-colors',
+                onSelect && 'cursor-pointer hover:border-gold/70 hover:bg-muted/20',
+                selected && 'border-gold bg-gold/5 shadow-sm',
+            )}
+            onClick={onSelect}
+        >
+            <CardContent className="flex flex-1 flex-col gap-4 p-5">
+                <div className="flex items-start gap-4">
                     {suggestion.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={suggestion.image_url} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />
+                        <img src={suggestion.image_url} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
                     ) : (
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-muted">
                             <Icon className="h-5 w-5 text-muted-foreground" />
                         </div>
                     )}
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                            <span className="truncate font-semibold" dir="auto">{name}</span>
-                            <Badge variant="outline" className="shrink-0 gap-1">
+                    <div className="min-w-0 flex-1 space-y-2">
+                        <div className="min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                                <p className="min-w-0 truncate font-semibold leading-5" dir="auto">{name}</p>
+                                {score !== undefined && score !== null && (
+                                    <span className="shrink-0 rounded-md bg-muted px-2 py-1 font-mono text-[11px] tabular-nums text-muted-foreground">
+                                        {(score * 100).toFixed(0)}%
+                                    </span>
+                                )}
+                            </div>
+                            <p className="mt-1 truncate text-xs text-muted-foreground" dir="ltr">{suggestion.feed_url}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge variant="outline" className="gap-1">
                                 <Icon className="h-3 w-3" /> {platform}
                             </Badge>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs text-muted-foreground">
-                            {subs > 0 && <span className="rounded bg-muted px-1.5 py-0.5">{formatSubscribers(subs)} subscribers</span>}
+                            {relationshipBadge && (
+                                <Badge variant={relationshipBadge.variant}>
+                                    {relationshipBadge.label}
+                                </Badge>
+                            )}
                             {suggestion.health?.is_podcast && (
-                                <span className="inline-flex items-center gap-1 rounded bg-gold/10 px-1.5 py-0.5 text-gold">
-                                    <Podcast className="h-3 w-3" /> Podcast{suggestion.health?.episode_count ? ` · ${suggestion.health.episode_count} ep` : ''}
-                                </span>
+                                <Badge variant="secondary" className="gap-1">
+                                    <Podcast className="h-3 w-3" /> Podcast
+                                </Badge>
                             )}
                             {audioFirst === false && (
-                                <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-600">
+                                <Badge variant="warning" className="gap-1">
                                     <Eye className="h-3 w-3" /> Visual{category ? ` · ${category}` : ''}
-                                </span>
+                                </Badge>
                             )}
                             {audioFirst === true && (
-                                <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-emerald-600">
+                                <Badge variant="success" className="gap-1">
                                     <AudioLines className="h-3 w-3" /> Audio-first
-                                </span>
-                            )}
-                            {ev?.cocitation_count ? (
-                                <span className="inline-flex items-center gap-1 rounded bg-gold/10 px-1.5 py-0.5 text-gold">
-                                    <Network className="h-3 w-3" /> Linked by {ev.cocitation_count} you follow
-                                </span>
-                            ) : null}
-                            {caption && (
-                                <span className={cn(
-                                    'inline-flex items-center gap-1 rounded px-1.5 py-0.5',
-                                    caption.variant === 'success' && 'bg-emerald-500/10 text-emerald-600',
-                                    caption.variant === 'warning' && 'bg-amber-500/10 text-amber-600',
-                                    caption.variant === 'secondary' && 'bg-muted',
-                                )}>
-                                    <Captions className="h-3 w-3" /> {caption.label}
-                                </span>
+                                </Badge>
                             )}
                             {ev?.needs_chaptering && (
-                                <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-600">
+                                <Badge variant="warning" className="gap-1">
                                     <Scissors className="h-3 w-3" /> Needs trimming
-                                </span>
+                                </Badge>
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* Recent titles — what this source actually produces */}
+                <div className="grid gap-2 text-xs sm:grid-cols-3">
+                    {topSignals.length ? topSignals.map((signal) => (
+                        <span key={signal} className="rounded-md border bg-background px-2.5 py-2 text-muted-foreground">
+                            {signal}
+                        </span>
+                    )) : (
+                        <span className="rounded-md border border-dashed px-2.5 py-2 text-muted-foreground sm:col-span-3">
+                            Evidence will appear after enrichment runs.
+                        </span>
+                    )}
+                </div>
+
                 {sample.length > 0 && (
-                    <ul className="space-y-1">
-                        {sample.slice(0, 3).map((it, i) => (
-                            <li key={i} className="truncate text-sm text-muted-foreground" dir="auto" title={it.title}>· {it.title}</li>
+                    <ul className="space-y-1.5 border-l-2 border-gold/40 pl-3">
+                        {sample.slice(0, 2).map((it, i) => (
+                            <li key={i} className="truncate text-sm text-muted-foreground" dir="auto" title={it.title}>{it.title}</li>
                         ))}
                     </ul>
                 )}
 
-                <div className="mt-auto flex items-center gap-2 pt-1">
-                    <Button size="sm" className="flex-1" onClick={onApprove} disabled={busy}>
-                        <Check className="mr-1 h-4 w-4" /> Approve
-                    </Button>
+                <div className="mt-auto flex flex-wrap items-center gap-2 border-t pt-4" onClick={(e) => e.stopPropagation()}>
+                    {relationship?.matched_source_id && approveBlocked ? (
+                        <Button size="sm" className="min-w-32 flex-1" asChild>
+                            <Link href={`/platform/media/sources?tab=sources&source=${relationship.matched_source_id}`}>
+                                Open source
+                            </Link>
+                        </Button>
+                    ) : (
+                        <Button size="sm" className="min-w-32 flex-1" onClick={onApprove} disabled={busy || approveBlocked}>
+                            <Check className="mr-1 h-4 w-4" /> {approveLabel}
+                        </Button>
+                    )}
                     <a href={suggestion.feed_url} target="_blank" rel="noreferrer">
                         <Button size="sm" variant="outline">Open</Button>
                     </a>
@@ -160,7 +212,7 @@ function MediaSuggestionCard({ suggestion, onApprove, onReject, busy }: {
     );
 }
 
-function MediaSettings({ config }: { config: DiscoveryConfig }) {
+export function MediaSettings({ config }: { config: DiscoveryConfig }) {
     const update = useUpdateDiscoveryConfig();
     const set = (patch: Partial<DiscoveryConfig>) => update.mutate({ ...config, ...patch });
     const rows: { key: keyof DiscoveryConfig; label: string; hint: string }[] = [
@@ -231,7 +283,7 @@ function ClearItem({ icon: Icon, label, ids, onPick, destructive }: {
     );
 }
 
-function YouTubeImportPanel({ profiles, defaultProfileId, onDone }: {
+export function YouTubeImportPanel({ profiles, defaultProfileId, onDone }: {
     profiles: DiscoveryProfile[];
     defaultProfileId: string;
     onDone: () => void;
@@ -245,6 +297,10 @@ function YouTubeImportPanel({ profiles, defaultProfileId, onDone }: {
     const importLinks = useImportYouTubeLinks();
     const importFeed = useImportYouTubeFeed();
     const pending = importLinks.isPending || importFeed.isPending;
+
+    useEffect(() => {
+        if (!profileId && defaultProfileId) setProfileId(defaultProfileId);
+    }, [defaultProfileId, profileId]);
 
     const submitLinks = () => {
         const inputs = links.split('\n').map((s) => s.trim()).filter(Boolean);
@@ -346,7 +402,16 @@ function YouTubeImportPanel({ profiles, defaultProfileId, onDone }: {
     );
 }
 
-export function MediaFindingPage() {
+interface MediaFindingPageProps {
+    embedded?: boolean;
+    relationships?: Record<string, SuggestionRelationship>;
+    intelligence?: ReactNode;
+}
+
+export function MediaFindingPage({ embedded = false, relationships, intelligence }: MediaFindingPageProps) {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
     const { data: profilesData } = useProfiles();
     const { data: config } = useDiscoveryConfig();
     const { data: suggestionsData, isLoading } = useSuggestions(undefined, 'PENDING', 'media');
@@ -354,7 +419,8 @@ export function MediaFindingPage() {
     // Media Sources page manages), grouped by the interest they were found for.
     const { data: activeSources } = useNewsSources(undefined, 'media');
 
-    const [activeProfile, setActiveProfile] = useState<string>(ALL);
+    const [activeProfile, setActiveProfile] = useState<string>(searchParams.get('profile') || ALL);
+    const selectedSuggestionId = searchParams.get('suggestion');
     const [showProfile, setShowProfile] = useState(false);
     const [editProfile, setEditProfile] = useState<DiscoveryProfile | null>(null);
     const [showSettings, setShowSettings] = useState(false);
@@ -385,6 +451,13 @@ export function MediaFindingPage() {
     const visible = useMemo(
         () => (activeProfile === ALL ? suggestions : suggestions.filter((s) => s.profile_id === activeProfile)),
         [suggestions, activeProfile],
+    );
+    const approvableVisible = useMemo(
+        () => visible.filter((s) => {
+            const rel = relationships?.[s.id]?.relationship;
+            return rel !== 'duplicate' && rel !== 'already_approved';
+        }),
+        [visible, relationships],
     );
 
     // Hand-imported channels (pasted links / JSON) are kept in their own section so
@@ -430,9 +503,33 @@ export function MediaFindingPage() {
 
     const busy = approve.isPending || reject.isPending;
 
+    useEffect(() => {
+        setActiveProfile(searchParams.get('profile') || ALL);
+    }, [searchParams]);
+
+    const updateUrl = (patch: Record<string, string | null>) => {
+        if (!embedded) return;
+        const params = new URLSearchParams(searchParams);
+        params.set('tab', 'finding');
+        for (const [key, value] of Object.entries(patch)) {
+            if (value) params.set(key, value);
+            else params.delete(key);
+        }
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    };
+
+    const selectProfile = (id: string) => {
+        setActiveProfile(id);
+        updateUrl({ profile: id === ALL ? null : id, suggestion: null });
+    };
+
+    const selectSuggestion = (id: string) => {
+        updateUrl({ suggestion: id });
+    };
+
     return (
         <div className="space-y-5">
-            {/* Header */}
+            {!embedded && (
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                     <span className="brand-overline text-gold">For You</span>
@@ -466,9 +563,10 @@ export function MediaFindingPage() {
                     </Button>
                 </div>
             </div>
+            )}
 
-            {showSettings && config && <MediaSettings config={config} />}
-            {showImport && (
+            {!embedded && showSettings && config && <MediaSettings config={config} />}
+            {!embedded && showImport && (
                 <YouTubeImportPanel
                     profiles={mediaProfiles}
                     defaultProfileId={activeProfile === ALL ? (mediaProfiles[0]?.id ?? '') : activeProfile}
@@ -476,75 +574,86 @@ export function MediaFindingPage() {
                 />
             )}
 
-            <div className="grid gap-5 lg:grid-cols-[220px_1fr]">
+            <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
                 {/* Interests rail */}
-                <div className="space-y-1">
-                    <button
-                        onClick={() => setActiveProfile(ALL)}
-                        className={cn(
-                            'flex w-full items-center justify-between rounded-md px-3 py-2 text-sm',
-                            activeProfile === ALL ? 'bg-muted font-medium' : 'hover:bg-muted/60',
+                <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+                    <div className="rounded-md border bg-card p-2">
+                        <button
+                            onClick={() => selectProfile(ALL)}
+                            className={cn(
+                                'flex w-full items-center justify-between rounded-md px-3 py-2.5 text-sm transition-colors',
+                                activeProfile === ALL ? 'bg-gold/10 font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+                            )}
+                        >
+                            <span>All interests</span>
+                            <Badge variant="secondary">{suggestions.length}</Badge>
+                        </button>
+                        <div className="my-2 h-px bg-border" />
+                        <div className="space-y-1">
+                            {mediaProfiles.map((p) => {
+                                const count = suggestions.filter((s) => s.profile_id === p.id).length;
+                                const active = activeByProfile.get(p.id) ?? 0;
+                                const running = runProfile.isPending && runProfile.variables === p.id;
+                                return (
+                                    <div
+                                        key={p.id}
+                                        className={cn(
+                                            'group flex items-center justify-between rounded-md px-3 py-2.5 text-sm transition-colors',
+                                            activeProfile === p.id ? 'bg-gold/10 font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+                                        )}
+                                    >
+                                        <button onClick={() => selectProfile(p.id)} className="min-w-0 flex-1 truncate text-left" dir="auto">
+                                            {p.name}
+                                            {active > 0 && <span className="ml-1.5 text-xs font-normal text-gold">· {active} live</span>}
+                                        </button>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => runProfile.mutate(p.id)}
+                                                disabled={running}
+                                                title="Run discovery"
+                                                className="rounded p-1 opacity-70 transition-opacity hover:bg-background group-hover:opacity-100"
+                                            >
+                                                {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                                            </button>
+                                            <button
+                                                onClick={() => { setEditProfile(p); setShowProfile(true); }}
+                                                title="Edit"
+                                                className="rounded p-1 opacity-70 transition-opacity hover:bg-background group-hover:opacity-100"
+                                            >
+                                                <Settings2 className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                onClick={() => deleteProfile.mutate(p.id)}
+                                                title="Delete"
+                                                className="rounded p-1 text-muted-foreground opacity-70 transition-opacity hover:bg-background hover:text-destructive group-hover:opacity-100"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                            <Badge variant="secondary">{count}</Badge>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {mediaProfiles.length === 0 && (
+                            <p className="px-3 py-3 text-xs text-muted-foreground">
+                                No media interests yet. Create one to start discovery.
+                            </p>
                         )}
-                    >
-                        <span>All interests</span>
-                        <Badge variant="secondary">{suggestions.length}</Badge>
-                    </button>
-                    {mediaProfiles.map((p) => {
-                        const count = suggestions.filter((s) => s.profile_id === p.id).length;
-                        const active = activeByProfile.get(p.id) ?? 0;
-                        const running = runProfile.isPending && runProfile.variables === p.id;
-                        return (
-                            <div
-                                key={p.id}
-                                className={cn(
-                                    'group flex items-center justify-between rounded-md px-3 py-2 text-sm',
-                                    activeProfile === p.id ? 'bg-muted font-medium' : 'hover:bg-muted/60',
-                                )}
-                            >
-                                <button onClick={() => setActiveProfile(p.id)} className="min-w-0 flex-1 truncate text-left" dir="auto">
-                                    {p.name}
-                                    {active > 0 && <span className="ml-1.5 text-xs font-normal text-gold">· {active} live</span>}
-                                </button>
-                                <div className="flex items-center gap-1">
-                                    <button
-                                        onClick={() => runProfile.mutate(p.id)}
-                                        disabled={running}
-                                        title="Run discovery"
-                                        className="opacity-0 transition-opacity group-hover:opacity-100"
-                                    >
-                                        {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-                                    </button>
-                                    <button
-                                        onClick={() => { setEditProfile(p); setShowProfile(true); }}
-                                        title="Edit"
-                                        className="opacity-0 transition-opacity group-hover:opacity-100"
-                                    >
-                                        <Settings2 className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button
-                                        onClick={() => deleteProfile.mutate(p.id)}
-                                        title="Delete"
-                                        className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                                    >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                    <Badge variant="secondary">{count}</Badge>
-                                </div>
-                            </div>
-                        );
-                    })}
-                    {mediaProfiles.length === 0 && (
-                        <p className="px-3 py-2 text-xs text-muted-foreground">
-                            No media interests yet — create one to start discovery.
-                        </p>
-                    )}
+                    </div>
+                    {intelligence}
                 </div>
 
                 {/* Review grid */}
-                <div className="space-y-3">
+                <div className="space-y-4">
                     {visible.length > 0 && (
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm text-muted-foreground">{visible.length} pending</p>
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-card px-4 py-3">
+                            <div>
+                                <p className="text-sm font-medium">{visible.length} pending candidates</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {activeProfile === ALL ? 'Across every media interest' : 'For the selected interest'}
+                                </p>
+                            </div>
                             <div className="flex items-center gap-2">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -570,10 +679,11 @@ export function MediaFindingPage() {
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    disabled={bulkApprove.isPending}
-                                    onClick={() => bulkApprove.mutate(visible.map((s) => s.id))}
+                                    disabled={bulkApprove.isPending || approvableVisible.length === 0}
+                                    onClick={() => bulkApprove.mutate(approvableVisible.map((s) => s.id))}
                                 >
                                     <Check className="mr-1 h-4 w-4" /> Approve all
+                                    {approvableVisible.length !== visible.length ? ` (${approvableVisible.length})` : ''}
                                 </Button>
                             </div>
                         </div>
@@ -597,19 +707,22 @@ export function MediaFindingPage() {
                     ) : (
                         <div className="space-y-5">
                             {imported.length > 0 && (
-                                <section className="space-y-2">
+                                <section className="space-y-3">
                                     <div className="flex items-center gap-2">
                                         <Youtube className="h-4 w-4 text-gold" />
                                         <h3 className="text-sm font-semibold">Imported from YouTube</h3>
                                         <Badge variant="secondary">{imported.length}</Badge>
                                         <span className="text-xs text-muted-foreground">channels you pasted in</span>
                                     </div>
-                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                    <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
                                         {imported.map((s) => (
                                             <MediaSuggestionCard
                                                 key={s.id}
                                                 suggestion={s}
+                                                relationship={relationships?.[s.id]}
+                                                selected={selectedSuggestionId === s.id}
                                                 busy={busy}
+                                                onSelect={() => selectSuggestion(s.id)}
                                                 onApprove={() => approve.mutate(s.id)}
                                                 onReject={() => reject.mutate({ id: s.id })}
                                             />
@@ -618,7 +731,7 @@ export function MediaFindingPage() {
                                 </section>
                             )}
                             {discovered.length > 0 && (
-                                <section className="space-y-2">
+                                <section className="space-y-3">
                                     {imported.length > 0 && (
                                         <div className="flex items-center gap-2">
                                             <Radar className="h-4 w-4 text-muted-foreground" />
@@ -626,12 +739,15 @@ export function MediaFindingPage() {
                                             <Badge variant="secondary">{discovered.length}</Badge>
                                         </div>
                                     )}
-                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                    <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
                                         {discovered.map((s) => (
                                             <MediaSuggestionCard
                                                 key={s.id}
                                                 suggestion={s}
+                                                relationship={relationships?.[s.id]}
+                                                selected={selectedSuggestionId === s.id}
                                                 busy={busy}
+                                                onSelect={() => selectSuggestion(s.id)}
                                                 onApprove={() => approve.mutate(s.id)}
                                                 onReject={() => reject.mutate({ id: s.id })}
                                             />

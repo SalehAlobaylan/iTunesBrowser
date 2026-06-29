@@ -5,6 +5,7 @@ import { Radio } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { ContentSource } from '@/types/platform/source';
+import type { NewsSource } from '@/types/platform/discovery';
 
 import { MediaSourceCard } from './media-source-card';
 
@@ -13,7 +14,11 @@ interface MediaSourceGalleryProps {
     outputByName: Map<string, { items: number; failed: number }>;
     isLoading: boolean;
     selected: Set<string>;
+    selectedSourceId?: string | null;
+    sourceContextById?: Map<string, NewsSource>;
+    profileNameById?: Map<string, string>;
     onToggleSelect: (id: string) => void;
+    onSelectSource?: (id: string) => void;
     onRequestDelete: (id: string) => void;
     returnTo: string;
 }
@@ -23,7 +28,11 @@ export function MediaSourceGallery({
     outputByName,
     isLoading,
     selected,
+    selectedSourceId,
+    sourceContextById,
+    profileNameById,
     onToggleSelect,
+    onSelectSource,
     onRequestDelete,
     returnTo,
 }: MediaSourceGalleryProps) {
@@ -51,17 +60,27 @@ export function MediaSourceGallery({
 
     return (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {sources.map((source) => (
-                <MediaSourceCard
-                    key={source.id}
-                    source={source}
-                    output={outputByName.get(source.name)}
-                    selected={selected.has(source.id)}
-                    onToggleSelect={onToggleSelect}
-                    onRequestDelete={onRequestDelete}
-                    returnTo={returnTo}
-                />
-            ))}
+            {sources.map((source) => {
+                const contextSource = sourceContextById?.get(source.id);
+                const profileName = contextSource?.discovery_profile_id
+                    ? profileNameById?.get(contextSource.discovery_profile_id)
+                    : undefined;
+                return (
+                    <MediaSourceCard
+                        key={source.id}
+                        source={source}
+                        output={outputByName.get(source.name)}
+                        sourceContext={contextSource}
+                        profileName={profileName}
+                        selected={selected.has(source.id)}
+                        selectedForInspect={selectedSourceId === source.id}
+                        onToggleSelect={onToggleSelect}
+                        onSelectSource={onSelectSource}
+                        onRequestDelete={onRequestDelete}
+                        returnTo={returnTo}
+                    />
+                );
+            })}
         </div>
     );
 }

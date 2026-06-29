@@ -19,6 +19,7 @@ import {
     getAuthorities,
     importYouTubeFeed,
     importYouTubeLinks,
+    getMediaSourcesContext,
 } from '@/lib/api/cms/discovery';
 import type { CreateProfileRequest, UpdateProfileRequest, DiscoveryConfig } from '@/types/platform/discovery';
 import { toast } from '@/components/ui/toast';
@@ -30,6 +31,8 @@ export const discoveryKeys = {
     suggestions: (profileId?: string, status?: string, category?: string) =>
         [...discoveryKeys.all, 'suggestions', profileId ?? 'all', status ?? 'PENDING', category ?? 'all'] as const,
     sources: (profileId?: string) => [...discoveryKeys.all, 'sources', profileId ?? 'all'] as const,
+    mediaSourcesContext: (profile?: string | null, source?: string | null, suggestion?: string | null) =>
+        [...discoveryKeys.all, 'media-sources-context', profile ?? 'all', source ?? 'none', suggestion ?? 'none'] as const,
     config: () => [...discoveryKeys.all, 'config'] as const,
 };
 
@@ -48,6 +51,7 @@ export function useUpdateDiscoveryConfig() {
         mutationFn: (data: DiscoveryConfig) => updateDiscoveryConfig(data),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: discoveryKeys.config() });
+            qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
             toast({ title: 'Discovery settings saved', variant: 'success' });
         },
         onError: (e) => toast({ title: 'Failed to save settings', description: String(e), variant: 'destructive' }),
@@ -55,17 +59,25 @@ export function useUpdateDiscoveryConfig() {
 }
 
 export function useSweepNow() {
+    const qc = useQueryClient();
     return useMutation({
         mutationFn: sweepNow,
-        onSuccess: (r) => toast({ title: 'Discovery started', description: r.message ?? 'Sweeping all interests — suggestions will appear shortly.', variant: 'success' }),
+        onSuccess: (r) => {
+            qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
+            toast({ title: 'Discovery started', description: r.message ?? 'Sweeping all interests — suggestions will appear shortly.', variant: 'success' });
+        },
         onError: (e) => toast({ title: 'Failed to start discovery', description: String(e), variant: 'destructive' }),
     });
 }
 
 export function useBuildGraph() {
+    const qc = useQueryClient();
     return useMutation({
         mutationFn: buildGraph,
-        onSuccess: (r) => toast({ title: 'Building source graph', description: r.message ?? 'Mapping your network — new sources will surface shortly.', variant: 'success' }),
+        onSuccess: (r) => {
+            qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
+            toast({ title: 'Building source graph', description: r.message ?? 'Mapping your network — new sources will surface shortly.', variant: 'success' });
+        },
         onError: (e) => toast({ title: 'Failed to build graph', description: String(e), variant: 'destructive' }),
     });
 }
@@ -113,6 +125,20 @@ export function useAuthorities(kind?: string) {
     });
 }
 
+export function useMediaSourcesContext(params?: {
+    profile?: string | null;
+    source?: string | null;
+    suggestion?: string | null;
+}) {
+    return useQuery({
+        queryKey: discoveryKeys.mediaSourcesContext(params?.profile, params?.source, params?.suggestion),
+        queryFn: () => getMediaSourcesContext(params),
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+        refetchInterval: 30_000,
+    });
+}
+
 export function useProfiles() {
     return useQuery({
         queryKey: discoveryKeys.profiles(),
@@ -128,6 +154,7 @@ export function useCreateProfile() {
         mutationFn: (data: CreateProfileRequest) => createProfile(data),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: discoveryKeys.profiles() });
+            qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
             toast({ title: 'Profile created', variant: 'success' });
         },
         onError: (e) => toast({ title: 'Failed to create profile', description: String(e), variant: 'destructive' }),
@@ -140,6 +167,7 @@ export function useUpdateProfile() {
         mutationFn: ({ id, data }: { id: string; data: UpdateProfileRequest }) => updateProfile(id, data),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: discoveryKeys.profiles() });
+            qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
             toast({ title: 'Profile updated', variant: 'success' });
         },
         onError: (e) => toast({ title: 'Failed to update profile', description: String(e), variant: 'destructive' }),
@@ -152,6 +180,7 @@ export function useDeleteProfile() {
         mutationFn: (id: string) => deleteProfile(id),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: discoveryKeys.profiles() });
+            qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
             toast({ title: 'Profile deleted', variant: 'success' });
         },
         onError: (e) => toast({ title: 'Failed to delete profile', description: String(e), variant: 'destructive' }),
@@ -159,10 +188,13 @@ export function useDeleteProfile() {
 }
 
 export function useRunProfile() {
+    const qc = useQueryClient();
     return useMutation({
         mutationFn: (id: string) => runProfile(id),
-        onSuccess: (res) =>
-            toast({ title: 'Discovery started', description: res.message ?? 'Sweep queued — suggestions will appear shortly.', variant: 'success' }),
+        onSuccess: (res) => {
+            qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
+            toast({ title: 'Discovery started', description: res.message ?? 'Sweep queued — suggestions will appear shortly.', variant: 'success' });
+        },
         onError: (e) => toast({ title: 'Failed to start discovery', description: String(e), variant: 'destructive' }),
     });
 }
@@ -201,6 +233,7 @@ function useInvalidateHub() {
     return () => {
         qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'suggestions'] });
         qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'sources'] });
+        qc.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
     };
 }
 

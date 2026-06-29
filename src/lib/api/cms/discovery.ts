@@ -9,6 +9,7 @@ import type {
     SuggestedProfileDraft,
     DiscoveryConfig,
     NetworkAuthority,
+    MediaSourcesContext,
 } from '@/types/platform/discovery';
 
 // ---------- Profiles ----------
@@ -74,6 +75,23 @@ export async function listNewsSources(profileId?: string, category?: string): Pr
     return cmsClient.get<ListResponse<NewsSource>>(
         '/admin/discovery/sources',
         Object.keys(params).length ? params : undefined
+    );
+}
+
+// ---------- Unified Media Sources context ----------
+
+export async function getMediaSourcesContext(params?: {
+    profile?: string | null;
+    source?: string | null;
+    suggestion?: string | null;
+}): Promise<MediaSourcesContext> {
+    const query: Record<string, string> = {};
+    if (params?.profile) query.profile = params.profile;
+    if (params?.source) query.source = params.source;
+    if (params?.suggestion) query.suggestion = params.suggestion;
+    return cmsClient.get<MediaSourcesContext>(
+        '/admin/discovery/media-sources/context',
+        Object.keys(query).length ? query : undefined,
     );
 }
 

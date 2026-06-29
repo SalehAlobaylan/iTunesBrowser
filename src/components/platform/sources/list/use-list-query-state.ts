@@ -62,6 +62,8 @@ const VALID_SORT_FIELDS: ReadonlyArray<SortField> = [
     'fetch_interval_minutes',
 ];
 
+const MANAGED_KEYS = ['page', 'q', 'status', 'type', 'category', 'health', 'sort', 'dir'] as const;
+
 function readFromParams(params: URLSearchParams): ListQueryState {
     const page = Number(params.get('page')) || DEFAULTS.page;
     const search = params.get('q') ?? DEFAULTS.search;
@@ -84,8 +86,9 @@ function readFromParams(params: URLSearchParams): ListQueryState {
     return { page: Math.max(1, page), search, status, type, category, health, sortField, sortDir };
 }
 
-function toQueryString(state: ListQueryState): string {
-    const params = new URLSearchParams();
+function toQueryString(state: ListQueryState, baseParams?: URLSearchParams): string {
+    const params = new URLSearchParams(baseParams);
+    for (const key of MANAGED_KEYS) params.delete(key);
     if (state.page !== DEFAULTS.page) params.set('page', String(state.page));
     if (state.search) params.set('q', state.search);
     if (state.status !== DEFAULTS.status) params.set('status', state.status);
@@ -114,7 +117,7 @@ export function useListQueryState() {
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
-            const target = `${pathname}${toQueryString(state)}`;
+            const target = `${pathname}${toQueryString(state, searchParams)}`;
             router.replace(target, { scroll: false });
         }, 250);
         return () => {
@@ -122,7 +125,7 @@ export function useListQueryState() {
         };
         // pathname is stable for this page; we deliberately don't react to it.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [state]);
+    }, [state, searchParams]);
 
     const setState = useCallback((patch: Partial<ListQueryState>) => {
         setStateInternal((prev) => {

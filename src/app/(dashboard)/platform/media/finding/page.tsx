@@ -1,5 +1,5 @@
-import { MediaFindingPage } from '@/components/platform/media/finding/media-finding-page';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-    return <MediaFindingPage />;
+    redirect('/platform/media/sources?tab=finding');
 }

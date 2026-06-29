@@ -15,9 +15,11 @@ import { formatNumber } from '@/lib/utils/format';
 import { toast } from '@/components/ui/toast';
 import { sourceHealth } from '@/lib/sources/health';
 import { sourceKeys } from '@/hooks/use-sources';
+import { discoveryKeys } from '@/hooks/use-discovery';
 import { runSource } from '@/lib/api/cms/sources';
 import { SOURCE_TYPE_LABELS } from '@/types/platform/source';
 import type { ContentSource, SourceType } from '@/types/platform/source';
+import type { NewsSource } from '@/types/platform/discovery';
 import { SourceActionMenu } from '@/components/platform/sources/shared/source-action-menu';
 import { SourceAvatar } from '@/components/platform/sources/shared/source-avatar';
 import { HEALTH_BG, HEALTH_LABELS, HEALTH_TEXT } from '@/components/platform/sources/shared/health-meta';
@@ -26,8 +28,12 @@ interface MediaSourceCardProps {
     source: ContentSource;
     /** Items produced (when this source is a known top producer). */
     output?: { items: number; failed: number };
+    sourceContext?: NewsSource;
+    profileName?: string;
     selected: boolean;
+    selectedForInspect?: boolean;
     onToggleSelect: (id: string) => void;
+    onSelectSource?: (id: string) => void;
     onRequestDelete: (id: string) => void;
     returnTo: string;
 }
@@ -41,8 +47,12 @@ function cadence(minutes: number): string {
 export function MediaSourceCard({
     source,
     output,
+    sourceContext,
+    profileName,
     selected,
+    selectedForInspect,
     onToggleSelect,
+    onSelectSource,
     onRequestDelete,
     returnTo,
 }: MediaSourceCardProps) {
@@ -56,6 +66,7 @@ export function MediaSourceCard({
         try {
             await runSource(source.id);
             queryClient.invalidateQueries({ queryKey: sourceKeys.all });
+            queryClient.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
             toast({ title: 'Ingestion started', variant: 'success' });
         } catch (e) {
             toast({
@@ -72,11 +83,14 @@ export function MediaSourceCard({
         <Card
             className={cn(
                 'group relative flex flex-col overflow-hidden transition-shadow hover:shadow-md',
-                selected && 'ring-2 ring-gold'
+                onSelectSource && 'cursor-pointer',
+                selected && 'ring-2 ring-gold',
+                selectedForInspect && 'border-gold bg-gold/5'
             )}
+            onClick={() => onSelectSource?.(source.id)}
         >
             {/* Select + actions overlay */}
-            <div className="absolute left-3 top-3 z-10">
+            <div className="absolute left-3 top-3 z-10" onClick={(e) => e.stopPropagation()}>
                 <Checkbox
                     checked={selected}
                     onCheckedChange={() => onToggleSelect(source.id)}
@@ -87,25 +101,30 @@ export function MediaSourceCard({
                     )}
                 />
             </div>
-            <div className="absolute right-2 top-2 z-10">
+            <div className="absolute right-2 top-2 z-10" onClick={(e) => e.stopPropagation()}>
                 <SourceActionMenu source={source} returnTo={returnTo} onRequestDelete={onRequestDelete} />
             </div>
 
             <div className="flex gap-3.5 p-4 pr-12">
                 {/* Artwork with health ring */}
-                <Link href={editHref} aria-label={`Edit ${source.name}`}>
+                <Link href={editHref} aria-label={`Edit ${source.name}`} onClick={(e) => e.stopPropagation()}>
                     <SourceAvatar source={source} ring className="h-16 w-16 text-xl" />
                 </Link>
 
                 {/* Identity */}
                 <div className="min-w-0 flex-1">
-                    <Link href={editHref} className="block truncate font-semibold leading-tight hover:underline">
+                    <Link href={editHref} className="block truncate font-semibold leading-tight hover:underline" onClick={(e) => e.stopPropagation()}>
                         {source.name}
                     </Link>
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
                         <Badge variant="outline" className="font-normal">
                             {SOURCE_TYPE_LABELS[source.type as SourceType] ?? source.type}
                         </Badge>
+                        {sourceContext?.discovery_profile_id && (
+                            <Badge variant="secondary" className="font-normal">
+                                from discovery{profileName ? ` · ${profileName}` : ''}
+                            </Badge>
+                        )}
                         <span className={cn('flex items-center gap-1 text-xs', HEALTH_TEXT[health.status])}>
                             <span className={cn('h-1.5 w-1.5 rounded-full', HEALTH_BG[health.status])} />
                             {HEALTH_LABELS[health.status]}
@@ -130,7 +149,7 @@ export function MediaSourceCard({
                           ? 'Disabled'
                           : ''}
                 </span>
-                <Button size="sm" variant="ghost" onClick={handleRun} disabled={running} className="h-7">
+                <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleRun(); }} disabled={running} className="h-7">
                     {running ? (
                         <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     ) : (

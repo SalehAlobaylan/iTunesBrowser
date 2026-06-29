@@ -13,6 +13,7 @@ import { MediaSourcesToolbar } from '@/components/platform/media/sources/media-s
 import { MediaSourceGallery } from '@/components/platform/media/sources/media-source-gallery';
 import { sourceHealth } from '@/lib/sources/health';
 import type { ContentSource } from '@/types/platform/source';
+import type { NewsSource } from '@/types/platform/discovery';
 import type { SortDir, SortField } from '@/components/platform/sources/list/use-list-query-state';
 
 interface MediaSourcesManagerProps {
@@ -25,6 +26,10 @@ interface MediaSourcesManagerProps {
     refetch: () => Promise<unknown> | void;
     /** Where editor/add links return to (this surface). */
     returnTo: string;
+    selectedSourceId?: string | null;
+    onSelectSource?: (id: string) => void;
+    sourceContextById?: Map<string, NewsSource>;
+    profileNameById?: Map<string, string>;
 }
 
 function sortSources(arr: ContentSource[], field: SortField, dir: SortDir) {
@@ -62,6 +67,10 @@ export function MediaSourcesManager({
     onBusyChange,
     refetch,
     returnTo,
+    selectedSourceId,
+    onSelectSource,
+    sourceContextById,
+    profileNameById,
 }: MediaSourcesManagerProps) {
     const { state, setState } = useListQueryState();
     const mgmt = useSourceManagement({ sources, refetch, onBusyChange });
@@ -147,7 +156,11 @@ export function MediaSourcesManager({
                 outputByName={outputByName}
                 isLoading={isLoading}
                 selected={mgmt.selected}
+                selectedSourceId={selectedSourceId}
+                sourceContextById={sourceContextById}
+                profileNameById={profileNameById}
                 onToggleSelect={mgmt.toggleOne}
+                onSelectSource={onSelectSource}
                 onRequestDelete={mgmt.requestDelete}
                 returnTo={returnTo}
             />

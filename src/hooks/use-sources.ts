@@ -18,6 +18,7 @@ import type {
 } from '@/types/platform/source';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
+import { discoveryKeys } from '@/hooks/use-discovery';
 
 // Query keys
 export const sourceKeys = {
@@ -28,6 +29,12 @@ export const sourceKeys = {
   detail: (id: string) => [...sourceKeys.details(), id] as const,
   stats: (params: SourceStatsParams) => [...sourceKeys.all, 'stats', params] as const,
 };
+
+function invalidateSourceSurfaces(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: sourceKeys.all });
+  queryClient.invalidateQueries({ queryKey: [...discoveryKeys.all, 'sources'] });
+  queryClient.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
+}
 
 /**
  * Hook to load the ENTIRE source fleet client-side (all pages), powering the
@@ -120,7 +127,7 @@ export function useCreateSource() {
   return useMutation({
     mutationFn: (data: CreateSourceRequest) => createSource(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: sourceKeys.lists() });
+      invalidateSourceSurfaces(queryClient);
       toast({
         title: 'Source created',
         description: 'The content source has been created successfully.',
@@ -147,7 +154,7 @@ export function useUpdateSource() {
     mutationFn: ({ id, data }: { id: string; data: UpdateSourceRequest }) =>
       updateSource(id, data),
     onSuccess: (updatedSource: ContentSource) => {
-      queryClient.invalidateQueries({ queryKey: sourceKeys.lists() });
+      invalidateSourceSurfaces(queryClient);
       queryClient.setQueryData(
         sourceKeys.detail(updatedSource.id),
         updatedSource
@@ -177,7 +184,7 @@ export function useDeleteSource() {
   return useMutation({
     mutationFn: (id: string) => deleteSource(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: sourceKeys.lists() });
+      invalidateSourceSurfaces(queryClient);
       toast({
         title: 'Source deleted',
         description: 'The content source has been deleted.',
@@ -205,7 +212,7 @@ export function useRunSource() {
     onSuccess: (response, id) => {
       // Invalidate source detail to show updated last_fetched_at
       queryClient.invalidateQueries({ queryKey: sourceKeys.detail(id) });
-      queryClient.invalidateQueries({ queryKey: sourceKeys.lists() });
+      invalidateSourceSurfaces(queryClient);
       toast({
         title: 'Ingestion started',
         description:
