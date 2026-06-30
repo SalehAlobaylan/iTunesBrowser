@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import {
     Sliders,
     Plus,
@@ -54,11 +55,11 @@ const OUTPUT_CONTAINERS: OutputContainer[] = ['mp4', 'webm', 'mov'];
 // Page
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function QualityPage() {
+function QualityWorkspace({ embedded = false }: { embedded?: boolean }) {
     const profiles = useQualityProfiles();
-    const profilesList = profiles.data?.data ?? [];
 
     const counts = useMemo(() => {
+        const profilesList = profiles.data?.data ?? [];
         let global = 0, tenant = 0, source = 0, both = 0;
         for (const p of profilesList) {
             const hasTenant = !!p.tenant_id;
@@ -69,18 +70,19 @@ export default function QualityPage() {
             else source++;
         }
         return { global, tenant, source, both, total: profilesList.length };
-    }, [profilesList]);
+    }, [profiles.data?.data]);
 
     return (
-        <div className="space-y-6 p-6">
+        <div className={embedded ? 'space-y-6' : 'space-y-6 p-6'}>
+            {!embedded && (
             <header className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <Sliders className="h-7 w-7 text-primary" />
                     <div>
-                        <h1 className="text-2xl font-semibold">Ingest Configuration</h1>
+                        <h1 className="text-2xl font-semibold">Quality Profiles</h1>
                         <p className="text-sm text-muted-foreground">
-                            How the Aggregation pipeline encodes new content. One profile per
-                            (tenant, source) combination; the most-specific match wins.
+                            Quality is now managed inside Storage + Quality. This page remains as a
+                            compatibility view for profile editing.
                         </p>
                     </div>
                 </div>
@@ -88,10 +90,43 @@ export default function QualityPage() {
                     {counts.total} profile{counts.total === 1 ? '' : 's'} · {counts.global} global · {counts.tenant + counts.source + counts.both} scoped
                 </Badge>
             </header>
+            )}
 
             <ProfilesSection />
             <ResolvePreviewCard />
             <ProbeToolCard />
+        </div>
+    );
+}
+
+export default function QualityPage() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const isStandaloneRoute = pathname === '/platform/quality';
+
+    useEffect(() => {
+        if (isStandaloneRoute) {
+            router.replace('/platform/storage?section=quality');
+        }
+    }, [isStandaloneRoute, router]);
+
+    if (!isStandaloneRoute) {
+        return <QualityWorkspace embedded />;
+    }
+
+    return (
+        <div className="space-y-4 p-6">
+            <div className="rounded border border-cyan-500/30 bg-cyan-500/10 p-4 text-sm">
+                <p className="font-medium">Quality moved into Storage + Quality.</p>
+                <p className="text-muted-foreground">
+                    Redirecting to the merged cockpit. If the redirect is blocked, open{' '}
+                    <a className="text-cyan-400 underline" href="/platform/storage?section=quality">
+                        Storage + Quality
+                    </a>
+                    .
+                </p>
+            </div>
+            <QualityWorkspace embedded />
         </div>
     );
 }

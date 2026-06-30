@@ -12,7 +12,6 @@ import {
     Sparkles,
     Shield,
     HardDrive,
-    Sliders,
     HeartPulse,
     type LucideIcon,
 } from 'lucide-react';
@@ -47,7 +46,6 @@ export const navigation: NavigationSection[] = [
             { name: 'Media Sources', href: '/platform/media/sources', icon: Radio },
             { name: 'Media Studio', href: '/platform/media/atomization', icon: Clapperboard },
             { name: 'Storage', href: '/platform/storage', icon: HardDrive },
-            { name: 'Quality', href: '/platform/quality', icon: Sliders },
             { name: 'Pipeline', href: '/platform/pipeline', icon: Activity },
             { name: 'Intelligence', href: '/platform/intelligence', icon: Brain },
             { name: 'Enrichment', href: '/platform/enrichment', icon: Sparkles },

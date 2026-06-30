@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+    getStorageHealth,
     getStoragePolicy,
     getStoragePreview,
+    getStorageRecommendations,
     getStorageStats,
+    listStorageArtifactEvents,
     listPolicyOverrides,
     listStorageCandidates,
     listSweepRuns,
@@ -25,6 +28,9 @@ import { getStorageOperations } from '@/lib/api/cms/storage-ops';
 export const storageKeys = {
     all: ['storage'] as const,
     stats: () => [...storageKeys.all, 'stats'] as const,
+    health: () => [...storageKeys.all, 'health'] as const,
+    recommendations: () => [...storageKeys.all, 'recommendations'] as const,
+    artifactEvents: (limit: number) => [...storageKeys.all, 'artifact-events', limit] as const,
     preview: () => [...storageKeys.all, 'preview'] as const,
     candidates: (params: StorageCandidatesParams) =>
         [...storageKeys.all, 'candidates', params] as const,
@@ -53,6 +59,39 @@ export function useStorageStats(options: { paused?: boolean } = {}) {
         staleTime: CACHE_CONFIG.lists.staleTime,
         gcTime: CACHE_CONFIG.lists.gcTime,
         refetchInterval: options.paused ? false : 60_000,
+        refetchIntervalInBackground: false,
+    });
+}
+
+export function useStorageHealth(options: { paused?: boolean } = {}) {
+    return useQuery({
+        queryKey: storageKeys.health(),
+        queryFn: getStorageHealth,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+        refetchInterval: options.paused ? false : 60_000,
+        refetchIntervalInBackground: false,
+    });
+}
+
+export function useStorageRecommendations() {
+    return useQuery({
+        queryKey: storageKeys.recommendations(),
+        queryFn: getStorageRecommendations,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+        refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
+    });
+}
+
+export function useStorageArtifactEvents(limit = 25) {
+    return useQuery({
+        queryKey: storageKeys.artifactEvents(limit),
+        queryFn: () => listStorageArtifactEvents(limit),
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+        refetchInterval: 30_000,
         refetchIntervalInBackground: false,
     });
 }

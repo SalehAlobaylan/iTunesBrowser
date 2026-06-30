@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { type ElementType, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
     HardDrive,
@@ -9,7 +9,6 @@ import {
     RefreshCw,
     PlayCircle,
     RotateCcw,
-    PieChart as PieChartIcon,
     Loader2,
     Snowflake,
     Shield,
@@ -17,20 +16,19 @@ import {
     Sliders,
     Activity,
     Zap,
+    ArrowRight,
+    Database,
+    Gauge,
+    Layers3,
+    ListChecks,
+    ShieldCheck,
+    Workflow,
 } from 'lucide-react';
 import {
-    PieChart,
-    Pie,
-    Cell,
-    BarChart,
-    Bar,
     XAxis,
     YAxis,
     Tooltip,
     ResponsiveContainer,
-    RadialBarChart,
-    RadialBar,
-    PolarAngleAxis,
     AreaChart,
     Area,
     CartesianGrid,
@@ -52,12 +50,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import {
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
-} from '@/components/ui/tabs';
-import {
     Dialog,
     DialogContent,
     DialogDescription,
@@ -72,10 +64,13 @@ import {
     useReconcileStorage,
     useRestoreStorageItem,
     useRunSweepNow,
+    useStorageArtifactEvents,
     useStorageCandidates,
+    useStorageHealth,
     useStorageOperations,
     useStoragePolicy,
     useStoragePreview,
+    useStorageRecommendations,
     useStorageStats,
     useSweepRuns,
     useUpdateStoragePolicy,
@@ -87,22 +82,63 @@ import type {
 } from '@/types/platform/storage-ops';
 import { useQualityProfiles } from '@/hooks/use-quality';
 import { getPreset } from '@/lib/constants/ingest-presets';
+import EmbeddedQualityPage from '@/app/(dashboard)/platform/quality/page';
 import type {
     StoragePolicy,
+    StorageStats,
     UpdatePolicyRequest,
+    StorageProofMetrics,
 } from '@/types/platform/storage';
 
-const ARTIFACT_COLORS = ['#0ea5e9', '#22c55e', '#f59e0b', '#a855f7', '#ef4444', '#14b8a6'];
+const SECTION_IDS = ['cockpit', 'quality', 'candidates', 'ledger', 'policy', 'operations'] as const;
+type StorageSection = typeof SECTION_IDS[number];
+
+type ArtifactTone = 'cyan' | 'emerald' | 'amber' | 'violet' | 'slate';
+
+interface NormalizedArtifact {
+    groupId: string;
+    groupLabel: string;
+    detailLabel: string;
+    actionHint: string;
+    tone: ArtifactTone;
+}
+
+interface ArtifactGroup {
+    id: string;
+    label: string;
+    bytes: number;
+    prefixCount: number;
+    percent: number;
+    actionHint: string;
+    tone: ArtifactTone;
+    details: Array<{ key: string; label: string; bytes: number; percent: number }>;
+}
+
+interface ContentTypeRow {
+    name: string;
+    bytes: number;
+    count: number;
+    averageBytes: number;
+    percent: number;
+}
 
 export default function StoragePage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const activeTab = searchParams.get('tab') ?? 'overview';
+    const legacyTab = searchParams.get('tab');
+    const activeSection = normalizeSection(searchParams.get('section'), legacyTab);
 
-    function handleTabChange(value: string) {
+    function handleSectionChange(value: StorageSection) {
         const params = new URLSearchParams(Array.from(searchParams.entries()));
-        params.set('tab', value);
+        params.delete('tab');
+        params.set('section', value);
         router.replace(`/platform/storage?${params.toString()}`);
+        requestAnimationFrame(() => {
+            document.getElementById(`storage-${value}`)?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            });
+        });
     }
 
     const stats = useStorageStats();
@@ -122,16 +158,83 @@ export default function StoragePage() {
     const pageStatusVariant = pageStatus === 'err' ? 'destructive' : pageStatus === 'warn' ? 'secondary' : 'success';
 
     return (
-        <div className="space-y-6 p-6">
-            <header className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <HardDrive className="h-7 w-7 text-primary" />
-                    <h1 className="text-2xl font-semibold">Storage Management</h1>
-                    <Badge variant={pageStatusVariant}>{pageStatusLabel}</Badge>
+        <div className="space-y-6 p-4 md:p-6">
+            <header className="overflow-hidden rounded-lg border border-border bg-[radial-gradient(circle_at_12%_20%,rgba(245,158,11,0.16),transparent_28%),linear-gradient(135deg,rgba(2,6,23,0.96),rgba(15,23,42,0.92))] text-slate-50 shadow-sm">
+                <div className="grid gap-6 p-5 lg:grid-cols-[1.3fr_0.7fr] lg:p-6">
+                    <div className="space-y-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-md border border-amber-300/30 bg-amber-300/10">
+                                <HardDrive className="h-6 w-6 text-amber-300" />
+                            </div>
+                            <div>
+                                <p className="brand-overline text-gold">Media control room</p>
+                                <h1 className="text-2xl font-semibold tracking-normal text-white md:text-3xl">
+                                    Storage + Quality Cockpit
+                                </h1>
+                            </div>
+                            <Badge variant={pageStatusVariant}>{pageStatusLabel}</Badge>
+                        </div>
+                        <p className="max-w-3xl text-sm leading-6 text-slate-300">
+                            Manage media bytes, playback profiles, cold movement, recoverable deletion,
+                            and artifact recovery from one internal surface. Feed visibility and ranking
+                            stay outside this system.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                size="sm"
+                                onClick={() => stats.refetch()}
+                                disabled={stats.isFetching}
+                                className="bg-white text-slate-950 hover:bg-slate-200"
+                            >
+                                <RefreshCw className={`mr-2 h-4 w-4 ${stats.isFetching ? 'animate-spin' : ''}`} />
+                                Refresh
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => runSweep.mutate()}
+                                disabled={runSweep.isPending}
+                                className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                            >
+                                {runSweep.isPending
+                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    : <PlayCircle className="mr-2 h-4 w-4" />}
+                                Run sweep
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => reconcile.mutate()}
+                                disabled={reconcile.isPending}
+                                className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+                            >
+                                {reconcile.isPending
+                                    ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    : <Database className="mr-2 h-4 w-4" />}
+                                Reconcile
+                            </Button>
+                        </div>
+                    </div>
+                    <div className="rounded-md border border-white/10 bg-white/[0.04] p-4">
+                        <p className="text-xs uppercase text-slate-400">Current pressure</p>
+                        <p className="mt-2 text-4xl font-semibold text-white">
+                            {utilization.toFixed(1)}%
+                        </p>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+                            <div
+                                className={`h-full ${pageStatus === 'err' ? 'bg-red-500' : pageStatus === 'warn' ? 'bg-yellow-400' : 'bg-emerald-400'}`}
+                                style={{ width: `${Math.min(100, Math.max(0, utilization))}%` }}
+                            />
+                        </div>
+                        <p className="mt-3 text-xs leading-5 text-slate-400">
+                            First safe action is bounded re-encode. Cold tier is preferred when
+                            available. Recoverable deletion means best-effort re-ingestion, not a
+                            guaranteed restore.
+                        </p>
+                    </div>
                 </div>
             </header>
 
-            {/* Persistent error banner — survives across all tabs */}
             {stats.data?.aggregation_error && (
                 <div className="flex items-start gap-2 rounded border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm">
                     <AlertTriangle className="mt-0.5 h-4 w-4 text-yellow-500" />
@@ -143,78 +246,613 @@ export default function StoragePage() {
                 </div>
             )}
 
-            <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-                <TabsList>
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="policy">Policy</TabsTrigger>
-                    <TabsTrigger value="execute">Execute</TabsTrigger>
-                </TabsList>
+            <SectionNav active={activeSection} onChange={handleSectionChange} />
 
-                {/* ───────────────────────────── Overview (Track) ───────────────────────────── */}
-                <TabsContent value="overview" className="mt-4 space-y-6">
-                    <div className="flex items-center justify-between">
-                        <p className="text-sm text-muted-foreground">
-                            Read-only health view. Use <strong>Policy</strong> to change behaviour or{' '}
-                            <strong>Execute</strong> to take action.
-                        </p>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => stats.refetch()}
-                            disabled={stats.isFetching}
+            <section id="storage-cockpit" className="scroll-mt-24 space-y-6">
+                <StorageCockpit onSectionChange={handleSectionChange} />
+                <SectionHeading
+                    icon={Gauge}
+                    eyebrow="Storage pressure and composition"
+                    title="Where the bucket pressure is coming from"
+                    description="Live R2 usage, CMS accounting, grouped artifact families, and raw prefix evidence without the segment noise."
+                />
+                <StorageCompositionPanel />
+            </section>
+
+            <section id="storage-quality" className="scroll-mt-24 space-y-4">
+                <SectionHeading
+                    icon={Sliders}
+                    eyebrow="Quality strategy"
+                    title="Profiles are storage policy"
+                    description="Quality profiles now sit inside the same operating model as re-encode, parent cleanup, and playback protection."
+                />
+                <QualityStrategyPanel onSectionChange={handleSectionChange} />
+                <EmbeddedQualityPage />
+            </section>
+
+            <section id="storage-candidates" className="scroll-mt-24 space-y-4">
+                <SectionHeading
+                    icon={ListChecks}
+                    eyebrow="Recommendations and candidates"
+                    title="Choose byte-saving work with guardrails visible"
+                    description="Manual actions stay bounded: dry-run first, preserve CMS memory, and protect hot feed units."
+                />
+                <ExecuteActionBar
+                    onRunSweep={() => runSweep.mutate()}
+                    runSweepPending={runSweep.isPending}
+                    lastSweep={sweepRuns.data?.data?.[0]}
+                />
+                <PreviewBanner />
+                <CandidatesTable />
+            </section>
+
+            <section id="storage-ledger" className="scroll-mt-24 space-y-4">
+                <SectionHeading
+                    icon={Workflow}
+                    eyebrow="Recovery trail"
+                    title="Artifact ledger and restoration"
+                    description="Every storage action should leave enough record to understand what changed and attempt best-effort recovery."
+                />
+                <ArtifactLedgerPanel />
+                <ActivityLog />
+            </section>
+
+            <section id="storage-policy" className="scroll-mt-24 space-y-4">
+                <SectionHeading
+                    icon={ShieldCheck}
+                    eyebrow="Policy"
+                    title="Bounded automation, no feed decisions"
+                    description="Set cost and artifact lifecycle policy. Visibility, ranking, source approval, and editorial decisions stay out of this system."
+                />
+                <PolicyCard />
+                <OverridesTable />
+            </section>
+
+            <section id="storage-operations" className="scroll-mt-24 space-y-4">
+                <SectionHeading
+                    icon={Activity}
+                    eyebrow="Operations"
+                    title="Object-store budgets and maintenance"
+                    description="Track R2 operation caps, recent sweeps, and reconciliation without leaving the cockpit."
+                />
+                <OperationsPanel />
+                <RecentSweepsPreview />
+                <ToolsCard
+                    onReconcile={() => reconcile.mutate()}
+                    reconciling={reconcile.isPending}
+                    reconcileResult={reconcile.data}
+                />
+            </section>
+        </div>
+    );
+}
+
+function normalizeSection(section: string | null, legacyTab: string | null): StorageSection {
+    if (section && SECTION_IDS.includes(section as StorageSection)) {
+        return section as StorageSection;
+    }
+    if (legacyTab === 'policy') return 'policy';
+    if (legacyTab === 'execute' || legacyTab === 'candidates') return 'candidates';
+    return 'cockpit';
+}
+
+function SectionNav({
+    active,
+    onChange,
+}: {
+    active: StorageSection;
+    onChange: (section: StorageSection) => void;
+}) {
+    const items: { id: StorageSection; label: string; icon: ElementType }[] = [
+        { id: 'cockpit', label: 'Cockpit', icon: Gauge },
+        { id: 'quality', label: 'Quality', icon: Sliders },
+        { id: 'candidates', label: 'Candidates', icon: ListChecks },
+        { id: 'ledger', label: 'Ledger', icon: Workflow },
+        { id: 'policy', label: 'Policy', icon: ShieldCheck },
+        { id: 'operations', label: 'Operations', icon: Activity },
+    ];
+
+    return (
+        <div className="sticky top-0 z-20 -mx-4 border-y border-border bg-background/95 px-4 py-2 backdrop-blur md:-mx-6 md:px-6">
+            <div className="flex gap-2 overflow-x-auto">
+                {items.map((item) => {
+                    const Icon = item.icon;
+                    const selected = item.id === active;
+                    return (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => onChange(item.id)}
+                            className={`flex shrink-0 items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
+                                selected
+                                    ? 'border-gold/60 bg-gold/10 text-foreground'
+                                    : 'border-border bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                            }`}
                         >
-                            <RefreshCw className={`mr-2 h-4 w-4 ${stats.isFetching ? 'animate-spin' : ''}`} />
-                            Refresh
+                            <Icon className="h-4 w-4" />
+                            {item.label}
+                        </button>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function SectionHeading({
+    icon: Icon,
+    eyebrow,
+    title,
+    description,
+}: {
+    icon: ElementType;
+    eyebrow: string;
+    title: string;
+    description: string;
+}) {
+    return (
+        <div className="flex flex-col gap-2 border-b border-border pb-3 md:flex-row md:items-end md:justify-between">
+            <div className="flex items-start gap-3">
+                <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-cyan-500/25 bg-cyan-500/10">
+                    <Icon className="h-4 w-4 text-cyan-400" />
+                </div>
+                <div>
+                    <p className="brand-overline text-gold">{eyebrow}</p>
+                    <h2 className="text-xl font-semibold tracking-normal">{title}</h2>
+                    <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{description}</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Verdict-led cockpit
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StorageCockpit({
+    onSectionChange,
+}: {
+    onSectionChange: (value: StorageSection) => void;
+}) {
+    const router = useRouter();
+    const health = useStorageHealth();
+    const recommendations = useStorageRecommendations();
+    const ledger = useStorageArtifactEvents(8);
+
+    if (health.isLoading || !health.data) {
+        return (
+            <Card>
+                <CardContent className="p-6">
+                    <Skeleton className="h-40 w-full" />
+                </CardContent>
+            </Card>
+        );
+    }
+
+    const data = health.data;
+    const recs = data.recommendations.length > 0 ? data.recommendations : recommendations.data?.data ?? [];
+    const verdictVariant =
+        data.state === 'critical' ? 'destructive'
+        : data.state === 'pressure' || data.state === 'degraded_no_cold' ? 'secondary'
+        : data.state === 'degraded' ? 'secondary'
+        : 'success';
+    const proof = data.proof;
+
+    return (
+        <Card className="overflow-hidden">
+            <CardHeader className="space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <div className="mb-2 flex items-center gap-2">
+                            <Badge variant={verdictVariant}>{data.state.replaceAll('_', ' ')}</Badge>
+                            <span className="text-xs text-muted-foreground">score {data.score}/100</span>
+                        </div>
+                        <CardTitle>Storage + Quality cockpit</CardTitle>
+                        <CardDescription>{data.summary}</CardDescription>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={() => onSectionChange('policy')}>
+                            <Sliders className="mr-2 h-4 w-4" />
+                            Policy
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => onSectionChange('quality')}>
+                            <Zap className="mr-2 h-4 w-4" />
+                            Quality
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => router.push('/platform/media/atomization')}>
+                            <PlayCircle className="mr-2 h-4 w-4" />
+                            Atomization
                         </Button>
                     </div>
-                    <UsageOverview />
-                    <OperationsPanel />
-                    <BreakdownCharts />
-                    <RecentSweepsPreview />
-                    <button
-                        onClick={() => handleTabChange('policy')}
-                        className="flex w-full items-center gap-3 rounded border border-border bg-muted/30 p-3 text-sm hover:bg-muted/50 transition text-left"
-                    >
-                        <Sliders className="h-5 w-5 text-cyan-400 shrink-0" />
-                        <div className="flex-1">
-                            <p className="font-medium">Want to shrink files instead of deleting them?</p>
-                            <p className="text-xs text-muted-foreground">
-                                Set the archive action to <strong>Re-encode (shrink)</strong> in Policy — re-encodes
-                                content to a smaller profile while keeping it playable. Often saves 40–60%.
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                    <ProofMetric label="Used" value={formatBytes(proof.used_bytes)} detail={`${proof.utilization_pct.toFixed(1)}%`} />
+                    <ProofMetric label="Protected" value={formatBytes(proof.protected_bytes)} detail={`${proof.protected_count} items`} />
+                    <ProofMetric label="Candidates" value={formatBytes(proof.candidate_bytes)} detail={`${proof.candidate_count} items`} />
+                    <ProofMetric label="Parent sources" value={formatBytes(proof.parent_source_bytes)} detail={`${proof.parent_source_count} atomized`} />
+                    <ProofMetric
+                        label="Recovery"
+                        value={proof.cold_enabled ? 'Cold ready' : 'No cold tier'}
+                        detail={`${proof.recoverable_deleted_count} recoverable deleted`}
+                    />
+                </div>
+
+                <LifecycleRail proof={proof} />
+
+                <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+                    <div className="rounded border border-border bg-muted/20 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                            <h3 className="text-sm font-semibold">Recommendations</h3>
+                            <Button variant="ghost" size="sm" onClick={() => onSectionChange('candidates')}>
+                                Open candidates
+                            </Button>
+                        </div>
+                        {recs.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No storage action recommended right now.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {recs.slice(0, 4).map((rec) => (
+                                    <div key={rec.key} className="flex items-start justify-between gap-3 border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                                        <div>
+                                            <p className="text-sm font-medium">{rec.label}</p>
+                                            <p className="text-xs text-muted-foreground">{rec.detail}</p>
+                                        </div>
+                                        <Badge variant={rec.severity === 'critical' ? 'destructive' : rec.severity === 'warning' ? 'secondary' : 'outline'}>
+                                            {rec.action.replaceAll('_', ' ')}
+                                        </Badge>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="rounded border border-border bg-muted/20 p-4">
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                            <h3 className="text-sm font-semibold">Artifact ledger</h3>
+                            <Button variant="ghost" size="sm" onClick={() => onSectionChange('ledger')}>
+                                {ledger.data?.total ?? 0} events
+                            </Button>
+                        </div>
+                        {ledger.isLoading ? (
+                            <Skeleton className="h-24 w-full" />
+                        ) : (ledger.data?.data ?? []).length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No storage artifact events yet.</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {(ledger.data?.data ?? []).slice(0, 5).map((event) => (
+                                    <div key={event.id} className="flex items-center justify-between gap-3 text-sm">
+                                        <div className="min-w-0">
+                                            <p className="truncate font-medium">{event.event_type.replaceAll('_', ' ')}</p>
+                                            <p className="truncate text-xs text-muted-foreground">
+                                                {event.reason || event.source || 'storage action'} · {new Date(event.created_at).toLocaleString()}
+                                            </p>
+                                        </div>
+                                        <Badge variant={event.status === 'error' ? 'destructive' : event.status === 'skipped' ? 'secondary' : 'success'}>
+                                            {event.status}
+                                        </Badge>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {!proof.cold_enabled && (
+                    <div className="flex items-start gap-3 rounded border border-orange-500/35 bg-orange-500/10 p-3 text-sm">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-orange-500" />
+                        <div>
+                            <p className="font-medium text-orange-400">Degraded mode: no cold tier configured</p>
+                            <p className="text-muted-foreground">
+                                Storage relief is limited to re-encode, duplicate/orphan cleanup, and
+                                policy-allowed recoverable deletion. Broad deletion remains guarded by
+                                CMS recovery metadata and manual controls.
                             </p>
                         </div>
-                        <span className="text-cyan-400">→</span>
-                    </button>
-                </TabsContent>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
 
-                {/* ───────────────────────────── Policy (Configure) ───────────────────────────── */}
-                <TabsContent value="policy" className="mt-4 space-y-6">
-                    <p className="text-sm text-muted-foreground">
-                        Configure what auto-circulation does. Edits here take effect on the next sweep tick;
-                        click <strong>Execute → Run sweep now</strong> to apply immediately.
-                    </p>
-                    <PreviewBanner />
-                    <PolicyCard />
-                    <OverridesTable />
-                </TabsContent>
+function LifecycleRail({ proof }: { proof: StorageProofMetrics }) {
+    const byteMax = Math.max(
+        proof.used_bytes,
+        proof.protected_bytes,
+        proof.candidate_bytes,
+        proof.parent_source_bytes,
+        1
+    );
+    const lanes = [
+        {
+            label: 'Hot bytes',
+            value: proof.used_bytes,
+            detail: `${proof.utilization_pct.toFixed(1)}% of quota`,
+            color: 'bg-amber-400',
+        },
+        {
+            label: 'Protected feed units',
+            value: proof.protected_bytes,
+            detail: `${proof.protected_count} hot or guarded items`,
+            color: 'bg-emerald-400',
+        },
+        {
+            label: 'Re-encode candidates',
+            value: proof.candidate_bytes,
+            detail: `${proof.candidate_count} bounded actions`,
+            color: 'bg-cyan-400',
+        },
+        {
+            label: 'Parent source liability',
+            value: proof.parent_source_bytes,
+            detail: `${proof.parent_source_count} atomized parents`,
+            color: 'bg-violet-400',
+        },
+    ];
 
-                {/* ───────────────────────────── Execute (Act) ───────────────────────────── */}
-                <TabsContent value="execute" className="mt-4 space-y-6">
-                    <ExecuteActionBar
-                        onRunSweep={() => runSweep.mutate()}
-                        runSweepPending={runSweep.isPending}
-                        lastSweep={sweepRuns.data?.data?.[0]}
-                    />
-                    <CandidatesTable />
-                    <ToolsCard
-                        onReconcile={() => reconcile.mutate()}
-                        reconciling={reconcile.isPending}
-                        reconcileResult={reconcile.data}
-                    />
-                    <ActivityLog />
-                </TabsContent>
-            </Tabs>
+    return (
+        <div className="rounded-lg border border-border bg-slate-950 p-4 text-slate-100">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <p className="text-xs uppercase tracking-wide text-cyan-300">Artifact lifecycle rail</p>
+                    <h3 className="text-base font-semibold">Hot → re-encoded → cold → recoverable delete → recovery</h3>
+                </div>
+                <Badge variant={proof.cold_enabled ? 'success' : 'secondary'}>
+                    {proof.cold_enabled ? 'cold tier ready' : 'degraded no cold'}
+                </Badge>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-4">
+                {lanes.map((lane, index) => (
+                    <div key={lane.label} className="relative rounded-md border border-white/10 bg-white/[0.04] p-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium">{lane.label}</span>
+                            {index < lanes.length - 1 && <ArrowRight className="hidden h-4 w-4 text-slate-500 lg:block" />}
+                        </div>
+                        <p className="mt-2 text-xl font-semibold">{formatBytes(lane.value)}</p>
+                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+                            <div
+                                className={`h-full ${lane.color}`}
+                                style={{ width: `${Math.max(5, Math.min(100, (lane.value / byteMax) * 100))}%` }}
+                            />
+                        </div>
+                        <p className="mt-2 text-xs text-slate-400">{lane.detail}</p>
+                    </div>
+                ))}
+            </div>
+            <p className="mt-3 text-xs text-slate-400">
+                Recoverable deletion keeps CMS memory and attempts re-ingestion when needed; it is not
+                an exact-file restore promise.
+            </p>
         </div>
+    );
+}
+
+function ProofMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+    return (
+        <div className="rounded border border-border bg-background/60 p-3">
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="mt-1 truncate text-lg font-semibold">{value}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+        </div>
+    );
+}
+
+function QualityStrategyPanel({
+    onSectionChange,
+}: {
+    onSectionChange: (value: StorageSection) => void;
+}) {
+    const profiles = useQualityProfiles();
+    const policy = useStoragePolicy('global');
+    const profileList = profiles.data?.data ?? [];
+    const activeProfiles = profileList.filter((profile) => profile.is_active);
+    const targetProfile = activeProfiles.find((profile) => profile.id === policy.data?.re_encode_target_profile_id);
+
+    const findPreset = (key: string) => activeProfiles.find((profile) => profile.preset_key === key);
+    const mobile = findPreset('mobile-feed');
+    const saver = findPreset('storage-saver');
+    const podcast = findPreset('podcast');
+    const dataSaver = findPreset('data-saver');
+
+    const lanes = [
+        {
+            role: 'Hot feed unit',
+            profile: mobile?.name ?? podcast?.name ?? 'Mobile / podcast profile',
+            action: 'Verify playback, protect from aggressive re-encode/delete',
+            guardrail: 'Strong chapters protect themselves independently',
+            accent: 'border-emerald-500/35 bg-emerald-500/10',
+        },
+        {
+            role: 'Normal feed unit',
+            profile: mobile?.name ?? 'Balanced audio-first profile',
+            action: 'Use feed-safe encode and monitor playback health',
+            guardrail: 'Experience first, audio clarity as floor',
+            accent: 'border-cyan-500/35 bg-cyan-500/10',
+        },
+        {
+            role: 'Dormant feed unit',
+            profile: targetProfile?.name ?? saver?.name ?? 'Storage saver profile',
+            action: 'Bounded re-encode before colder or destructive action',
+            guardrail: 'Performance changes protection only, not visibility',
+            accent: 'border-blue-500/35 bg-blue-500/10',
+        },
+        {
+            role: 'Atomized parent source',
+            profile: saver?.name ?? dataSaver?.name ?? 'Aggressive retention profile',
+            action: 'Cold-move when available; recoverable delete when policy allows',
+            guardrail: 'Parent is accounting/provenance, children remain product units',
+            accent: 'border-violet-500/35 bg-violet-500/10',
+        },
+        {
+            role: 'Unsuitable/media liability',
+            profile: dataSaver?.name ?? saver?.name ?? 'Minimal retention profile',
+            action: 'Shrink, move, or flag as storage liability',
+            guardrail: 'No valid-content feed suppression from Storage + Quality',
+            accent: 'border-orange-500/35 bg-orange-500/10',
+        },
+    ];
+
+    return (
+        <Card>
+            <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                    <CardTitle>Role protection matrix</CardTitle>
+                    <CardDescription>
+                        Feed units are optimized for experience. Parent source artifacts are optimized for recoverability and cost.
+                    </CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline">{activeProfiles.length} active profiles</Badge>
+                    <Badge variant={policy.data?.archive_action === 're_encode' ? 'success' : 'secondary'}>
+                        {policy.data?.archive_action?.replaceAll('_', ' ') ?? 'policy loading'}
+                    </Badge>
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid gap-3 xl:grid-cols-5">
+                    {lanes.map((lane) => (
+                        <div key={lane.role} className={`rounded-md border p-3 ${lane.accent}`}>
+                            <p className="text-sm font-semibold">{lane.role}</p>
+                            <p className="mt-2 text-xs uppercase tracking-wide text-muted-foreground">Profile lane</p>
+                            <p className="mt-1 min-h-10 text-sm">{lane.profile}</p>
+                            <p className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">Allowed work</p>
+                            <p className="mt-1 text-sm">{lane.action}</p>
+                            <p className="mt-3 text-xs text-muted-foreground">{lane.guardrail}</p>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
+                    <div className="rounded border border-border bg-muted/20 p-3">
+                        <div className="mb-2 flex items-center gap-2">
+                            <Layers3 className="h-4 w-4 text-cyan-400" />
+                            <p className="text-sm font-medium">Preset coverage</p>
+                        </div>
+                        {profiles.isLoading ? (
+                            <Skeleton className="h-16 w-full" />
+                        ) : activeProfiles.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                                No active quality profiles. Create a global profile before enabling re-encode policy.
+                            </p>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {activeProfiles.slice(0, 8).map((profile) => {
+                                    const preset = getPreset(profile.preset_key);
+                                    return (
+                                        <Badge key={profile.id} variant="outline">
+                                            {preset ? `${preset.displayName}: ` : ''}{profile.name}
+                                        </Badge>
+                                    );
+                                })}
+                                {activeProfiles.length > 8 && (
+                                    <Badge variant="secondary">+{activeProfiles.length - 8} more</Badge>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="rounded border border-border bg-muted/20 p-3">
+                        <div className="mb-2 flex items-center gap-2">
+                            <Shield className="h-4 w-4 text-emerald-400" />
+                            <p className="text-sm font-medium">Boundary reminder</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                            This system can shrink bytes, move bytes, delete recoverable artifacts, preserve recovery metadata,
+                            and verify playback. It cannot rank, hide, approve sources, or suppress valid chapters.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="flex justify-end">
+                    <Button variant="outline" size="sm" onClick={() => onSectionChange('policy')}>
+                        Tune storage policy
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function ArtifactLedgerPanel() {
+    const ledger = useStorageArtifactEvents(50);
+    const events = ledger.data?.data ?? [];
+
+    return (
+        <Card>
+            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                    <CardTitle>Artifact ledger</CardTitle>
+                    <CardDescription>
+                        Re-encode, cold move, recoverable delete, restore, skip, and failure events.
+                    </CardDescription>
+                </div>
+                <Badge variant="outline">{ledger.data?.total ?? 0} total events</Badge>
+            </CardHeader>
+            <CardContent>
+                {ledger.isLoading ? (
+                    <Skeleton className="h-40 w-full" />
+                ) : events.length === 0 ? (
+                    <div className="flex items-start gap-3 rounded border border-border bg-muted/30 p-4 text-sm">
+                        <Workflow className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                        <div>
+                            <p className="font-medium">No artifact events yet</p>
+                            <p className="text-muted-foreground">
+                                Once sweeps, re-encodes, cold moves, or recoverable deletes run, this ledger becomes the recovery trail.
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Event</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Content</TableHead>
+                                <TableHead>Bytes</TableHead>
+                                <TableHead>Reason</TableHead>
+                                <TableHead>When</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {events.map((event) => (
+                                <TableRow key={event.id}>
+                                    <TableCell>
+                                        <div className="font-medium">{event.event_type.replaceAll('_', ' ')}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {event.storage_tier || event.source || 'storage worker'}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant={event.status === 'error' ? 'destructive' : event.status === 'skipped' ? 'secondary' : 'success'}>
+                                            {event.status}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="max-w-[180px] truncate text-xs" title={event.content_item_id}>
+                                        {event.content_item_id}
+                                    </TableCell>
+                                    <TableCell className="text-sm">
+                                        {event.freed_bytes || event.deleted_bytes
+                                            ? formatBytes(event.freed_bytes ?? event.deleted_bytes ?? 0)
+                                            : event.old_size_bytes && event.new_size_bytes
+                                                ? `${formatBytes(event.old_size_bytes)} → ${formatBytes(event.new_size_bytes)}`
+                                                : '—'}
+                                    </TableCell>
+                                    <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground" title={event.error || event.reason || undefined}>
+                                        {event.error || event.reason || event.trigger || '—'}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground">
+                                        {new Date(event.created_at).toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                )}
+            </CardContent>
+        </Card>
     );
 }
 
@@ -267,7 +905,7 @@ function RecentSweepsPreview() {
                     </TableBody>
                 </Table>
                 <p className="mt-2 text-right text-xs text-muted-foreground">
-                    Full history in <strong>Execute</strong> tab.
+                    Full history in the <strong>Ledger</strong> section.
                 </p>
             </CardContent>
         </Card>
@@ -376,84 +1014,224 @@ function PreviewBanner() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Usage gauge
+// Storage pressure + composition
 // ─────────────────────────────────────────────────────────────────────────────
 
-function UsageOverview() {
-    const { data, isLoading } = useStorageStats();
+function StorageCompositionPanel() {
+    const { data, isLoading, isError, error } = useStorageStats();
 
     if (isLoading || !data) {
         return (
-            <Card>
-                <CardContent className="p-6">
-                    <Skeleton className="h-32 w-full" />
+            <Card className={isError ? 'border-red-500/30' : undefined}>
+                <CardHeader>
+                    <CardTitle>{isError ? 'Storage composition unavailable' : 'Loading storage composition'}</CardTitle>
+                    <CardDescription>
+                        {isError
+                            ? 'CMS or Aggregation could not return live storage statistics for this cockpit section.'
+                            : 'Reading live bucket totals, CMS-tracked bytes, artifact groups, and content-type accounting.'}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {isError ? (
+                        <div className="flex items-start gap-3 rounded-md border border-red-500/30 bg-red-500/10 p-4">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                            <div>
+                                <p className="text-sm font-medium text-red-200">Stats request failed</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {error instanceof Error ? error.message : 'Check CMS storage stats and Aggregation storage connectivity.'}
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="grid gap-3 md:grid-cols-[0.9fr_1.1fr]">
+                                <Skeleton className="h-48 w-full" />
+                                <Skeleton className="h-48 w-full" />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Live object-store reads can take several seconds when the bucket has many prefixes.
+                            </p>
+                        </>
+                    )}
                 </CardContent>
             </Card>
         );
     }
 
-    const pct = Math.min(100, data.utilization_pct);
-    const overQuota = data.utilization_pct > 100;
-    const fillColor = overQuota ? '#ef4444' : pct > 80 ? '#f59e0b' : '#22c55e';
+    const artifactGroups = buildArtifactGroups(data.by_artifact_type, data.used_bytes);
+    const contentRows = buildContentTypeRows(data.by_content_type, data.db_tracked_bytes);
+    const rawPrefixes = Object.entries(data.by_artifact_type)
+        .map(([key, bytes]) => ({ key, bytes }))
+        .sort((a, b) => b.bytes - a.bytes);
+    const hasArtifacts = artifactGroups.length > 0;
+    const hasContent = contentRows.length > 0;
 
     return (
-        <Card>
+        <div className="space-y-4">
+            <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+                <StoragePressurePanel data={data} />
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Artifact group leaderboard</CardTitle>
+                        <CardDescription>
+                            Raw prefixes are grouped into storage families so segments do not dominate the read.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {!hasArtifacts ? (
+                            <EmptyStorageMessage title="No artifact groups yet" detail="Live bucket prefixes will appear here after media artifacts are uploaded." />
+                        ) : (
+                            <div className="space-y-3">
+                                {artifactGroups.map((group) => (
+                                    <ArtifactGroupRow key={group.id} group={group} />
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Content type accounting</CardTitle>
+                        <CardDescription>
+                            CMS-tracked sizes by content kind, excluding archived rows.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <LiveCmsGap data={data} />
+                        {!hasContent ? (
+                            <EmptyStorageMessage title="No CMS size accounting yet" detail="Content types will appear after CMS rows have tracked file sizes." />
+                        ) : (
+                            <div className="space-y-3">
+                                {contentRows.map((row) => (
+                                    <ContentTypeAccountingRow key={row.name} row={row} />
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <RawPrefixDrawer rawPrefixes={rawPrefixes} totalBytes={data.used_bytes} />
+            </div>
+        </div>
+    );
+}
+
+function StoragePressurePanel({ data }: { data: StorageStats }) {
+    const delta = formatStorageDelta(data.used_bytes, data.quota_bytes);
+    const usedPct = data.quota_bytes > 0 ? (data.used_bytes / data.quota_bytes) * 100 : 0;
+    const dbGap = Math.max(0, data.used_bytes - data.db_tracked_bytes);
+    const gapPct = data.used_bytes > 0 ? (dbGap / data.used_bytes) * 100 : 0;
+    const rulerMax = Math.max(data.used_bytes, data.quota_bytes, 1);
+    const quotaMarkerPct = data.quota_bytes > 0 ? (data.quota_bytes / rulerMax) * 100 : 100;
+    const usedWidthPct = data.used_bytes > 0 ? (data.used_bytes / rulerMax) * 100 : 0;
+    const safeUsedWidth = Math.max(data.used_bytes > 0 ? 2 : 0, Math.min(100, usedWidthPct));
+    const withinQuotaWidth = data.used_bytes > 0 && data.quota_bytes > 0
+        ? Math.min(safeUsedWidth, quotaMarkerPct)
+        : safeUsedWidth;
+    const overQuotaWidth = delta.state === 'over'
+        ? Math.max(2, safeUsedWidth - quotaMarkerPct)
+        : 0;
+
+    return (
+        <Card className={delta.state === 'over' ? 'border-red-500/35' : undefined}>
             <CardHeader>
-                <CardTitle>Storage usage</CardTitle>
-                <CardDescription>
-                    Live R2 bucket against your configured quota
-                </CardDescription>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <CardTitle>Storage pressure</CardTitle>
+                        <CardDescription>
+                            Live bucket usage compared with the configured policy quota.
+                        </CardDescription>
+                    </div>
+                    <Badge variant={delta.state === 'over' ? 'destructive' : data.utilization_pct >= 80 ? 'secondary' : 'success'}>
+                        {delta.label}
+                    </Badge>
+                </div>
             </CardHeader>
-            <CardContent>
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                    <div className="flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height={180}>
-                            <RadialBarChart
-                                innerRadius="70%"
-                                outerRadius="100%"
-                                data={[{ name: 'used', value: pct, fill: fillColor }]}
-                                startAngle={90}
-                                endAngle={-270}
-                            >
-                                <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
-                                <RadialBar background dataKey="value" cornerRadius={6} angleAxisId={0} />
-                            </RadialBarChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <div className="space-y-2">
-                        <Stat label="Used" value={formatBytes(data.used_bytes)} />
-                        <Stat label="Quota" value={formatBytes(data.quota_bytes)} />
-                        <Stat
-                            label="Utilization"
-                            value={`${data.utilization_pct.toFixed(1)}%`}
-                            color={overQuota ? 'text-red-500' : pct > 80 ? 'text-yellow-500' : 'text-green-500'}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Stat label="Objects" value={data.object_count.toLocaleString()} />
-                        <Stat label="DB-tracked" value={formatBytes(data.db_tracked_bytes)} />
-                        <Stat label="Updated" value={new Date(data.live_stats_at).toLocaleTimeString()} />
+            <CardContent className="space-y-5">
+                <div className={`rounded-md border p-4 ${delta.state === 'over' ? 'border-red-500/35 bg-red-500/10' : 'border-border bg-muted/20'}`}>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                        {delta.state === 'over' ? 'Over quota' : 'Remaining capacity'}
+                    </p>
+                    <p className={`mt-1 text-3xl font-semibold ${delta.state === 'over' ? 'text-red-400' : 'text-emerald-400'}`}>
+                        {delta.deltaLabel}
+                    </p>
+                    <div className="mt-4">
+                        <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{formatBytes(data.used_bytes)} used</span>
+                            <span>{formatBytes(data.quota_bytes)} quota</span>
+                        </div>
+                        <div className="relative h-3 overflow-hidden rounded-full bg-muted">
+                            <div
+                                className={`h-full rounded-l-full ${usedPct >= 80 && delta.state !== 'over' ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                                style={{ width: `${withinQuotaWidth}%` }}
+                            />
+                            {delta.state === 'over' && (
+                                <div
+                                    className="absolute top-0 h-full rounded-r-full bg-red-500"
+                                    style={{
+                                        left: `${quotaMarkerPct}%`,
+                                        width: `${overQuotaWidth}%`,
+                                    }}
+                                />
+                            )}
+                            <div
+                                className="absolute top-0 h-full w-0.5 bg-gold shadow-[0_0_0_1px_rgba(0,0,0,0.25)]"
+                                style={{ left: `calc(${Math.min(100, quotaMarkerPct)}% - 1px)` }}
+                            />
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                            <span>{data.utilization_pct.toFixed(1)}% utilization</span>
+                            <span className="flex items-center gap-1">
+                                <span className="h-2.5 w-0.5 bg-gold" />
+                                Quota marker
+                            </span>
+                            {delta.state === 'over' && (
+                                <span className="text-red-300">Red span is over-quota storage.</span>
+                            )}
+                        </div>
                     </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                    <StorageMetric label="Used" value={formatBytes(data.used_bytes)} />
+                    <StorageMetric label="Objects" value={data.object_count.toLocaleString()} />
+                    <StorageMetric label="DB-tracked" value={formatBytes(data.db_tracked_bytes)} />
+                    <StorageMetric label="Untracked gap" value={formatBytes(dbGap)} detail={`${gapPct.toFixed(1)}% of live`} />
+                    <StorageMetric label="Quota" value={formatBytes(data.quota_bytes)} />
+                    <StorageMetric label="Updated" value={new Date(data.live_stats_at).toLocaleTimeString()} />
+                    <StorageMetric label="Cold tier" value={coldTierLabel(data)} detail={coldTierDetail(data)} />
+                    <StorageMetric label="Live source" value={data.aggregation_error ? 'Fallback' : 'R2 live'} detail={data.aggregation_error ? 'DB totals shown' : 'Aggregation stats'} />
+                </div>
+
                 {data.cold_enabled && data.cold && (
-                    <div className="mt-4 flex items-center gap-3 rounded border border-border bg-muted/30 p-3">
+                    <div className="flex items-center gap-3 rounded border border-cyan-500/30 bg-cyan-500/10 p-3">
                         <Snowflake className="h-5 w-5 text-cyan-400" />
                         <div className="flex-1">
-                            <p className="text-sm font-medium">Cold tier</p>
+                            <p className="text-sm font-medium">Cold tier ready</p>
                             <p className="text-xs text-muted-foreground">
-                                {formatBytes(data.cold.used_bytes)} across{' '}
-                                {data.cold.object_count.toLocaleString()} objects in the secondary
-                                bucket.
+                                {formatBytes(data.cold.used_bytes)} across {data.cold.object_count.toLocaleString()} objects in the secondary bucket.
                             </p>
                         </div>
                     </div>
                 )}
                 {data.cold_enabled && !data.cold && (
-                    <div className="mt-4 flex items-center gap-3 rounded border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-200">
-                        <Snowflake className="h-4 w-4" />
-                        Cold tier is enabled but Aggregation could not query it. Check the cold
-                        storage credentials.
+                    <div className="flex items-center gap-3 rounded border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm">
+                        <Snowflake className="h-4 w-4 text-yellow-400" />
+                        <div className="flex-1">
+                            <p className="font-medium text-yellow-300">Cold tier query failed</p>
+                            <p className="text-muted-foreground">
+                                Cold tier is enabled, but Aggregation could not return cold stats.
+                            </p>
+                        </div>
+                    </div>
+                )}
+                {!data.cold_enabled && (
+                    <div className="flex items-center gap-3 rounded border border-orange-500/30 bg-orange-500/10 p-3 text-sm">
+                        <Snowflake className="h-4 w-4 text-orange-400" />
+                        <span className="text-muted-foreground">Cold tier is unavailable; pressure relief depends on re-encode and recoverable-delete guardrails.</span>
                     </div>
                 )}
             </CardContent>
@@ -461,11 +1239,174 @@ function UsageOverview() {
     );
 }
 
-function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+function StorageMetric({
+    label,
+    value,
+    detail,
+}: {
+    label: string;
+    value: string;
+    detail?: string;
+}) {
     return (
-        <div className="flex items-baseline justify-between border-b border-border/50 pb-1 last:border-0">
-            <span className="text-sm text-muted-foreground">{label}</span>
-            <span className={`text-base font-semibold ${color ?? ''}`}>{value}</span>
+        <div className="rounded border border-border bg-background/60 p-3">
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="mt-1 truncate text-base font-semibold">{value}</p>
+            {detail && <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>}
+        </div>
+    );
+}
+
+function ArtifactGroupRow({ group }: { group: ArtifactGroup }) {
+    const toneClass = artifactToneClass(group.tone);
+    return (
+        <div className="rounded border border-border bg-muted/20 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                        <span className={`h-2.5 w-2.5 rounded-full ${toneClass.dot}`} />
+                        <p className="font-medium">{group.label}</p>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{group.actionHint}</p>
+                </div>
+                <div className="text-right">
+                    <p className="font-semibold">{formatBytes(group.bytes)}</p>
+                    <p className="text-xs text-muted-foreground">
+                        {group.percent.toFixed(1)}% · {group.prefixCount} prefix{group.prefixCount === 1 ? '' : 'es'}
+                    </p>
+                </div>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                    className={`h-full rounded-full ${toneClass.bar}`}
+                    style={{ width: `${Math.max(2, Math.min(100, group.percent))}%` }}
+                />
+            </div>
+            {group.details.length > 1 && (
+                <details className="mt-3">
+                    <summary className="cursor-pointer text-xs text-muted-foreground">
+                        Show {group.details.length} grouped prefixes
+                    </summary>
+                    <div className="mt-2 space-y-1">
+                        {group.details.slice(0, 8).map((detail) => (
+                            <div key={detail.key} className="flex items-center justify-between gap-3 rounded bg-background/60 px-2 py-1 text-xs">
+                                <span className="truncate font-mono" title={detail.key}>{detail.label}</span>
+                                <span className="shrink-0 text-muted-foreground">{formatBytes(detail.bytes)}</span>
+                            </div>
+                        ))}
+                        {group.details.length > 8 && (
+                            <p className="text-xs text-muted-foreground">+{group.details.length - 8} more in raw prefixes.</p>
+                        )}
+                    </div>
+                </details>
+            )}
+        </div>
+    );
+}
+
+function ContentTypeAccountingRow({ row }: { row: ContentTypeRow }) {
+    return (
+        <div className="rounded border border-border bg-muted/20 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <p className="font-medium">{row.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                        {row.count.toLocaleString()} item{row.count === 1 ? '' : 's'} · avg {formatBytes(row.averageBytes)}
+                    </p>
+                </div>
+                <div className="text-right">
+                    <p className="font-semibold">{formatBytes(row.bytes)}</p>
+                    <p className="text-xs text-muted-foreground">{row.percent.toFixed(1)}% of CMS-tracked</p>
+                </div>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                    className="h-full rounded-full bg-cyan-400"
+                    style={{ width: `${Math.max(2, Math.min(100, row.percent))}%` }}
+                />
+            </div>
+        </div>
+    );
+}
+
+function LiveCmsGap({ data }: { data: StorageStats }) {
+    const gap = Math.max(0, data.used_bytes - data.db_tracked_bytes);
+    const gapPct = data.used_bytes > 0 ? (gap / data.used_bytes) * 100 : 0;
+    const isLargeGap = gapPct >= 20;
+
+    return (
+        <div className={`rounded border p-3 text-sm ${isLargeGap ? 'border-amber-500/35 bg-amber-500/10' : 'border-border bg-muted/20'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium">Live vs CMS gap</p>
+                <Badge variant={isLargeGap ? 'secondary' : 'outline'}>{formatBytes(gap)} untracked</Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+                Live R2 shows {formatBytes(data.used_bytes)}. CMS rows account for {formatBytes(data.db_tracked_bytes)}.
+                {isLargeGap ? ' This gap is large enough to investigate orphan objects, old renditions, or missing file_size_bytes.' : ' The gap is within a normal inspection range.'}
+            </p>
+        </div>
+    );
+}
+
+function RawPrefixDrawer({
+    rawPrefixes,
+    totalBytes,
+}: {
+    rawPrefixes: Array<{ key: string; bytes: number }>;
+    totalBytes: number;
+}) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Raw key prefixes</CardTitle>
+                <CardDescription>
+                    Exact live prefixes remain available for investigation, sorted by bytes.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                {rawPrefixes.length === 0 ? (
+                    <EmptyStorageMessage title="No raw prefixes yet" detail="Aggregation has not returned live artifact prefix data." />
+                ) : (
+                    <details>
+                        <summary className="cursor-pointer rounded border border-border bg-muted/30 px-3 py-2 text-sm font-medium">
+                            Show top {Math.min(40, rawPrefixes.length)} of {rawPrefixes.length} raw prefixes
+                        </summary>
+                        <div className="mt-3 overflow-x-auto">
+                            <Table className="min-w-[420px]">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Prefix</TableHead>
+                                        <TableHead className="text-right">Bytes</TableHead>
+                                        <TableHead className="text-right">Share</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {rawPrefixes.slice(0, 40).map((prefix) => (
+                                        <TableRow key={prefix.key}>
+                                            <TableCell className="max-w-[260px] truncate font-mono text-xs" title={prefix.key}>
+                                                {prefix.key}
+                                            </TableCell>
+                                            <TableCell className="text-right">{formatBytes(prefix.bytes)}</TableCell>
+                                            <TableCell className="text-right text-xs text-muted-foreground">
+                                                {totalBytes > 0 ? `${((prefix.bytes / totalBytes) * 100).toFixed(1)}%` : '0.0%'}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </details>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+function EmptyStorageMessage({ title, detail }: { title: string; detail: string }) {
+    return (
+        <div className="rounded border border-border bg-muted/30 p-4 text-sm">
+            <p className="font-medium">{title}</p>
+            <p className="mt-1 text-muted-foreground">{detail}</p>
         </div>
     );
 }
@@ -743,6 +1684,7 @@ interface PolicyFormProps {
 
 function PolicyForm({ policy, scope, tenantId, coldEnabled = false, onSave, saving }: PolicyFormProps) {
     const [enabled, setEnabled] = useState(policy.enabled);
+    const [preset, setPreset] = useState(policy.preset || 'balanced');
     const [maxGB, setMaxGB] = useState((policy.max_storage_bytes / (1024 * 1024 * 1024)).toFixed(2));
     const [target, setTarget] = useState(String(policy.target_utilization_pct));
     const [minAge, setMinAge] = useState(String(policy.min_age_days));
@@ -753,7 +1695,7 @@ function PolicyForm({ policy, scope, tenantId, coldEnabled = false, onSave, savi
     const [protectN, setProtectN] = useState(String(policy.protect_top_n_by_views ?? 50));
     const [protectWindow, setProtectWindow] = useState(String(policy.protect_top_n_window_days ?? 30));
     const [archiveAction, setArchiveAction] = useState<'delete' | 'move_to_cold' | 're_encode'>(
-        policy.archive_action ?? 'delete'
+        policy.archive_action ?? 're_encode'
     );
     // re_encode target — null = "auto" (resolved per item by source_type).
     const [reEncodeTarget, setReEncodeTarget] = useState<string>(
@@ -781,6 +1723,7 @@ function PolicyForm({ policy, scope, tenantId, coldEnabled = false, onSave, savi
     function handleSave() {
         const payload: UpdatePolicyRequest = {
             scope,
+            preset,
             enabled,
             max_storage_bytes: Math.round(parseFloat(maxGB) * 1024 * 1024 * 1024),
             target_utilization_pct: parseInt(target, 10),
@@ -815,8 +1758,8 @@ function PolicyForm({ policy, scope, tenantId, coldEnabled = false, onSave, savi
                     Auto-circulation {scope === 'global' ? '(Global default)' : `(Tenant: ${tenantId})`}
                 </CardTitle>
                 <CardDescription>
-                    When enabled, the storage worker periodically deletes old/low-engagement
-                    content from R2 while keeping the DB row so it can be restored.
+                    When enabled, the storage worker periodically re-encodes, cold-moves,
+                    or recoverable-deletes eligible artifacts while keeping CMS recovery memory.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -830,6 +1773,19 @@ function PolicyForm({ policy, scope, tenantId, coldEnabled = false, onSave, savi
                         Enable auto-circulation
                     </Label>
                 </div>
+
+                <Field label="Preset" hint="Bounded v1 modes; advanced formulas come later through Autopilot">
+                    <select
+                        className="w-full rounded border border-border bg-background px-3 py-2 text-sm"
+                        value={preset}
+                        onChange={(e) => setPreset(e.target.value)}
+                    >
+                        <option value="conservative">Conservative — re-encode first, delete rarely</option>
+                        <option value="balanced">Balanced — default cost relief with recovery guardrails</option>
+                        <option value="storage_saver">Storage saver — shorter retention, stronger compression</option>
+                        <option value="critical_pressure">Critical pressure — approval-gated emergency cleanup</option>
+                    </select>
+                </Field>
 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <Field label="Max storage (GB)" hint="Hard cap before sweeping kicks in">
@@ -954,7 +1910,7 @@ function PolicyForm({ policy, scope, tenantId, coldEnabled = false, onSave, savi
                             <div>
                                 <p className="text-sm font-medium">Delete from primary</p>
                                 <p className="text-xs text-muted-foreground">
-                                    Mark ARCHIVED in DB, drop the bytes. Restore re-fetches.
+                                    Mark storage as recoverable-deleted, drop the bytes. Restore re-fetches.
                                 </p>
                             </div>
                         </label>
@@ -1033,7 +1989,7 @@ function PolicyForm({ policy, scope, tenantId, coldEnabled = false, onSave, savi
                                 <strong>Auto</strong> uses the most-specific ingest profile for each
                                 item (typically the global default). Pick an explicit profile to force
                                 all eligible items down to e.g. <code>archival-480p</code>. Manage
-                                profiles in <a className="text-cyan-400 underline" href="/platform/quality">Quality</a>.
+                                profiles in <a className="text-cyan-400 underline" href="/platform/storage?section=quality">Quality profiles</a>.
                                 Re-encodes happen async on the quality queue; sweep activity reports
                                 the count enqueued (byte savings emerge as each item completes).
                             </p>
@@ -1043,7 +1999,7 @@ function PolicyForm({ policy, scope, tenantId, coldEnabled = false, onSave, savi
                                     <span>
                                         No ingest profiles exist yet. Re-encode needs at least one
                                         global profile to fall back on — create one in{' '}
-                                        <a className="underline" href="/platform/quality">Quality</a>.
+                                        <a className="underline" href="/platform/storage?section=quality">Quality profiles</a>.
                                     </span>
                                 </div>
                             )}
@@ -1057,10 +2013,9 @@ function PolicyForm({ policy, scope, tenantId, coldEnabled = false, onSave, savi
                                 <p className="font-medium text-orange-400">Cold storage is not configured</p>
                                 <p className="mt-0.5 text-muted-foreground">
                                     Without <code className="rounded bg-muted px-1 py-0.5 text-xs">COLD_STORAGE_*</code> environment
-                                    variables set on Aggregation, eligible items will be{' '}
-                                    <strong className="text-orange-300">permanently deleted</strong> from primary
-                                    storage instead of moved. The app will continue to work, but restore will require
-                                    re-fetching from the original source.
+                                    variables set on Aggregation, automatic sweeps enter degraded
+                                    behaviour and fall back to re-encode guardrails instead of moving
+                                    files cold. Broad deletion should stay approval-gated.
                                 </p>
                             </div>
                         </div>
@@ -1140,87 +2095,161 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Breakdown charts
+// Storage composition helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function BreakdownCharts() {
-    const { data, isLoading } = useStorageStats();
-    if (isLoading || !data) return null;
-
-    const artifactData = Object.entries(data.by_artifact_type).map(([k, v]) => ({
-        name: k,
-        value: v,
-    }));
-    const contentData = Object.entries(data.by_content_type).map(([k, v]) => ({
-        name: k,
-        bytes: v.bytes,
-        count: v.count,
-    }));
-
-    const hasArtifact = artifactData.length > 0;
-    const hasContent = contentData.length > 0;
-
-    if (!hasArtifact && !hasContent) {
-        return (
-            <Card>
-                <CardContent className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-                    <PieChartIcon className="h-4 w-4" />
-                    No storage breakdown yet — upload some content to populate this view.
-                </CardContent>
-            </Card>
-        );
+function normalizeArtifactKey(key: string): NormalizedArtifact {
+    const normalized = key.trim().toLowerCase();
+    if (/^segment[_-]?\d+$/.test(normalized)) {
+        return {
+            groupId: 'media_segments',
+            groupLabel: 'Media segments',
+            detailLabel: key,
+            actionHint: 'Usually chapter/HLS segment bytes; investigate when segments dominate hot storage.',
+            tone: 'cyan',
+        };
     }
+    if (normalized === 'processed' || normalized.startsWith('processed.')) {
+        return {
+            groupId: 'processed_renditions',
+            groupLabel: 'Processed renditions',
+            detailLabel: key === 'processed' ? 'processed current' : key.replace('processed.', 'processed '),
+            actionHint: 'Primary playback renditions; re-encode and duplicate-version cleanup affect this group.',
+            tone: 'emerald',
+        };
+    }
+    if (normalized.includes('thumbnail') || normalized.includes('thumb') || normalized.includes('poster')) {
+        return {
+            groupId: 'thumbnails',
+            groupLabel: 'Thumbnails',
+            detailLabel: key,
+            actionHint: 'Small visual assets; usually preserve because they are cheap and keep placeholders useful.',
+            tone: 'amber',
+        };
+    }
+    if (normalized.includes('index') || normalized.includes('manifest') || normalized === 'm3u8') {
+        return {
+            groupId: 'indexes_manifests',
+            groupLabel: 'Indexes and manifests',
+            detailLabel: key,
+            actionHint: 'Playback routing files; tiny but important for health checks and recovery.',
+            tone: 'violet',
+        };
+    }
+    return {
+        groupId: 'other_artifacts',
+        groupLabel: 'Other artifacts',
+        detailLabel: key,
+        actionHint: 'Mixed or unknown prefixes; inspect raw rows before attaching policy.',
+        tone: 'slate',
+    };
+}
 
-    return (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {hasArtifact && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>By artifact type</CardTitle>
-                        <CardDescription>Live S3 totals grouped by key prefix</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={240}>
-                            <PieChart>
-                                <Pie
-                                    data={artifactData}
-                                    dataKey="value"
-                                    nameKey="name"
-                                    cx="50%"
-                                    cy="50%"
-                                    outerRadius={90}
-                                    label={(e) => `${e.name}: ${formatBytes(e.value as number)}`}
-                                >
-                                    {artifactData.map((_, i) => (
-                                        <Cell key={i} fill={ARTIFACT_COLORS[i % ARTIFACT_COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip formatter={(v) => formatBytes(v as number)} />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-            )}
-            {hasContent && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>By content type</CardTitle>
-                        <CardDescription>DB-tracked sizes (excludes archived)</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={240}>
-                            <BarChart data={contentData}>
-                                <XAxis dataKey="name" />
-                                <YAxis tickFormatter={(v) => formatBytes(v)} />
-                                <Tooltip formatter={(v) => formatBytes(v as number)} />
-                                <Bar dataKey="bytes" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-            )}
-        </div>
-    );
+function buildArtifactGroups(
+    byArtifactType: Record<string, number>,
+    totalBytes: number
+): ArtifactGroup[] {
+    const groups = new Map<string, ArtifactGroup>();
+    Object.entries(byArtifactType).forEach(([key, bytes]) => {
+        const artifact = normalizeArtifactKey(key);
+        const existing = groups.get(artifact.groupId);
+        const detail = {
+            key,
+            label: artifact.detailLabel,
+            bytes,
+            percent: totalBytes > 0 ? (bytes / totalBytes) * 100 : 0,
+        };
+
+        if (!existing) {
+            groups.set(artifact.groupId, {
+                id: artifact.groupId,
+                label: artifact.groupLabel,
+                bytes,
+                prefixCount: 1,
+                percent: totalBytes > 0 ? (bytes / totalBytes) * 100 : 0,
+                actionHint: artifact.actionHint,
+                tone: artifact.tone,
+                details: [detail],
+            });
+            return;
+        }
+
+        existing.bytes += bytes;
+        existing.prefixCount += 1;
+        existing.percent = totalBytes > 0 ? (existing.bytes / totalBytes) * 100 : 0;
+        existing.details.push(detail);
+    });
+
+    return Array.from(groups.values())
+        .map((group) => ({
+            ...group,
+            details: group.details.sort((a, b) => b.bytes - a.bytes),
+        }))
+        .sort((a, b) => b.bytes - a.bytes);
+}
+
+function buildContentTypeRows(
+    byContentType: StorageStats['by_content_type'],
+    totalTrackedBytes: number
+): ContentTypeRow[] {
+    return Object.entries(byContentType)
+        .map(([name, value]) => ({
+            name,
+            bytes: value.bytes,
+            count: value.count,
+            averageBytes: value.count > 0 ? value.bytes / value.count : 0,
+            percent: totalTrackedBytes > 0 ? (value.bytes / totalTrackedBytes) * 100 : 0,
+        }))
+        .sort((a, b) => b.bytes - a.bytes);
+}
+
+function formatStorageDelta(usedBytes: number, quotaBytes: number) {
+    if (quotaBytes <= 0) {
+        return {
+            state: 'unknown' as const,
+            label: 'No quota',
+            deltaLabel: 'No quota set',
+        };
+    }
+    const delta = quotaBytes - usedBytes;
+    if (delta < 0) {
+        return {
+            state: 'over' as const,
+            label: 'Over quota',
+            deltaLabel: `${formatBytes(Math.abs(delta))} over`,
+        };
+    }
+    return {
+        state: 'under' as const,
+        label: 'Within quota',
+        deltaLabel: `${formatBytes(delta)} left`,
+    };
+}
+
+function coldTierLabel(data: StorageStats): string {
+    if (!data.cold_enabled) return 'Unavailable';
+    return data.cold ? 'Ready' : 'Query failed';
+}
+
+function coldTierDetail(data: StorageStats): string {
+    if (!data.cold_enabled) return 'Degraded mode';
+    if (!data.cold) return 'Check Aggregation';
+    return `${formatBytes(data.cold.used_bytes)} cold`;
+}
+
+function artifactToneClass(tone: ArtifactTone) {
+    switch (tone) {
+        case 'emerald':
+            return { dot: 'bg-emerald-400', bar: 'bg-emerald-400' };
+        case 'amber':
+            return { dot: 'bg-amber-400', bar: 'bg-amber-400' };
+        case 'violet':
+            return { dot: 'bg-violet-400', bar: 'bg-violet-400' };
+        case 'slate':
+            return { dot: 'bg-slate-400', bar: 'bg-slate-400' };
+        default:
+            return { dot: 'bg-cyan-400', bar: 'bg-cyan-400' };
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1385,6 +2414,8 @@ function CandidatesTable() {
                                 </TableHead>
                                 <TableHead>Title</TableHead>
                                 <TableHead>Type</TableHead>
+                                <TableHead>Role</TableHead>
+                                <TableHead>Fit</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Views</TableHead>
                                 <TableHead className="text-right">Size</TableHead>
@@ -1394,7 +2425,7 @@ function CandidatesTable() {
                         <TableBody>
                             {items.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                                    <TableCell colSpan={9} className="text-center text-muted-foreground">
                                         No candidates match the current filters.
                                     </TableCell>
                                 </TableRow>
@@ -1409,6 +2440,16 @@ function CandidatesTable() {
                                         </TableCell>
                                         <TableCell className="max-w-xs truncate">{c.title || c.id}</TableCell>
                                         <TableCell><Badge variant="outline">{c.type}</Badge></TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline" title={c.protection_reason}>
+                                                {(c.content_role || 'candidate').replaceAll('_', ' ')}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant={c.media_suitability === 'unsuitable' || c.media_suitability === 'visual_dependent' ? 'secondary' : 'outline'}>
+                                                {(c.media_suitability || 'unknown').replaceAll('_', ' ')}
+                                            </Badge>
+                                        </TableCell>
                                         <TableCell>
                                             <Badge variant={c.status === 'FAILED' ? 'destructive' : 'secondary'}>
                                                 {c.status}
@@ -1432,9 +2473,9 @@ function CandidatesTable() {
                     <DialogHeader>
                         <DialogTitle>Confirm purge</DialogTitle>
                         <DialogDescription>
-                            About to delete S3 objects for {selected.size} items, freeing approximately{' '}
+                            About to recoverable-delete S3 objects for {selected.size} items, freeing approximately{' '}
                             <strong>{formatBytes(selectedBytes)}</strong>. The DB rows stay, with status set to
-                            ARCHIVED. Restore is possible via the Activity tab.
+                            storage-recoverable. Restore is possible via the Activity tab.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

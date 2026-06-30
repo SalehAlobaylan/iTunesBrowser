@@ -681,7 +681,7 @@ export function MediaList({ type }: { type: ContentType }) {
                         </div>
                     </div>
                     <Button size="sm" variant="outline" asChild>
-                        <Link href="/platform/storage?tab=candidates">Storage candidates</Link>
+                        <Link href="/platform/storage?section=candidates">Storage candidates</Link>
                     </Button>
                 </div>
             </div>

@@ -5,9 +5,12 @@ import type {
     PurgeRequest,
     PurgeResponse,
     ReconcileResponse,
+    StorageArtifactEventsResponse,
     StorageCandidatesParams,
     StorageCandidatesResponse,
+    StorageHealth,
     StoragePolicy,
+    StorageRecommendationsResponse,
     StorageStats,
     SweepPreview,
     SweepRunsResponse,
@@ -17,6 +20,16 @@ import type {
 /** GET /admin/storage/stats */
 export async function getStorageStats(): Promise<StorageStats> {
     return cmsClient.get<StorageStats>('/admin/storage/stats');
+}
+
+/** GET /admin/storage/health */
+export async function getStorageHealth(): Promise<StorageHealth> {
+    return cmsClient.get<StorageHealth>('/admin/storage/health');
+}
+
+/** GET /admin/storage/recommendations */
+export async function getStorageRecommendations(): Promise<StorageRecommendationsResponse> {
+    return cmsClient.get<StorageRecommendationsResponse>('/admin/storage/recommendations');
 }
 
 /** GET /admin/storage/preview */
@@ -29,6 +42,11 @@ export async function listStorageCandidates(
     params?: StorageCandidatesParams
 ): Promise<StorageCandidatesResponse> {
     return cmsClient.get<StorageCandidatesResponse>('/admin/storage/candidates', params);
+}
+
+/** GET /admin/storage/artifact-events */
+export async function listStorageArtifactEvents(limit = 25): Promise<StorageArtifactEventsResponse> {
+    return cmsClient.get<StorageArtifactEventsResponse>('/admin/storage/artifact-events', { limit });
 }
 
 /** POST /admin/storage/purge */

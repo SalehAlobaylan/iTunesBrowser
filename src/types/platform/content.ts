@@ -19,6 +19,9 @@ export interface ContentItem {
     duration_sec?: number;
     file_size_bytes?: number;
     storage_tier?: string;
+    media_suitability?: string;
+    media_suitability_confidence?: number;
+    media_suitability_reasons?: string[];
     topic_tags?: string[];
     metadata?: Record<string, unknown>;
     published_at?: string;

@@ -16,6 +16,47 @@ export interface StorageStats {
     };
 }
 
+export interface StorageProofMetrics {
+    used_bytes: number;
+    quota_bytes: number;
+    utilization_pct: number;
+    db_tracked_bytes: number;
+    protected_count: number;
+    protected_bytes: number;
+    candidate_count: number;
+    candidate_bytes: number;
+    parent_source_count: number;
+    parent_source_bytes: number;
+    recoverable_deleted_count: number;
+    missing_count: number;
+    cold_enabled: boolean;
+}
+
+export interface StorageRecommendation {
+    key: string;
+    label: string;
+    detail: string;
+    severity: 'info' | 'warning' | 'critical' | string;
+    action: string;
+    estimated_bytes?: number;
+    metadata?: Record<string, unknown>;
+}
+
+export interface StorageHealth {
+    state: 'healthy' | 'watch' | 'pressure' | 'critical' | 'degraded_no_cold' | 'degraded' | string;
+    score: number;
+    summary: string;
+    generated_at: string;
+    policy: StoragePolicy;
+    proof: StorageProofMetrics;
+    recommendations: StorageRecommendation[];
+}
+
+export interface StorageRecommendationsResponse {
+    data: StorageRecommendation[];
+    proof: StorageProofMetrics;
+}
+
 export interface SweepPreview {
     enabled: boolean;
     next_run_at?: string;
@@ -30,6 +71,7 @@ export interface StoragePolicy {
     id: number;
     tenant_id: string | null;
     enabled: boolean;
+    preset?: 'balanced' | 'conservative' | 'storage_saver' | 'critical_pressure' | string;
     max_storage_bytes: number;
     target_utilization_pct: number;
     min_age_days: number;
@@ -63,6 +105,7 @@ export interface UpdatePolicyRequest {
     scope?: 'global' | 'tenant';
     tenant_id?: string;
     enabled?: boolean;
+    preset?: 'balanced' | 'conservative' | 'storage_saver' | 'critical_pressure' | string;
     max_storage_bytes?: number;
     target_utilization_pct?: number;
     min_age_days?: number;
@@ -99,6 +142,18 @@ export interface StorageCandidate {
     published_at?: string;
     media_url?: string;
     thumbnail_url?: string;
+    parent_content_item_id?: string;
+    is_feed_unit?: boolean;
+    feed_visibility?: string;
+    duration_sec?: number;
+    original_url?: string;
+    source_feed_url?: string;
+    source_episode_id?: string;
+    storage_state?: string;
+    storage_recovery_status?: string;
+    media_suitability?: string;
+    content_role?: string;
+    protection_reason?: string;
 }
 
 export interface StorageCandidatesResponse {
@@ -160,4 +215,37 @@ export interface ReconcileResponse {
     missing_objects: string[];
     orphan_count: number;
     missing_count: number;
+}
+
+export interface StorageArtifactEvent {
+    id: string;
+    tenant_id: string;
+    content_item_id: string;
+    parent_content_item_id?: string | null;
+    event_type: string;
+    status: 'success' | 'skipped' | 'error' | 'approval_required' | string;
+    reason?: string;
+    trigger?: string;
+    source?: string;
+    storage_tier?: string;
+    old_storage_tier?: string;
+    old_media_url?: string;
+    new_media_url?: string;
+    old_size_bytes?: number;
+    new_size_bytes?: number;
+    freed_bytes?: number;
+    deleted_bytes?: number;
+    quality_profile_id?: number;
+    artifact_keys?: unknown;
+    recovery_payload?: unknown;
+    error?: string;
+    created_by?: string;
+    created_at: string;
+}
+
+export interface StorageArtifactEventsResponse {
+    data: StorageArtifactEvent[];
+    total: number;
+    limit: number;
+    offset?: number;
 }
