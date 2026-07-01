@@ -215,6 +215,10 @@ export interface ReconcileResponse {
     missing_objects: string[];
     orphan_count: number;
     missing_count: number;
+    scanned_object_count?: number;
+    scanned_cms_item_count?: number;
+    partial?: boolean;
+    truncated_reason?: string;
 }
 
 export interface StorageArtifactEvent {

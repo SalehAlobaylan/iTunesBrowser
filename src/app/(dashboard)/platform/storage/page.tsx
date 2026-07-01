@@ -84,6 +84,7 @@ import { useQualityProfiles } from '@/hooks/use-quality';
 import { getPreset } from '@/lib/constants/ingest-presets';
 import EmbeddedQualityPage from '@/app/(dashboard)/platform/quality/page';
 import type {
+    ReconcileResponse,
     StoragePolicy,
     StorageStats,
     UpdatePolicyRequest,
@@ -438,6 +439,7 @@ function StorageCockpit({
         : data.state === 'degraded' ? 'secondary'
         : 'success';
     const proof = data.proof;
+    const untrackedGapBytes = Math.max(0, proof.used_bytes - proof.db_tracked_bytes);
 
     return (
         <Card className="overflow-hidden">
@@ -468,8 +470,9 @@ function StorageCockpit({
                 </div>
             </CardHeader>
             <CardContent className="space-y-5">
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
                     <ProofMetric label="Used" value={formatBytes(proof.used_bytes)} detail={`${proof.utilization_pct.toFixed(1)}%`} />
+                    <ProofMetric label="CMS gap" value={formatBytes(untrackedGapBytes)} detail="live minus tracked" />
                     <ProofMetric label="Protected" value={formatBytes(proof.protected_bytes)} detail={`${proof.protected_count} items`} />
                     <ProofMetric label="Candidates" value={formatBytes(proof.candidate_bytes)} detail={`${proof.candidate_count} items`} />
                     <ProofMetric label="Parent sources" value={formatBytes(proof.parent_source_bytes)} detail={`${proof.parent_source_count} atomized`} />
@@ -2712,7 +2715,7 @@ function ToolsCard({
 }: {
     onReconcile: () => void;
     reconciling: boolean;
-    reconcileResult?: { orphan_keys: string[]; missing_objects: string[]; orphan_count: number; missing_count: number };
+    reconcileResult?: ReconcileResponse;
 }) {
     return (
         <Card>
@@ -2735,12 +2738,25 @@ function ToolsCard({
                 </div>
 
                 {reconcileResult && (
-                    <div className="rounded border border-border p-3 text-sm">
+                    <div className={`rounded border p-3 text-sm ${reconcileResult.partial ? 'border-amber-500/35 bg-amber-500/10' : 'border-border'}`}>
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-medium">
+                                {reconcileResult.partial ? 'Partial reconcile result' : 'Reconcile result'}
+                            </p>
+                            <Badge variant={reconcileResult.partial ? 'secondary' : 'success'}>
+                                {reconcileResult.partial ? 'partial' : 'complete'}
+                            </Badge>
+                        </div>
                         <p>
                             <strong>{reconcileResult.orphan_count}</strong> orphan keys (in S3, not referenced by DB)
                         </p>
                         <p>
                             <strong>{reconcileResult.missing_count}</strong> missing objects (DB references missing in S3)
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            Scanned {reconcileResult.scanned_object_count?.toLocaleString() ?? 'unknown'} objects and{' '}
+                            {reconcileResult.scanned_cms_item_count?.toLocaleString() ?? 'unknown'} CMS rows.
+                            {reconcileResult.truncated_reason ? ` Limit: ${reconcileResult.truncated_reason}.` : ''}
                         </p>
                         {reconcileResult.orphan_count > 0 && (
                             <details className="mt-2">

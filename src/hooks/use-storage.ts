@@ -266,9 +266,9 @@ export function useReconcileStorage() {
         mutationFn: reconcileStorage,
         onSuccess: (out) => {
             toast({
-                title: 'Reconcile complete',
-                description: `${out.orphan_count} orphan keys, ${out.missing_count} missing objects.`,
-                variant: 'success',
+                title: out.partial ? 'Reconcile completed partially' : 'Reconcile complete',
+                description: `${out.orphan_count} orphan keys, ${out.missing_count} missing objects. Scanned ${out.scanned_object_count ?? 'unknown'} objects.`,
+                variant: out.partial ? 'default' : 'success',
             });
         },
         onError: (err: Error) => {
