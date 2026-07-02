@@ -36,9 +36,9 @@ const PRESETS = [
     },
 ] as const;
 
-const PRESS_TEXT = 'text-[#c1121f] dark:text-[#ff6b6b]';
-const PRESS_SELECTED = 'border-[#e63946] bg-[#e63946]/10';
-const PRESS_BUTTON = 'border-[#e63946] bg-[#e63946] text-white hover:bg-[#c1121f] hover:text-white';
+const PRESS_TEXT = 'text-news';
+const PRESS_SELECTED = 'border-news bg-news/10';
+const PRESS_BUTTON = 'border-news bg-news text-news-foreground hover:bg-news/90 hover:text-news-foreground';
 
 const NUMERIC_FIELDS: { key: keyof MediaCirculationPolicy; label: string; step: string; suffix?: string }[] = [
     { key: 'value_floor', label: 'Value floor', step: '0.01' },

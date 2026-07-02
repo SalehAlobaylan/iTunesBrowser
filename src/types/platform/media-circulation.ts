@@ -27,15 +27,43 @@ export interface MediaCirculationPolicy {
     source_max_interval_minutes: number;
     freshness_demand_weight: number;
     last_evaluated_at?: string | null;
+    last_generated_at?: string | null;
     created_at?: string;
     updated_at?: string;
 }
 
+export interface OpBudgetStatus {
+    class_a_status: 'ok' | 'warn' | 'cap' | string;
+    class_b_status: 'ok' | 'warn' | 'cap' | string;
+    class_a_used: number;
+    class_b_used: number;
+    class_a_remaining: number;
+    class_b_remaining: number;
+    class_a_budget: number;
+    class_b_budget: number;
+}
+
+export interface AtomizationBacklog {
+    pending_runs: number;
+    running_runs: number;
+    transcript_wait_count: number;
+    backlog_depth: number;
+    intake_dampening_factor: number;
+}
+
+export interface BucketYield {
+    predicted: number;
+    delivered: number;
+}
+
 export interface MediaCirculationProof {
     storage: StorageProofMetrics;
+    op_budget: OpBudgetStatus;
+    atomization_backlog: AtomizationBacklog;
     buckets: LibraryBucketHealth[];
     thin_buckets: string[];
     evict_by_verdict: Record<string, number>;
+    applied_yield_by_bucket?: Record<string, BucketYield>;
 }
 
 export interface MediaCirculationHealth {
@@ -71,6 +99,7 @@ export interface MediaCirculationRecommendation {
 
 export type RecommendationActionLane =
     | 'pull'
+    | 'atomize'
     | 'limit_skip'
     | 'protect'
     | 'cool'
@@ -118,10 +147,46 @@ export interface MediaCirculationCockpitRecommendation extends MediaCirculationR
 export interface MediaCirculationCockpit {
     health: MediaCirculationCockpitHealth;
     storage: StorageProofMetrics;
+    op_budget: OpBudgetStatus;
+    atomization_backlog: AtomizationBacklog;
+    applied_yield_by_bucket?: Record<string, BucketYield>;
     buckets: MediaCirculationCockpitBucket[];
     summary: MediaCirculationCockpitSummary;
     policy: MediaCirculationPolicy;
     recommendations: MediaCirculationCockpitRecommendation[];
+}
+
+export interface MediaCirculationOverride {
+    id: string;
+    tenant_id: string;
+    subject_kind: 'source' | 'item' | 'family' | string;
+    subject_id: string;
+    override_type:
+        | 'never_archive'
+        | 'keep_latest_n_hot'
+        | 'premium_source'
+        | 'no_atomize'
+        | 'editorial_hold'
+        | string;
+    params?: Record<string, unknown>;
+    expires_at?: string | null;
+    set_by?: string;
+    notes?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MediaCirculationOverrideRequest {
+    subject_kind: string;
+    subject_id: string;
+    override_type: string;
+    params?: Record<string, unknown>;
+    expires_at?: string | null;
+    notes?: string;
+}
+
+export interface OverrideListResponse {
+    data: MediaCirculationOverride[];
 }
 
 export interface RecommendationListResponse {

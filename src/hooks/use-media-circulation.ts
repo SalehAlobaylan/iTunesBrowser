@@ -1,15 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     applyMediaCirculationRecommendation,
+    createMediaCirculationOverride,
+    deleteMediaCirculationOverride,
     dismissMediaCirculationRecommendation,
     generateMediaCirculationRecommendations,
     getMediaCirculationCockpit,
     getMediaCirculationHealth,
     getMediaCirculationPolicy,
     listMediaCirculationRecommendations,
+    listMediaCirculationOverrides,
+    revertMediaCirculationRecommendation,
     updateMediaCirculationPolicy,
 } from '@/lib/api/cms/media-circulation';
 import type {
+    MediaCirculationOverrideRequest,
     MediaCirculationPolicy,
     RecommendationUnitType,
 } from '@/types/platform/media-circulation';
@@ -21,6 +26,7 @@ export const mediaCirculationKeys = {
     cockpit: () => [...mediaCirculationKeys.all, 'cockpit'] as const,
     health: () => [...mediaCirculationKeys.all, 'health'] as const,
     policy: () => [...mediaCirculationKeys.all, 'policy'] as const,
+    overrides: () => [...mediaCirculationKeys.all, 'overrides'] as const,
     recommendations: (unitType: RecommendationUnitType, status: string) =>
         [...mediaCirculationKeys.all, 'recommendations', unitType, status] as const,
 };
@@ -33,6 +39,15 @@ export function useMediaCirculationCockpit() {
         gcTime: CACHE_CONFIG.lists.gcTime,
         refetchInterval: 60_000,
         refetchIntervalInBackground: false,
+    });
+}
+
+export function useMediaCirculationOverrides() {
+    return useQuery({
+        queryKey: mediaCirculationKeys.overrides(),
+        queryFn: listMediaCirculationOverrides,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
     });
 }
 
@@ -141,6 +156,52 @@ export function useDismissRecommendation() {
         },
         onError: (err: Error) => {
             toast({ title: 'Dismiss failed', description: err.message, variant: 'destructive' });
+        },
+    });
+}
+
+export function useRevertRecommendation() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => revertMediaCirculationRecommendation(id),
+        onSuccess: (resp) => {
+            queryClient.invalidateQueries({ queryKey: mediaCirculationKeys.all });
+            toast({
+                title: 'Recommendation reverted',
+                description: `Outcome: ${resp.data.outcome ?? 'reverted'}`,
+                variant: 'success',
+            });
+        },
+        onError: (err: Error) => {
+            toast({ title: 'Revert failed', description: err.message, variant: 'destructive' });
+        },
+    });
+}
+
+export function useCreateMediaCirculationOverride() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (data: MediaCirculationOverrideRequest) => createMediaCirculationOverride(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: mediaCirculationKeys.all });
+            toast({ title: 'Override saved', variant: 'success' });
+        },
+        onError: (err: Error) => {
+            toast({ title: 'Override failed', description: err.message, variant: 'destructive' });
+        },
+    });
+}
+
+export function useDeleteMediaCirculationOverride() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => deleteMediaCirculationOverride(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: mediaCirculationKeys.all });
+            toast({ title: 'Override removed', variant: 'success' });
+        },
+        onError: (err: Error) => {
+            toast({ title: 'Remove failed', description: err.message, variant: 'destructive' });
         },
     });
 }

@@ -3,8 +3,11 @@ import type {
     GenerateRecommendationsResponse,
     MediaCirculationCockpit,
     MediaCirculationHealth,
+    MediaCirculationOverride,
+    MediaCirculationOverrideRequest,
     MediaCirculationPolicy,
     MediaCirculationRecommendation,
+    OverrideListResponse,
     RecommendationListResponse,
     RecommendationUnitType,
 } from '@/types/platform/media-circulation';
@@ -29,6 +32,26 @@ export async function updateMediaCirculationPolicy(
     data: Partial<MediaCirculationPolicy>
 ): Promise<MediaCirculationPolicy> {
     return cmsClient.put<MediaCirculationPolicy>('/admin/media/circulation/policy', data);
+}
+
+/** GET /admin/media/circulation/overrides */
+export async function listMediaCirculationOverrides(): Promise<OverrideListResponse> {
+    return cmsClient.get<OverrideListResponse>('/admin/media/circulation/overrides');
+}
+
+/** POST /admin/media/circulation/overrides */
+export async function createMediaCirculationOverride(
+    data: MediaCirculationOverrideRequest
+): Promise<{ data: MediaCirculationOverride }> {
+    return cmsClient.post<{ data: MediaCirculationOverride }>(
+        '/admin/media/circulation/overrides',
+        data
+    );
+}
+
+/** DELETE /admin/media/circulation/overrides/:id */
+export async function deleteMediaCirculationOverride(id: string): Promise<{ success: boolean }> {
+    return cmsClient.delete<{ success: boolean }>(`/admin/media/circulation/overrides/${id}`);
 }
 
 /** GET /admin/media/circulation/recommendations */
@@ -64,5 +87,14 @@ export async function dismissMediaCirculationRecommendation(
 ): Promise<{ data: MediaCirculationRecommendation }> {
     return cmsClient.post<{ data: MediaCirculationRecommendation }>(
         `/admin/media/circulation/recommendations/${id}/dismiss`
+    );
+}
+
+/** POST /admin/media/circulation/recommendations/:id/revert */
+export async function revertMediaCirculationRecommendation(
+    id: string
+): Promise<{ data: MediaCirculationRecommendation }> {
+    return cmsClient.post<{ data: MediaCirculationRecommendation }>(
+        `/admin/media/circulation/recommendations/${id}/revert`
     );
 }
