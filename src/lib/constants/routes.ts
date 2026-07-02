@@ -13,6 +13,7 @@ import {
     Shield,
     HardDrive,
     HeartPulse,
+    Recycle,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -45,6 +46,7 @@ export const navigation: NavigationSection[] = [
             { name: 'Media Library', href: '/platform/media', icon: Video },
             { name: 'Media Sources', href: '/platform/media/sources', icon: Radio },
             { name: 'Media Studio', href: '/platform/media/atomization', icon: Clapperboard },
+            { name: 'Media Circulation', href: '/platform/media/circulation', icon: Recycle },
             { name: 'Storage', href: '/platform/storage', icon: HardDrive },
             { name: 'Pipeline', href: '/platform/pipeline', icon: Activity },
             { name: 'Intelligence', href: '/platform/intelligence', icon: Brain },
@@ -73,6 +75,7 @@ export const ROUTES = {
         MEDIA_FINDING: '/platform/media/sources?tab=finding',
         MEDIA_ATOMIZATION: '/platform/media/atomization',
         MEDIA_STUDIO: '/platform/media/atomization',
+        MEDIA_CIRCULATION: '/platform/media/circulation',
         STORAGE: '/platform/storage',
         PIPELINE: '/platform/pipeline',
         INTELLIGENCE: '/platform/intelligence',
