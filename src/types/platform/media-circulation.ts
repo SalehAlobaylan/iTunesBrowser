@@ -13,6 +13,39 @@ export interface LibraryBucketHealth {
     bucket: string;
     visible_units: number;
     state: 'thin' | 'ok' | 'saturated' | string;
+    /** Demand surface (stage 4) — measured serve-side demand in [0,1]. */
+    demand_score: number;
+    /** Value-weighted supply in [0,1] (10 junk units ≠ 10 good units). */
+    coverage_score: number;
+    /** demand − coverage, in [-1,1]. Positive = under-supplied. */
+    gap: number;
+    /** True once enough serve telemetry accumulated; false = estimated from supply counts. */
+    measured: boolean;
+}
+
+/** One row of the per-topic demand table (Ranking/Intelligence diagnostics). */
+export interface TopicDemand {
+    topic: string;
+    serves: number;
+    repeat_serves: number;
+    demand_score: number;
+    coverage_score: number;
+    gap: number;
+    visible_units: number;
+}
+
+/** GET /admin/media/circulation/intelligence — observability read model. */
+export interface IntelligenceDiagnostics {
+    exploring_count: number;
+    established_count: number;
+    retrial_count: number;
+    demoted_count: number;
+    scored_count: number;
+    unscored_count: number;
+    stale_count: number;
+    oldest_computed_at?: string;
+    demand_measured: boolean;
+    topic_demand: TopicDemand[];
 }
 
 export interface MediaCirculationPolicy {

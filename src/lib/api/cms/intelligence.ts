@@ -16,6 +16,10 @@ import type {
     SourcePerformance,
     SignalHealth,
     PreviewFeedResponse,
+    MediaValueConfigResponse,
+    UpdateMediaValueConfigRequest,
+    MediaValueRefreshResult,
+    ObservatorySnapshot,
 } from '@/types/platform/intelligence';
 
 // ---- Modes ----
@@ -87,3 +91,16 @@ export const previewForYouFeed = (overrides?: Record<string, number>) =>
 
 export const previewNewsFeed = (overrides?: Record<string, number>) =>
     cmsClient.get<PreviewFeedResponse>('/admin/intelligence/preview/news', overrides);
+
+// ---- Media Value engine (stage-4) control room ----
+export const getMediaValueConfig = () =>
+    cmsClient.get<MediaValueConfigResponse>('/admin/media/intelligence/config');
+
+export const updateMediaValueConfig = (data: UpdateMediaValueConfigRequest) =>
+    cmsClient.put<MediaValueConfigResponse>('/admin/media/intelligence/config', data);
+
+export const triggerMediaValueRefresh = () =>
+    cmsClient.post<MediaValueRefreshResult>('/admin/media/intelligence/refresh');
+
+export const getMediaIntelligenceObservatory = () =>
+    cmsClient.get<ObservatorySnapshot>('/admin/media/intelligence/observatory');

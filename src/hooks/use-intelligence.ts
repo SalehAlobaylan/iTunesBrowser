@@ -7,12 +7,16 @@ import {
     getScoreDistribution, getVelocityLeaderboard, getTrendingItems,
     getSourcePerformance, getSignalHealth,
     previewForYouFeed, previewNewsFeed,
+    getMediaValueConfig, updateMediaValueConfig, triggerMediaValueRefresh,
+    getMediaIntelligenceObservatory,
 } from '@/lib/api/cms/intelligence';
 import type {
     UpdateRankingConfigRequest,
     UpsertFlagRequest,
     BulkFlagRequest,
+    UpdateMediaValueConfigRequest,
 } from '@/types/platform/intelligence';
+import { mediaCirculationKeys } from '@/hooks/use-media-circulation';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
 
@@ -33,6 +37,8 @@ export const intelligenceKeys = {
     signalHealth: () => [...intelligenceKeys.all, 'signal-health'] as const,
     previewForYou: (overrides?: object) => [...intelligenceKeys.all, 'preview-foryou', overrides] as const,
     previewNews: (overrides?: object) => [...intelligenceKeys.all, 'preview-news', overrides] as const,
+    mediaValueConfig: () => [...intelligenceKeys.all, 'media-value-config'] as const,
+    observatory: () => [...intelligenceKeys.all, 'observatory'] as const,
 };
 
 // ---- Modes ----
@@ -193,5 +199,53 @@ export function usePreviewNews(overrides?: Record<string, number>) {
         queryKey: intelligenceKeys.previewNews(overrides),
         queryFn: () => previewNewsFeed(overrides),
         staleTime: 0,
+    });
+}
+
+// ---- Media Value engine (stage-4) control room ----
+export function useMediaValueConfig() {
+    return useQuery({
+        queryKey: intelligenceKeys.mediaValueConfig(),
+        queryFn: getMediaValueConfig,
+        staleTime: CACHE_CONFIG.details.staleTime,
+        gcTime: CACHE_CONFIG.details.gcTime,
+    });
+}
+
+export function useUpdateMediaValueConfig() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (data: UpdateMediaValueConfigRequest) => updateMediaValueConfig(data),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: intelligenceKeys.mediaValueConfig() });
+            qc.invalidateQueries({ queryKey: intelligenceKeys.observatory() });
+            qc.invalidateQueries({ queryKey: mediaCirculationKeys.intelligence() });
+            toast({ title: 'Value engine updated', variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to update value engine', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useRefreshMediaValueScores() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: triggerMediaValueRefresh,
+        onSuccess: (res) => {
+            qc.invalidateQueries({ queryKey: intelligenceKeys.observatory() });
+            qc.invalidateQueries({ queryKey: mediaCirculationKeys.intelligence() });
+            toast({ title: `Refreshed ${res.refreshed} score${res.refreshed === 1 ? '' : 's'}`, variant: 'success' });
+        },
+        onError: (e: Error) => toast({ title: 'Failed to refresh scores', description: e.message, variant: 'destructive' }),
+    });
+}
+
+export function useMediaIntelligenceObservatory() {
+    return useQuery({
+        queryKey: intelligenceKeys.observatory(),
+        queryFn: getMediaIntelligenceObservatory,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+        refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
     });
 }

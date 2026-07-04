@@ -42,6 +42,7 @@ interface CockpitHeroProps {
 }
 
 const DIAGNOSTIC_LINKS = [
+    { href: '/platform/intelligence', label: 'Intelligence control room' },
     { href: '/platform/storage', label: 'Storage health' },
     { href: '/platform/media/atomization', label: 'Atomization runs' },
     { href: '/platform/quality', label: 'Quality profiles' },
@@ -218,9 +219,13 @@ function Vital({
 }
 
 /**
- * The library shelf — the six For You duration buckets rendered as a demand
- * skyline. Bar height = visible supply against the saturation ceiling; color =
- * thin / ok / saturated. Clicking a shelf filters the decision queue.
+ * The library shelf — the six For You duration buckets rendered as a
+ * demand-vs-coverage skyline. In the measured regime each shelf shows two
+ * bars: what listeners ask for (demand, measured serve-side) next to what the
+ * shelf holds (coverage, value-weighted supply) — a demand bar towering over
+ * its coverage bar is an under-stocked shelf. Before telemetry accumulates it
+ * falls back to the single supply-scaled bar and the badge says "estimated".
+ * Clicking a shelf filters the decision queue.
  */
 function LibraryShelf({
     cockpit,
@@ -232,28 +237,51 @@ function LibraryShelf({
     onBucket: (bucket: string) => void;
 }) {
     const thinCount = cockpit.buckets.filter((b) => b.state === 'thin').length;
-    // Scale the skyline to the fullest shelf so relative supply is readable even
-    // when every bucket sits far below the saturation ceiling; state color
-    // (thin / ok / saturated) carries the absolute judgment.
+    const measured = cockpit.buckets.some((b) => b.measured);
+    // Fallback (estimated) regime: scale the single supply bar to the fullest
+    // shelf so relative supply is readable; state color carries the judgment.
     const maxUnits = Math.max(1, ...cockpit.buckets.map((b) => b.visible_units));
     return (
         <div className="rounded-lg border border-white/10 bg-white/5 p-3">
             <div className="flex items-baseline justify-between gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Library shelf · duration demand</p>
-                <p className="text-xs text-slate-500">
-                    {thinCount > 0 ? `${thinCount} thin` : 'all stocked'}
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Library shelf · demand vs coverage
                 </p>
+                <span className="flex items-center gap-2 text-xs text-slate-500">
+                    <span
+                        className={cn(
+                            'rounded-full border px-1.5 py-0 text-[10px] font-medium uppercase tracking-wide',
+                            measured
+                                ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300'
+                                : 'border-white/15 bg-white/5 text-slate-400'
+                        )}
+                        title={
+                            measured
+                                ? 'Demand is measured from real feed serves (serve share, exhaustions, repeats)'
+                                : 'Not enough serve telemetry yet — demand is estimated from supply counts'
+                        }
+                    >
+                        {measured ? 'measured' : 'estimated'}
+                    </span>
+                    {thinCount > 0 ? `${thinCount} thin` : 'all stocked'}
+                </span>
             </div>
             <div className="mt-3 grid grid-cols-6 gap-2">
                 {cockpit.buckets.map((bucket) => {
-                    const height = Math.min(100, Math.max(10, (bucket.visible_units / maxUnits) * 100));
                     const active = activeBucket === bucket.bucket;
+                    const demandH = Math.min(100, Math.max(6, bucket.demand_score * 100));
+                    const coverageH = Math.min(100, Math.max(6, bucket.coverage_score * 100));
+                    const supplyH = Math.min(100, Math.max(10, (bucket.visible_units / maxUnits) * 100));
                     return (
                         <button
                             key={bucket.bucket}
                             type="button"
                             onClick={() => onBucket(active ? 'all' : bucket.bucket)}
-                            title={`${bucket.bucket}: ${bucket.visible_units} visible units (${bucket.state})`}
+                            title={
+                                bucket.measured
+                                    ? `${bucket.bucket}: demand ${(bucket.demand_score * 100).toFixed(0)} vs coverage ${(bucket.coverage_score * 100).toFixed(0)} — gap ${bucket.gap >= 0 ? '+' : ''}${(bucket.gap * 100).toFixed(0)} (${bucket.state}); ${bucket.visible_units} visible units`
+                                    : `${bucket.bucket}: ${bucket.visible_units} visible units (${bucket.state}, estimated)`
+                            }
                             className={cn(
                                 'group rounded-md border p-1.5 pt-2 transition-colors',
                                 active
@@ -261,11 +289,26 @@ function LibraryShelf({
                                     : 'border-transparent hover:border-white/20 hover:bg-white/5'
                             )}
                         >
-                            <div className="flex h-14 items-end justify-center">
-                                <div
-                                    className={cn('w-5 rounded-sm transition-all duration-300', bucketBarClass(bucket.state))}
-                                    style={{ height: `${height}%` }}
-                                />
+                            <div className="flex h-14 items-end justify-center gap-0.5">
+                                {bucket.measured ? (
+                                    <>
+                                        {/* demand — what listeners ask for */}
+                                        <div
+                                            className="w-2.5 rounded-sm bg-slate-400/70 transition-all duration-300"
+                                            style={{ height: `${demandH}%` }}
+                                        />
+                                        {/* coverage — what the shelf holds, value-weighted */}
+                                        <div
+                                            className={cn('w-2.5 rounded-sm transition-all duration-300', bucketBarClass(bucket.state))}
+                                            style={{ height: `${coverageH}%` }}
+                                        />
+                                    </>
+                                ) : (
+                                    <div
+                                        className={cn('w-5 rounded-sm transition-all duration-300', bucketBarClass(bucket.state))}
+                                        style={{ height: `${supplyH}%` }}
+                                    />
+                                )}
                             </div>
                             <p className={cn('mt-1.5 text-center text-xs font-semibold', active ? 'text-news' : 'text-slate-300')}>
                                 {bucket.bucket}
@@ -275,6 +318,16 @@ function LibraryShelf({
                     );
                 })}
             </div>
+            {measured && (
+                <p className="mt-2 flex items-center gap-3 text-[10px] text-slate-500">
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-2 rounded-sm bg-slate-400/70" /> demand
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" /> coverage (value-weighted)
+                    </span>
+                </p>
+            )}
         </div>
     );
 }

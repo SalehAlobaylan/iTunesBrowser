@@ -8,6 +8,7 @@ import {
     getMediaCirculationCockpit,
     getMediaCirculationHealth,
     getMediaCirculationPolicy,
+    getMediaIntelligenceDiagnostics,
     listMediaCirculationRecommendations,
     listMediaCirculationOverrides,
     revertMediaCirculationRecommendation,
@@ -27,9 +28,21 @@ export const mediaCirculationKeys = {
     health: () => [...mediaCirculationKeys.all, 'health'] as const,
     policy: () => [...mediaCirculationKeys.all, 'policy'] as const,
     overrides: () => [...mediaCirculationKeys.all, 'overrides'] as const,
+    intelligence: () => [...mediaCirculationKeys.all, 'intelligence'] as const,
     recommendations: (unitType: RecommendationUnitType, status: string) =>
         [...mediaCirculationKeys.all, 'recommendations', unitType, status] as const,
 };
+
+export function useMediaIntelligenceDiagnostics() {
+    return useQuery({
+        queryKey: mediaCirculationKeys.intelligence(),
+        queryFn: getMediaIntelligenceDiagnostics,
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+        refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
+    });
+}
 
 export function useMediaCirculationCockpit() {
     return useQuery({

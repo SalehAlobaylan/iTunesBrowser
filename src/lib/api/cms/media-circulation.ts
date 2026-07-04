@@ -1,6 +1,7 @@
 import { cmsClient } from '@/lib/api/client';
 import type {
     GenerateRecommendationsResponse,
+    IntelligenceDiagnostics,
     MediaCirculationCockpit,
     MediaCirculationHealth,
     MediaCirculationOverride,
@@ -20,6 +21,11 @@ export async function getMediaCirculationHealth(): Promise<MediaCirculationHealt
 /** GET /admin/media/circulation/cockpit */
 export async function getMediaCirculationCockpit(): Promise<MediaCirculationCockpit> {
     return cmsClient.get<MediaCirculationCockpit>('/admin/media/circulation/cockpit');
+}
+
+/** GET /admin/media/circulation/intelligence */
+export async function getMediaIntelligenceDiagnostics(): Promise<IntelligenceDiagnostics> {
+    return cmsClient.get<IntelligenceDiagnostics>('/admin/media/circulation/intelligence');
 }
 
 /** GET /admin/media/circulation/policy */

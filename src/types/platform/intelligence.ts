@@ -2,6 +2,8 @@
 // Intelligence / Ranking types
 // ============================
 
+import type { IntelligenceDiagnostics } from '@/types/platform/media-circulation';
+
 export type RankingMode = 'fresh_first' | 'trending' | 'most_relevant' | 'ai_curated' | 'balanced' | 'custom';
 
 export interface RankingConfig {
@@ -196,4 +198,100 @@ export interface PreviewFeedItem {
 export interface PreviewFeedResponse {
     items: PreviewFeedItem[];
     is_active: boolean;
+}
+
+// ── Media Value engine (stage-4 Ranking/Intelligence) control room ──────────
+
+/** Operational tunables for the durable media-value engine (per tenant). */
+export interface MediaValueConfig {
+    tenant_id: string;
+    // Four rate/state signal weights (server-normalized to sum 1.0).
+    engagement_weight: number;
+    completion_weight: number;
+    quality_weight: number;
+    velocity_weight: number;
+    // Exploration.
+    exploration_slice_every: number;
+    explore_impression_target: number;
+    legacy_exposure_view_floor: number;
+    // Demotion decay.
+    demotion_default_factor: number;
+    demotion_half_life_days: number;
+    created_at?: string;
+    updated_at?: string;
+}
+
+/** GET /admin/media/intelligence/config — effective config + code defaults. */
+export interface MediaValueConfigResponse {
+    config: MediaValueConfig;
+    defaults: MediaValueConfig;
+}
+
+export type UpdateMediaValueConfigRequest = Partial<
+    Omit<MediaValueConfig, 'tenant_id' | 'created_at' | 'updated_at'>
+>;
+
+/** POST /admin/media/intelligence/refresh result. */
+export interface MediaValueRefreshResult {
+    refreshed: number;
+    stale_remaining: number;
+    unscored_remaining: number;
+}
+
+// ── Intelligence Observatory (visualization read model) ─────────────────────
+
+/** One column of the value spectrum: item counts in a value range, by state. */
+export interface ValueBin {
+    min: number;
+    max: number;
+    exploring: number;
+    established: number;
+    total: number;
+}
+
+/** Mean signal contribution across the scored corpus. */
+export interface SignalAverages {
+    engagement: number;
+    completion: number;
+    quality: number;
+    velocity: number;
+    suitability_adj: number;
+    cost_penalty: number;
+}
+
+/** Per-duration-bucket demand economics. */
+export interface BucketDemand {
+    bucket: string;
+    demand_score: number;
+    coverage_score: number;
+    gap: number;
+    measured: boolean;
+    serves: number;
+    exhaustions: number;
+    repeat_serves: number;
+}
+
+/** The tuning subset the live curves + composition need. */
+export interface ObservatoryTuning {
+    engagement_weight: number;
+    completion_weight: number;
+    quality_weight: number;
+    velocity_weight: number;
+    explore_impression_target: number;
+    demotion_half_life_days: number;
+    demotion_default_factor: number;
+}
+
+/**
+ * GET /admin/media/intelligence/observatory — the full visualization snapshot.
+ * Embeds the diagnostics counts (flattened) + the richer viz aggregates.
+ */
+export interface ObservatorySnapshot extends IntelligenceDiagnostics {
+    value_histogram: ValueBin[];
+    value_median: number;
+    value_p25: number;
+    value_mean: number;
+    signal_averages: SignalAverages;
+    bucket_demand: BucketDemand[];
+    tuning: ObservatoryTuning;
 }
