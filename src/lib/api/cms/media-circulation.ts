@@ -1,13 +1,16 @@
 import { cmsClient } from '@/lib/api/client';
 import type {
+    AutopilotRunDetail,
     GenerateRecommendationsResponse,
     IntelligenceDiagnostics,
+    MediaAutopilotElevatedMode,
     MediaCirculationCockpit,
     MediaCirculationHealth,
     MediaCirculationOverride,
     MediaCirculationOverrideRequest,
     MediaCirculationPolicy,
     MediaCirculationRecommendation,
+    MediaCirculationRun,
     OverrideListResponse,
     RecommendationListResponse,
     RecommendationUnitType,
@@ -102,5 +105,44 @@ export async function revertMediaCirculationRecommendation(
 ): Promise<{ data: MediaCirculationRecommendation }> {
     return cmsClient.post<{ data: MediaCirculationRecommendation }>(
         `/admin/media/circulation/recommendations/${id}/revert`
+    );
+}
+
+// ---- Autopilot (stage 5) ----
+
+/** POST /admin/media/circulation/autopilot/run */
+export async function runMediaAutopilotNow(): Promise<{ data: AutopilotRunDetail }> {
+    return cmsClient.post<{ data: AutopilotRunDetail }>('/admin/media/circulation/autopilot/run');
+}
+
+/** GET /admin/media/circulation/autopilot/runs */
+export async function listMediaAutopilotRuns(limit = 20): Promise<{ data: { items: MediaCirculationRun[] } }> {
+    return cmsClient.get<{ data: { items: MediaCirculationRun[] } }>(
+        '/admin/media/circulation/autopilot/runs',
+        { limit }
+    );
+}
+
+/** GET /admin/media/circulation/autopilot/runs/:id */
+export async function getMediaAutopilotRun(id: string): Promise<{ data: AutopilotRunDetail }> {
+    return cmsClient.get<{ data: AutopilotRunDetail }>(`/admin/media/circulation/autopilot/runs/${id}`);
+}
+
+/** POST /admin/media/circulation/autopilot/pause — minutes=0 resumes */
+export async function pauseMediaAutopilot(minutes: number): Promise<{ data: { paused_until: string | null } }> {
+    return cmsClient.post<{ data: { paused_until: string | null } }>(
+        '/admin/media/circulation/autopilot/pause',
+        { minutes }
+    );
+}
+
+/** POST /admin/media/circulation/autopilot/elevate — mode='' clears */
+export async function elevateMediaAutopilot(
+    mode: MediaAutopilotElevatedMode | '',
+    minutes?: number
+): Promise<{ data: { mode: string; until: string | null } }> {
+    return cmsClient.post<{ data: { mode: string; until: string | null } }>(
+        '/admin/media/circulation/autopilot/elevate',
+        { mode, minutes }
     );
 }

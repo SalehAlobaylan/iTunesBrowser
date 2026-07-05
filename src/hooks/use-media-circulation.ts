@@ -4,17 +4,23 @@ import {
     createMediaCirculationOverride,
     deleteMediaCirculationOverride,
     dismissMediaCirculationRecommendation,
+    elevateMediaAutopilot,
     generateMediaCirculationRecommendations,
+    getMediaAutopilotRun,
     getMediaCirculationCockpit,
     getMediaCirculationHealth,
     getMediaCirculationPolicy,
     getMediaIntelligenceDiagnostics,
+    listMediaAutopilotRuns,
     listMediaCirculationRecommendations,
     listMediaCirculationOverrides,
+    pauseMediaAutopilot,
     revertMediaCirculationRecommendation,
+    runMediaAutopilotNow,
     updateMediaCirculationPolicy,
 } from '@/lib/api/cms/media-circulation';
 import type {
+    MediaAutopilotElevatedMode,
     MediaCirculationOverrideRequest,
     MediaCirculationPolicy,
     RecommendationUnitType,
@@ -31,7 +37,87 @@ export const mediaCirculationKeys = {
     intelligence: () => [...mediaCirculationKeys.all, 'intelligence'] as const,
     recommendations: (unitType: RecommendationUnitType, status: string) =>
         [...mediaCirculationKeys.all, 'recommendations', unitType, status] as const,
+    autopilotRuns: () => [...mediaCirculationKeys.all, 'autopilot-runs'] as const,
+    autopilotRun: (id: string) => [...mediaCirculationKeys.all, 'autopilot-run', id] as const,
 };
+
+// ---- Autopilot (stage 5) ----
+
+export function useMediaAutopilotRuns(limit = 20) {
+    return useQuery({
+        queryKey: [...mediaCirculationKeys.autopilotRuns(), limit],
+        queryFn: () => listMediaAutopilotRuns(limit),
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+        refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
+        select: (resp) => resp.data.items,
+    });
+}
+
+export function useMediaAutopilotRun(id: string | null) {
+    return useQuery({
+        queryKey: mediaCirculationKeys.autopilotRun(id ?? 'none'),
+        queryFn: () => getMediaAutopilotRun(id as string),
+        enabled: Boolean(id),
+        staleTime: CACHE_CONFIG.lists.staleTime,
+        gcTime: CACHE_CONFIG.lists.gcTime,
+        select: (resp) => resp.data,
+    });
+}
+
+export function useRunMediaAutopilotNow() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: runMediaAutopilotNow,
+        onSuccess: (resp) => {
+            queryClient.invalidateQueries({ queryKey: mediaCirculationKeys.all });
+            toast({
+                title: `Autopilot run ${resp.data.run.status}`,
+                description: resp.data.run.summary ?? '',
+                variant: resp.data.run.status === 'failed' ? 'destructive' : 'success',
+            });
+        },
+        onError: (err: Error) => {
+            toast({ title: 'Autopilot run failed', description: err.message, variant: 'destructive' });
+        },
+    });
+}
+
+export function usePauseMediaAutopilot() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (minutes: number) => pauseMediaAutopilot(minutes),
+        onSuccess: (resp) => {
+            queryClient.invalidateQueries({ queryKey: mediaCirculationKeys.all });
+            toast({
+                title: resp.data.paused_until ? 'Autopilot paused' : 'Autopilot resumed',
+                variant: 'success',
+            });
+        },
+        onError: (err: Error) => {
+            toast({ title: 'Pause failed', description: err.message, variant: 'destructive' });
+        },
+    });
+}
+
+export function useElevateMediaAutopilot() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ mode, minutes }: { mode: MediaAutopilotElevatedMode | ''; minutes?: number }) =>
+            elevateMediaAutopilot(mode, minutes),
+        onSuccess: (resp) => {
+            queryClient.invalidateQueries({ queryKey: mediaCirculationKeys.all });
+            toast({
+                title: resp.data.mode ? `Elevated mode: ${resp.data.mode}` : 'Elevated mode cleared',
+                variant: 'success',
+            });
+        },
+        onError: (err: Error) => {
+            toast({ title: 'Elevate failed', description: err.message, variant: 'destructive' });
+        },
+    });
+}
 
 export function useMediaIntelligenceDiagnostics() {
     return useQuery({

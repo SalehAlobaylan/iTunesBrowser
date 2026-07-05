@@ -59,10 +59,104 @@ export interface MediaCirculationPolicy {
     source_min_interval_minutes: number;
     source_max_interval_minutes: number;
     freshness_demand_weight: number;
+    // ---- Autopilot (stage 5) ----
+    autopilot_enabled: boolean;
+    autopilot_mode: 'observe' | 'safe_auto' | string;
+    autopilot_interval_minutes: number;
+    autopilot_max_actions_per_run: number;
+    autopilot_max_atomize_per_run: number;
+    autopilot_max_queue_depth: number;
+    autopilot_max_bytes_per_run: number;
+    autopilot_evict_confidence_floor: number;
+    autopilot_trust_min_decisions: number;
+    autopilot_trust_max_revert_pct: number;
+    autopilot_paused_until?: string | null;
+    autopilot_elevated_mode?: MediaAutopilotElevatedMode | '' | null;
+    autopilot_elevated_until?: string | null;
+    autopilot_last_run_at?: string | null;
     last_evaluated_at?: string | null;
     last_generated_at?: string | null;
     created_at?: string;
     updated_at?: string;
+}
+
+// ---- Autopilot (stage 5) ----
+
+export type MediaAutopilotElevatedMode =
+    | 'storage_relief'
+    | 'quality_repair'
+    | 'atomization_catchup';
+
+export type MediaAutopilotActionStatus =
+    | 'running'
+    | 'success'
+    | 'error'
+    | 'skipped'
+    | 'approval_required'
+    | 'would_apply'
+    | 'would_skip';
+
+export interface MediaAutopilotTrustStat {
+    verdict: string;
+    decisions: number;
+    applied: number;
+    reverts: number;
+    revert_pct: number;
+    earned: boolean;
+}
+
+export interface MediaCirculationRun {
+    id: string;
+    tenant_id: string;
+    trigger: 'scheduled' | 'manual' | string;
+    mode: 'observe' | 'safe_auto' | string;
+    elevated_mode?: string;
+    status: 'running' | 'completed' | 'partial' | 'failed' | string;
+    started_at: string;
+    finished_at?: string | null;
+    summary?: string;
+    health_before?: unknown;
+    health_after?: unknown;
+    created_by?: string;
+    error?: string;
+}
+
+export interface MediaCirculationAction {
+    id: string;
+    tenant_id: string;
+    recommendation_id?: string | null;
+    tool_name: string;
+    status: MediaAutopilotActionStatus | string;
+    reason?: string;
+    guardrail?: string;
+    input?: unknown;
+    output?: unknown;
+    error?: string;
+    byte_impact: number;
+    queue_impact: number;
+    feed_impact: number;
+    started_at: string;
+    finished_at?: string | null;
+}
+
+export interface MediaAutopilotStatus {
+    enabled: boolean;
+    mode: 'observe' | 'safe_auto' | string;
+    state: 'off' | 'observe' | 'safe_auto' | 'elevated' | 'paused' | string;
+    interval_minutes: number;
+    elevated_mode?: string;
+    elevated_until?: string | null;
+    paused_until?: string | null;
+    last_run_at?: string | null;
+    next_run_at?: string | null;
+    last_run?: MediaCirculationRun | null;
+    trust: MediaAutopilotTrustStat[];
+    recommended_action?: string;
+}
+
+export interface AutopilotRunDetail {
+    run: MediaCirculationRun;
+    actions: MediaCirculationAction[];
 }
 
 export interface OpBudgetStatus {
@@ -187,6 +281,7 @@ export interface MediaCirculationCockpit {
     summary: MediaCirculationCockpitSummary;
     policy: MediaCirculationPolicy;
     recommendations: MediaCirculationCockpitRecommendation[];
+    autopilot: MediaAutopilotStatus;
 }
 
 export interface MediaCirculationOverride {

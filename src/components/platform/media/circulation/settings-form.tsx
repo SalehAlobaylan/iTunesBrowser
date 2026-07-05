@@ -50,6 +50,16 @@ const NUMERIC_FIELDS: { key: keyof MediaCirculationPolicy; label: string; step: 
     { key: 'source_max_interval_minutes', label: 'Maximum source interval', step: '1', suffix: 'min' },
 ];
 
+const AUTOPILOT_FIELDS: { key: keyof MediaCirculationPolicy; label: string; step: string; suffix?: string }[] = [
+    { key: 'autopilot_interval_minutes', label: 'Run cadence', step: '1', suffix: 'min' },
+    { key: 'autopilot_max_actions_per_run', label: 'Actions per run', step: '1' },
+    { key: 'autopilot_max_atomize_per_run', label: 'Atomize per run', step: '1' },
+    { key: 'autopilot_max_queue_depth', label: 'Max queue depth', step: '1' },
+    { key: 'autopilot_evict_confidence_floor', label: 'Evict confidence floor', step: '0.05' },
+    { key: 'autopilot_trust_min_decisions', label: 'Trust: min decisions', step: '1' },
+    { key: 'autopilot_trust_max_revert_pct', label: 'Trust: max revert', step: '1', suffix: '%' },
+];
+
 export function SettingsForm({ policy, saving, onSave }: SettingsFormProps) {
     const [form, setForm] = useState<MediaCirculationPolicy | undefined>(policy);
 
@@ -144,6 +154,79 @@ export function SettingsForm({ policy, saving, onSave }: SettingsFormProps) {
                         </div>
                     ))}
                 </div>
+            </div>
+
+            <div className="space-y-3 border-t border-border pt-4">
+                <div className="flex items-center justify-between gap-4">
+                    <div>
+                        <Label htmlFor="mc-autopilot" className="text-sm font-semibold">
+                            Autopilot
+                        </Label>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            Scheduled runs on the circulation pipeline. Observe = full dry-run ledger, zero side
+                            effects; Safe Auto executes only trust-earned, guardrailed actions. Deletes always
+                            require approval.
+                        </p>
+                    </div>
+                    <Switch
+                        id="mc-autopilot"
+                        checked={form.autopilot_enabled}
+                        onCheckedChange={(checked) => setForm({ ...form, autopilot_enabled: checked })}
+                    />
+                </div>
+
+                {form.autopilot_enabled && (
+                    <>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            {(['observe', 'safe_auto'] as const).map((mode) => (
+                                <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => setForm({ ...form, autopilot_mode: mode })}
+                                    className={cn(
+                                        'rounded-md border p-3 text-left transition-colors',
+                                        form.autopilot_mode === mode
+                                            ? cn(PRESS_SELECTED, 'text-foreground')
+                                            : 'border-border bg-background hover:bg-muted'
+                                    )}
+                                >
+                                    <span className="block text-sm font-semibold">
+                                        {mode === 'observe' ? 'Observe (shadow)' : 'Safe Auto'}
+                                    </span>
+                                    <span className="block text-xs leading-5 text-muted-foreground">
+                                        {mode === 'observe'
+                                            ? 'Runs everything, applies nothing — builds the would-apply evidence trail.'
+                                            : 'Auto-applies the trust-earned safe tier under caps and guardrails.'}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            {AUTOPILOT_FIELDS.map(({ key, label, step, suffix }) => (
+                                <div key={key} className="space-y-1.5">
+                                    <Label htmlFor={`mc-${key}`} className="text-xs">
+                                        {label}
+                                    </Label>
+                                    <div className="relative">
+                                        <Input
+                                            id={`mc-${key}`}
+                                            type="number"
+                                            step={step}
+                                            value={String(form[key] ?? '')}
+                                            onChange={(e) => setNum(key, e.target.value)}
+                                            className={suffix ? 'pr-12' : undefined}
+                                        />
+                                        {suffix && (
+                                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                                {suffix}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
             </div>
 
             <Button onClick={() => onSave(form)} disabled={saving} className={cn('w-full', PRESS_BUTTON)}>

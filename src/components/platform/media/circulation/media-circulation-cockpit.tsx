@@ -11,6 +11,7 @@ import type {
     MediaCirculationOverrideRequest,
     MediaCirculationPolicy,
 } from '@/types/platform/media-circulation';
+import { AutopilotStrip } from './autopilot-strip';
 import { CockpitHero } from './cockpit-hero';
 import { DecisionQueue, recommendationMatchesTab, QUEUE_TABS, type QueueTab } from './decision-queue';
 import { Inspector } from './inspector';
@@ -165,6 +166,15 @@ export function MediaCirculationCockpitView({
                 onToggleEngine={toggleEngine}
                 onOpenPolicy={() => setParams({ policy: '1' })}
             />
+
+            {cockpit.autopilot ? (
+                <AutopilotStrip
+                    autopilot={cockpit.autopilot}
+                    policy={cockpit.policy}
+                    savingPolicy={savingPolicy}
+                    onSavePolicy={onSavePolicy}
+                />
+            ) : null}
 
             <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <DecisionQueue
