@@ -8,8 +8,18 @@ import {
     triggerBatchEnrichment,
     triggerAllEnrichment,
     getBulkEnrichStatus,
+    getEnrichmentAutopilot,
+    updateEnrichmentAutopilotPolicy,
+    runEnrichmentAutopilotNow,
+    pauseEnrichmentAutopilot,
+    elevateEnrichmentAutopilot,
+    listEnrichmentAutopilotRuns,
+    getEnrichmentAutopilotRun,
 } from '@/lib/api/cms/enrichment';
-import type { MissingEnrichmentsParams } from '@/types/platform/enrichment';
+import type {
+    MissingEnrichmentsParams,
+    EnrichmentAutopilotPolicy,
+} from '@/types/platform/enrichment';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
 
@@ -25,6 +35,9 @@ export const enrichmentKeys = {
     missingCounts: (type: string, status: string) =>
         [...enrichmentKeys.missing(), 'counts', type, status] as const,
     bulkStatus: () => [...enrichmentKeys.all, 'bulk-status'] as const,
+    autopilot: () => [...enrichmentKeys.all, 'autopilot'] as const,
+    autopilotRuns: (limit: number) => [...enrichmentKeys.all, 'autopilot-runs', limit] as const,
+    autopilotRun: (id: string) => [...enrichmentKeys.all, 'autopilot-run', id] as const,
 };
 
 // ── Hooks ───────────────────────────────────────────────────
@@ -137,6 +150,87 @@ export function useBulkEnrichStatus() {
         refetchInterval: (query) => (query.state.data?.running ? 2000 : false),
         staleTime: 0,
         gcTime: 60 * 1000,
+    });
+}
+
+// ── Autopilot ───────────────────────────────────────────────
+
+export function useEnrichmentAutopilot() {
+    return useQuery({
+        queryKey: enrichmentKeys.autopilot(),
+        queryFn: getEnrichmentAutopilot,
+        staleTime: 15 * 1000,
+        gcTime: 60 * 1000,
+        refetchInterval: 30 * 1000,
+    });
+}
+
+export function useEnrichmentAutopilotRuns(limit = 20) {
+    return useQuery({
+        queryKey: enrichmentKeys.autopilotRuns(limit),
+        queryFn: () => listEnrichmentAutopilotRuns(limit),
+        staleTime: 10 * 1000,
+    });
+}
+
+export function useEnrichmentAutopilotRun(id: string | null) {
+    return useQuery({
+        queryKey: enrichmentKeys.autopilotRun(id ?? 'none'),
+        queryFn: () => getEnrichmentAutopilotRun(id as string),
+        enabled: !!id,
+        staleTime: 10 * 1000,
+    });
+}
+
+export function useUpdateEnrichmentAutopilotPolicy() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (patch: Partial<EnrichmentAutopilotPolicy>) =>
+            updateEnrichmentAutopilotPolicy(patch),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: enrichmentKeys.autopilot() });
+            toast({ title: 'Autopilot settings saved', variant: 'success' });
+        },
+        onError: (error: Error) =>
+            toast({ title: 'Failed to save settings', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function useRunEnrichmentAutopilotNow() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: runEnrichmentAutopilotNow,
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: enrichmentKeys.all });
+            toast({
+                title: 'Autopilot run complete',
+                description: data.run.summary || data.run.status,
+                variant: data.run.status === 'failed' ? 'destructive' : 'success',
+            });
+        },
+        onError: (error: Error) =>
+            toast({ title: 'Autopilot run failed', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function usePauseEnrichmentAutopilot() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (minutes: number) => pauseEnrichmentAutopilot(minutes),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: enrichmentKeys.autopilot() }),
+        onError: (error: Error) =>
+            toast({ title: 'Failed to update pause', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function useElevateEnrichmentAutopilot() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ mode, minutes }: { mode: string; minutes?: number }) =>
+            elevateEnrichmentAutopilot(mode, minutes),
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: enrichmentKeys.autopilot() }),
+        onError: (error: Error) =>
+            toast({ title: 'Failed to update elevated mode', description: error.message, variant: 'destructive' }),
     });
 }
 

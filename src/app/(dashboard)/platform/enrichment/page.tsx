@@ -8,7 +8,6 @@ import {
     Video,
     CheckCircle2,
     XCircle,
-    Layers,
     Image as ImageIcon,
     Newspaper,
     Loader2,
@@ -26,6 +25,7 @@ import {
 } from '@/hooks/use-enrichment';
 import type { BulkEnrichStatus } from '@/types/platform/enrichment';
 import { MissingPanel } from './missing-panel';
+import { EnrichmentAutopilotStrip } from './autopilot-strip';
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -74,10 +74,8 @@ export default function EnrichmentPage() {
 
     const transcriptPct = stats ? pct(stats.with_transcript, stats.total_media) : 0;
     const embeddingPct = stats ? pct(stats.with_embedding, stats.total_ready) : 0;
-    // Sparse + image coverage are measured against the items that *should* have
-    // them (with + missing), not all READY items.
-    const sparseDenom = (stats?.with_sparse ?? 0) + (stats?.missing_sparse ?? 0);
-    const sparsePct = stats ? pct(stats.with_sparse, sparseDenom) : 0;
+    // Image coverage is measured against the items that *should* have it
+    // (with + missing), not all READY items.
     const imageDenom =
         (stats?.with_image_embedding ?? 0) + (stats?.missing_image_embedding ?? 0);
     const imagePct = stats ? pct(stats.with_image_embedding, imageDenom) : 0;
@@ -112,6 +110,9 @@ export default function EnrichmentPage() {
                     )}
                 </div>
             </div>
+
+            {/* Autopilot cockpit — scheduled, guardrailed coverage supervision */}
+            <EnrichmentAutopilotStrip />
 
             {/* Stats Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -189,37 +190,6 @@ export default function EnrichmentPage() {
                                     {(stats?.missing_embedding ?? 0) > 0 && (
                                         <span className="text-orange-500 ml-1">
                                             ({stats?.missing_embedding} missing)
-                                        </span>
-                                    )}
-                                </p>
-                            </>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Sparse Vector Coverage (BGE-M3 lexical — hybrid retrieval) */}
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Sparse Vectors</CardTitle>
-                        <Layers className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        {statsLoading ? (
-                            <Skeleton className="h-8 w-16" />
-                        ) : (
-                            <>
-                                <div className="text-2xl font-bold">{sparsePct}%</div>
-                                <div className="w-full h-2 bg-muted rounded-full mt-2">
-                                    <div
-                                        className="h-full bg-purple-500 rounded-full transition-all"
-                                        style={{ width: `${sparsePct}%` }}
-                                    />
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    {stats?.with_sparse ?? 0} with sparse (hybrid retrieval)
-                                    {(stats?.missing_sparse ?? 0) > 0 && (
-                                        <span className="text-orange-500 ml-1">
-                                            ({stats?.missing_sparse} missing)
                                         </span>
                                     )}
                                 </p>
@@ -373,7 +343,6 @@ export default function EnrichmentPage() {
                 typeOptions={[{ value: '', label: 'News' }]}
                 artifacts={[
                     { value: 'embedding', label: 'Embedding', badgeVariant: 'secondary' },
-                    { value: 'sparse', label: 'Sparse', badgeVariant: 'outline' },
                 ]}
                 isServiceUp={isServiceUp}
                 bulkRunning={bulkRunning}

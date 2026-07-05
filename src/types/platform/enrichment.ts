@@ -125,3 +125,95 @@ export interface TriggerEnrichmentResponse {
     results: string[];
     errors: string[];
 }
+
+// ── Enrichment Coverage Autopilot ───────────────────────────
+
+export type EnrichmentAutopilotMode = 'observe' | 'safe_auto';
+export type EnrichmentAutopilotState = 'off' | 'observe' | 'safe_auto' | 'elevated' | 'paused';
+export type EnrichmentAutopilotElevatedMode = 'backfill_catchup' | '';
+
+export interface EnrichmentAutopilotPolicy {
+    tenant_id: string;
+    enabled: boolean;
+    mode: EnrichmentAutopilotMode;
+    interval_minutes: number;
+    max_items_per_run: number;
+    max_items_per_class: number;
+    max_transcripts_per_run: number;
+    max_queue_depth: number;
+    failure_breaker_pct: number;
+    stall_window_runs: number;
+    age_floor_minutes: number;
+    trust_min_attempts: number;
+    trust_max_failure_pct: number;
+    paused_until?: string | null;
+    elevated_mode?: string;
+    elevated_until?: string | null;
+    last_run_at?: string | null;
+}
+
+export interface EnrichmentTrustStat {
+    artifact: string;
+    attempts: number;
+    failures: number;
+    failure_pct: number;
+    state: 'trusted' | 'probation' | 'demoted';
+    earned: boolean;
+}
+
+export interface EnrichmentAutopilotRun {
+    id: string;
+    tenant_id: string;
+    trigger: string;
+    mode: string;
+    elevated_mode?: string;
+    status: 'running' | 'completed' | 'partial' | 'failed';
+    headline?: 'fully_enriched' | 'backlog' | 'budget_capped' | 'degraded';
+    started_at: string;
+    finished_at?: string;
+    summary?: string;
+    stats_before?: EnrichmentStats;
+    stats_after?: EnrichmentStats;
+    created_by?: string;
+    error?: string;
+}
+
+export interface EnrichmentAutopilotAction {
+    id: string;
+    content_id?: string;
+    artifact: string;
+    status:
+        | 'success'
+        | 'error'
+        | 'skipped'
+        | 'approval_required'
+        | 'would_trigger'
+        | 'would_skip';
+    reason?: string;
+    guardrail?: string;
+    transcription_job_id?: string;
+    duration_ms: number;
+    started_at: string;
+    finished_at?: string;
+}
+
+export interface EnrichmentAutopilotStatus {
+    enabled: boolean;
+    mode: EnrichmentAutopilotMode;
+    state: EnrichmentAutopilotState;
+    interval_minutes: number;
+    elevated_mode?: string;
+    elevated_until?: string | null;
+    paused_until?: string | null;
+    last_run_at?: string | null;
+    next_run_at?: string | null;
+    last_run?: EnrichmentAutopilotRun;
+    trust: EnrichmentTrustStat[];
+    recommended_action?: string;
+    policy: EnrichmentAutopilotPolicy;
+}
+
+export interface EnrichmentAutopilotRunDetail {
+    run: EnrichmentAutopilotRun;
+    actions: EnrichmentAutopilotAction[];
+}

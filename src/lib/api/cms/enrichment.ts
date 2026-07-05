@@ -9,6 +9,10 @@ import type {
     TriggerResultItem,
     TriggerAllResponse,
     BulkEnrichStatus,
+    EnrichmentAutopilotStatus,
+    EnrichmentAutopilotPolicy,
+    EnrichmentAutopilotRun,
+    EnrichmentAutopilotRunDetail,
 } from '@/types/platform/enrichment';
 
 interface CmsEnvelope<T> {
@@ -100,3 +104,54 @@ export const getBulkEnrichStatus = () =>
 
 export const getEnrichmentHealth = () =>
     unwrapCmsData(cmsClient.get<CmsEnvelope<EnrichmentHealthResponse>>('/admin/enrichment/health'));
+
+// ── Enrichment Coverage Autopilot ───────────────────────────
+
+export const getEnrichmentAutopilot = () =>
+    unwrapCmsData(
+        cmsClient.get<CmsEnvelope<EnrichmentAutopilotStatus>>('/admin/enrichment/autopilot')
+    );
+
+export const updateEnrichmentAutopilotPolicy = (patch: Partial<EnrichmentAutopilotPolicy>) =>
+    unwrapCmsData(
+        cmsClient.put<CmsEnvelope<EnrichmentAutopilotStatus>>(
+            '/admin/enrichment/autopilot/policy',
+            patch
+        )
+    );
+
+export const runEnrichmentAutopilotNow = () =>
+    unwrapCmsData(
+        cmsClient.post<CmsEnvelope<EnrichmentAutopilotRunDetail>>('/admin/enrichment/autopilot/run')
+    );
+
+export const pauseEnrichmentAutopilot = (minutes: number) =>
+    unwrapCmsData(
+        cmsClient.post<CmsEnvelope<{ paused_until: string | null }>>(
+            '/admin/enrichment/autopilot/pause',
+            { minutes }
+        )
+    );
+
+export const elevateEnrichmentAutopilot = (mode: string, minutes?: number) =>
+    unwrapCmsData(
+        cmsClient.post<CmsEnvelope<{ mode: string; until: string | null }>>(
+            '/admin/enrichment/autopilot/elevate',
+            { mode, minutes }
+        )
+    );
+
+export const listEnrichmentAutopilotRuns = (limit = 20) =>
+    unwrapCmsData(
+        cmsClient.get<CmsEnvelope<{ items: EnrichmentAutopilotRun[] }>>(
+            '/admin/enrichment/autopilot/runs',
+            { limit }
+        )
+    );
+
+export const getEnrichmentAutopilotRun = (id: string) =>
+    unwrapCmsData(
+        cmsClient.get<CmsEnvelope<EnrichmentAutopilotRunDetail>>(
+            `/admin/enrichment/autopilot/runs/${id}`
+        )
+    );
