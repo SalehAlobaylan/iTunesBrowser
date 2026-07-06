@@ -25,6 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MediaStudioWorkbench } from '@/components/platform/media/studio/media-studio-workbench';
+import { StudioAutopilotPanel } from '@/components/platform/media/studio/studio-autopilot-panel';
 import {
     Select,
     SelectContent,
@@ -78,7 +79,7 @@ const MIN_FEED_UNIT_SECONDS = 270;
 const HARD_MAX_SECONDS = 2400;
 const publicationPathOptions: Array<MediaPublicationPath | 'all'> = ['all', 'atomized', 'direct_transcript', 'direct_no_transcript', 'blocked_transcript', 'invalid'];
 const publicationTracks: MediaPublicationPath[] = ['atomized', 'direct_transcript', 'direct_no_transcript', 'blocked_transcript'];
-const missionTabs = ['publish', 'workflow', 'review', 'studio', 'policy', 'diagnostics'] as const;
+const missionTabs = ['publish', 'workflow', 'review', 'studio', 'autopilot', 'policy', 'diagnostics'] as const;
 type MissionTab = typeof missionTabs[number];
 
 function readMissionTab(params: URLSearchParams): MissionTab {
@@ -92,6 +93,7 @@ function missionTabLabel(tab: MissionTab): string {
         case 'workflow': return 'Workflow';
         case 'review': return 'Review';
         case 'studio': return 'Studio';
+        case 'autopilot': return 'Autopilot';
         case 'policy': return 'Policy';
         case 'diagnostics': return 'Diagnostics';
     }
@@ -1453,6 +1455,10 @@ export function MediaAtomizationDashboard() {
                         </div>
                     </>
                     )}
+                </TabsContent>
+
+                <TabsContent value="autopilot" className="space-y-5">
+                    {activeTab === 'autopilot' && <StudioAutopilotPanel />}
                 </TabsContent>
 
                 <TabsContent value="policy" className="space-y-5">
