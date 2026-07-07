@@ -9,7 +9,8 @@ export interface StatusCounts {
 
 /** Request body for POST /admin/content/bulk-status */
 export interface BulkStatusRequest {
-    from_status: string;
+    ids?: string[];
+    from_status?: string;
     to_status: string;
     source_name?: string;
     type?: string;
@@ -26,6 +27,7 @@ export interface BulkStatusResponse {
 /** Request body for POST /admin/retry-pending and POST /admin/retry-failed */
 export interface RetryRequest {
     source?: string;
+    ids?: string[];
     limit?: number;
 }
 
@@ -36,4 +38,127 @@ export interface RetryResponse {
     requeued: number;
     total: number;
     errors: string[];
+}
+
+export type PipelineAutopilotMode = 'observe' | 'safe_auto';
+export type PipelineAutopilotState = 'off' | 'observe' | 'safe_auto' | 'elevated' | 'paused';
+
+export interface PipelineAutopilotPolicy {
+    tenant_id: string;
+    enabled: boolean;
+    mode: PipelineAutopilotMode;
+    interval_minutes: number;
+    max_items_per_run: number;
+    max_batches_per_run: number;
+    max_attempts: number;
+    retry_backoff_hours: number;
+    pending_age_floor_minutes: number;
+    processing_stuck_hours: number;
+    max_queue_depth: number;
+    per_source_daily_retries: number;
+    recovery_cooldown_minutes: number;
+    trust_min_outcomes: number;
+    trust_min_success_pct: number;
+    paused_until?: string | null;
+    elevated_mode?: string;
+    elevated_until?: string | null;
+    last_run_at?: string | null;
+    last_health_ok_at?: string | null;
+}
+
+export interface PipelineTrustStat {
+    lane: string;
+    outcomes: number;
+    recovered: number;
+    failed: number;
+    success_pct: number;
+    state: 'trusted' | 'probation' | 'demoted';
+    earned: boolean;
+}
+
+export interface PipelineCohortSummary {
+    lane: string;
+    verdict: string;
+    count: number;
+    target_queue?: string;
+    source?: string;
+    item_ids?: string[];
+}
+
+export interface PipelineHealthSnapshot {
+    timestamp: string;
+    status_counts: StatusCounts;
+    stuck_count: number;
+    oldest_unprocessed?: string;
+    queues?: Array<{
+        queue: string;
+        waiting: number;
+        active: number;
+        completed: number;
+        failed: number;
+        delayed: number;
+    }>;
+    queue_depth: number;
+    dlq_depth: number;
+    aggregation_healthy: boolean;
+}
+
+export interface PipelineAutopilotRun {
+    id: string;
+    tenant_id: string;
+    trigger: string;
+    mode: string;
+    elevated_mode?: string;
+    status: 'running' | 'completed' | 'partial' | 'failed';
+    headline?: 'flowing' | 'repairing' | 'backlogged' | 'clogged' | 'degraded';
+    started_at: string;
+    finished_at?: string;
+    summary?: string;
+    health_before?: PipelineHealthSnapshot;
+    health_after?: PipelineHealthSnapshot;
+    created_by?: string;
+    error?: string;
+    error_class?: string;
+}
+
+export interface PipelineAutopilotAction {
+    id: string;
+    lane: string;
+    verdict: string;
+    source_filter?: string;
+    target_queue?: string;
+    content_item_id?: string;
+    status: 'success' | 'error' | 'attention' | 'skipped' | 'would_execute' | 'would_skip';
+    outcome?: 'pending' | 'recovered' | 'failed_again' | 'unresolved';
+    reason?: string;
+    guardrail?: string;
+    requested_count: number;
+    enqueued_count: number;
+    error_count: number;
+    started_at: string;
+    finished_at?: string;
+}
+
+export interface PipelineAutopilotStatus {
+    enabled: boolean;
+    mode: PipelineAutopilotMode;
+    state: PipelineAutopilotState;
+    interval_minutes: number;
+    elevated_mode?: string;
+    elevated_until?: string | null;
+    paused_until?: string | null;
+    last_run_at?: string | null;
+    last_health_ok_at?: string | null;
+    next_run_at?: string | null;
+    last_run?: PipelineAutopilotRun;
+    trust: PipelineTrustStat[];
+    cohorts: PipelineCohortSummary[];
+    attention: PipelineCohortSummary[];
+    recommended_action?: string;
+    policy: PipelineAutopilotPolicy;
+}
+
+export interface PipelineAutopilotRunDetail {
+    run: PipelineAutopilotRun;
+    actions: PipelineAutopilotAction[];
 }

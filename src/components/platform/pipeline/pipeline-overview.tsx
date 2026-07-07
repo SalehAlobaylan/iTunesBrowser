@@ -22,6 +22,7 @@ import { useAggregationSummary } from '@/hooks/use-aggregation-monitoring';
 import { useEnrichmentHealth } from '@/hooks/use-enrichment';
 import { isAggregationConfigured } from '@/lib/api/aggregation';
 import type { StatusCounts } from '@/types/platform/pipeline';
+import { PipelineAutopilotStrip } from './autopilot-strip';
 
 interface PipelineOverviewProps {
     onSwitchTab: (tab: string) => void;
@@ -53,6 +54,8 @@ export function PipelineOverview({ onSwitchTab }: PipelineOverviewProps) {
 
     return (
         <div className="space-y-6">
+            <PipelineAutopilotStrip />
+
             {/* Status counts */}
             <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
                 {STATUS_CARDS.map((card) => {
