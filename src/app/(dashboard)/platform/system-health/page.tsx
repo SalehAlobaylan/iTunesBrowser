@@ -12,6 +12,7 @@ import { AiMetricsPanel } from '@/components/platform/system-health/ai-metrics-p
 import { LlmStackPanel } from '@/components/platform/system-health/llm-stack-panel';
 import { EnvAuditPanel } from '@/components/platform/system-health/env-audit-panel';
 import { IssuesPanel } from '@/components/platform/system-health/issues-panel';
+import { SystemAutopilotPanel } from '@/components/platform/system-health/system-autopilot-panel';
 import { useSystemHealth } from '@/hooks/use-system-health';
 
 export default function SystemHealthPage() {
@@ -31,6 +32,8 @@ export default function SystemHealthPage() {
                 isFetching={isFetching}
                 onRefresh={() => refetch()}
             />
+
+            <SystemAutopilotPanel />
 
             {isError ? (
                 <Card>

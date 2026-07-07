@@ -56,8 +56,9 @@ export function PipelineAutopilotRunsSheet({ open, onOpenChange }: AutopilotRuns
     const runsQuery = usePipelineAutopilotRuns(20);
     const detailQuery = usePipelineAutopilotRun(open ? selectedRunID : null);
 
-    const runs = runsQuery.data?.items ?? [];
+    const runs = Array.isArray(runsQuery.data?.items) ? runsQuery.data.items : [];
     const detail = detailQuery.data;
+    const actions = Array.isArray(detail?.actions) ? detail.actions : [];
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -94,7 +95,7 @@ export function PipelineAutopilotRunsSheet({ open, onOpenChange }: AutopilotRuns
                         <h3 className="mb-2 text-sm font-semibold">Action ledger</h3>
                         {detailQuery.isLoading ? (
                             <Skeleton className="h-40 w-full rounded-lg" />
-                        ) : !detail || detail.actions.length === 0 ? (
+                        ) : !detail || actions.length === 0 ? (
                             <p className="rounded-lg border border-dashed border-border p-4 text-center text-xs text-muted-foreground">
                                 This run recorded no actions.
                             </p>
@@ -111,7 +112,7 @@ export function PipelineAutopilotRunsSheet({ open, onOpenChange }: AutopilotRuns
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {detail.actions.map((action) => (
+                                        {actions.map((action) => (
                                             <tr key={action.id} className="border-t border-border align-top">
                                                 <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px]">
                                                     {action.lane}

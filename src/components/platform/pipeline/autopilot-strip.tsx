@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Bot, ListChecks, Pause, Play, Settings2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import type { PipelineAutopilotPolicy, PipelineAutopilotStatus } from '@/types/platform/pipeline';
+import type { PipelineAutopilotPolicy } from '@/types/platform/pipeline';
 import {
     useBulkStatusChange,
     useElevatePipelineAutopilot,
@@ -69,18 +69,27 @@ export function PipelineAutopilotStrip() {
     const [runsOpen, setRunsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
 
-    const exhausted = useMemo(
-        () => autopilot?.attention.find((item) => item.lane === 'failed_exhausted'),
-        [autopilot]
-    );
+    const trust = autopilot?.trust ?? [];
+    const attention = autopilot?.attention ?? [];
+    const policy = autopilot?.policy ?? null;
+
+    const exhausted = attention.find((item) => item.lane === 'failed_exhausted');
     const exhaustedIds = exhausted?.item_ids ?? [];
 
-    if (isLoading || !autopilot) {
+    if (isLoading) {
         return <div className="h-24 animate-pulse rounded-xl border border-border bg-card" />;
     }
 
+    if (!autopilot || !policy) {
+        return (
+            <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+                Pipeline Autopilot status is unavailable.
+            </div>
+        );
+    }
+
     const paused = autopilot.state === 'paused';
-    const earned = autopilot.trust.filter((t) => t.earned);
+    const earned = trust.filter((t) => t.earned);
     const patch = (data: Partial<PipelineAutopilotPolicy>) => savePolicy.mutate(data);
     const enableObserve = () => patch({ enabled: true, mode: 'observe' });
     const enableSafeAuto = () => patch({ enabled: true, mode: 'safe_auto' });
@@ -110,8 +119,8 @@ export function PipelineAutopilotStrip() {
                     </span>
                     {autopilot.enabled && !paused && <span>Next: {formatWhen(autopilot.next_run_at)}</span>}
                     {paused && <span>Paused until {formatWhen(autopilot.paused_until)}</span>}
-                    <span>Trust: {earned.length}/{autopilot.trust.length || 0} lanes allowed</span>
-                    {autopilot.attention.length > 0 && <span>{autopilot.attention.length} attention signals</span>}
+                    <span>Trust: {earned.length}/{trust.length || 0} lanes allowed</span>
+                    {attention.length > 0 && <span>{attention.length} attention signals</span>}
                 </div>
 
                 <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -187,9 +196,9 @@ export function PipelineAutopilotStrip() {
                 </p>
             ) : null}
 
-            {autopilot.trust.length > 0 ? (
+            {trust.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-1.5">
-                    {autopilot.trust.map((t) => (
+                    {trust.map((t) => (
                         <span
                             key={t.lane}
                             title={`${t.outcomes} outcomes · ${t.recovered} recovered · ${t.success_pct.toFixed(0)}% success`}
@@ -231,7 +240,7 @@ export function PipelineAutopilotStrip() {
             <SettingsSheet
                 open={settingsOpen}
                 onOpenChange={setSettingsOpen}
-                autopilot={autopilot}
+                policy={policy}
                 saving={savePolicy.isPending}
                 onSave={patch}
             />
@@ -257,19 +266,19 @@ const KNOBS: { key: keyof PipelineAutopilotPolicy; label: string; hint: string }
 function SettingsSheet({
     open,
     onOpenChange,
-    autopilot,
+    policy,
     saving,
     onSave,
 }: {
     open: boolean;
     onOpenChange: (v: boolean) => void;
-    autopilot: PipelineAutopilotStatus;
+    policy: PipelineAutopilotPolicy;
     saving: boolean;
     onSave: (data: Partial<PipelineAutopilotPolicy>) => void;
 }) {
     const [draft, setDraft] = useState<Partial<PipelineAutopilotPolicy>>({});
     const value = (key: keyof PipelineAutopilotPolicy) =>
-        (draft[key] as number | undefined) ?? (autopilot.policy[key] as number);
+        (draft[key] as number | undefined) ?? (policy[key] as number | undefined) ?? 0;
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>

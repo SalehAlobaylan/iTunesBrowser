@@ -18,6 +18,40 @@ const unwrapCmsData = async <T>(promise: Promise<CmsEnvelope<T>>): Promise<T> =>
     return response.data;
 };
 
+function normalizePipelineAutopilotStatus(
+    status: PipelineAutopilotStatus
+): PipelineAutopilotStatus {
+    const policy = status.policy ?? {
+        tenant_id: 'default',
+        enabled: status.enabled ?? false,
+        mode: status.mode ?? 'observe',
+        interval_minutes: status.interval_minutes ?? 180,
+        max_items_per_run: 200,
+        max_batches_per_run: 4,
+        max_attempts: 3,
+        retry_backoff_hours: 12,
+        pending_age_floor_minutes: 30,
+        processing_stuck_hours: 4,
+        max_queue_depth: 100,
+        per_source_daily_retries: 100,
+        recovery_cooldown_minutes: 60,
+        trust_min_outcomes: 20,
+        trust_min_success_pct: 40,
+    };
+
+    return {
+        ...status,
+        enabled: status.enabled ?? policy.enabled ?? false,
+        mode: status.mode ?? policy.mode ?? 'observe',
+        state: status.state ?? 'off',
+        interval_minutes: status.interval_minutes ?? policy.interval_minutes ?? 180,
+        trust: Array.isArray(status.trust) ? status.trust : [],
+        cohorts: Array.isArray(status.cohorts) ? status.cohorts : [],
+        attention: Array.isArray(status.attention) ? status.attention : [],
+        policy,
+    };
+}
+
 /**
  * Get content item counts grouped by status.
  * GET /admin/content/status-counts
@@ -37,7 +71,7 @@ export async function bulkStatusChange(data: BulkStatusRequest): Promise<BulkSta
 export const getPipelineAutopilot = () =>
     unwrapCmsData(
         cmsClient.get<CmsEnvelope<PipelineAutopilotStatus>>('/admin/pipeline/autopilot/status')
-    );
+    ).then(normalizePipelineAutopilotStatus);
 
 export const updatePipelineAutopilotPolicy = (patch: Partial<PipelineAutopilotPolicy>) =>
     unwrapCmsData(
@@ -45,7 +79,7 @@ export const updatePipelineAutopilotPolicy = (patch: Partial<PipelineAutopilotPo
             '/admin/pipeline/autopilot/policy',
             patch
         )
-    );
+    ).then(normalizePipelineAutopilotStatus);
 
 export const runPipelineAutopilotNow = () =>
     unwrapCmsData(
