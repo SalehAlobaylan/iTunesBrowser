@@ -107,11 +107,11 @@ export interface ListTopicsParams {
 }
 
 /**
- * Filters for the board's content list (GET /admin/content). `topic_id` is a
+ * Filters for the board's content list (GET /admin/content). `story_id` is a
  * topic UUID, or the sentinel "none" for unclassified, or undefined for All.
  */
 export interface TopicContentParams {
-    topic_id?: string;
+    story_id?: string;
     page?: number;
     limit?: number;
     search?: string;
@@ -132,14 +132,14 @@ export interface BulkSelection {
     status?: string;
     type?: string;
     topic?: string;
-    topic_id?: string;
+    story_id?: string;
     source_name?: string;
     created_before?: string;
 }
 
 /** Body for POST /admin/content/bulk-topic (move/assign). */
 export interface BulkTopicBody extends BulkSelection {
-    target_topic_id?: string; // empty / "null" => uncategorize
+    target_story_id?: string; // empty / "null" => uncategorize
     dry_run?: boolean;
 }
 
@@ -153,14 +153,14 @@ export interface ReclassifyResult {
     remaining: number;
 }
 
-/** Result of a full re-cluster pass (POST /admin/topics/recluster). */
+/** Result of a full re-cluster pass (POST /admin/stories/recluster). */
 export interface ReclusterResult {
     clusters: number;
     articles: number;
     message: string;
 }
 
-/** Result of one topic-naming batch (POST /admin/topics/label-batch). */
+/** Result of one topic-naming batch (POST /admin/stories/label-batch). */
 export interface LabelBatchResult {
     processed: number;
     remaining: number;

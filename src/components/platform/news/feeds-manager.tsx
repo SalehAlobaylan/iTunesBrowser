@@ -79,8 +79,8 @@ export function FeedsManager({ open, onClose }: { open: boolean; onClose: () => 
 
     const scopeText = (f: RSSFeed): string => {
         const parts: string[] = [];
-        if (f.topic_id) parts.push(topicLabel.get(f.topic_id) ?? 'topic removed');
-        else parts.push('All topics');
+        if (f.story_id) parts.push(topicLabel.get(f.story_id) ?? 'story removed');
+        else parts.push('All stories');
         if (f.content_type) parts.push(f.content_type);
         return parts.join(' · ');
     };
@@ -119,7 +119,7 @@ export function FeedsManager({ open, onClose }: { open: boolean; onClose: () => 
                     ) : feeds.length === 0 ? (
                         <div className="flex flex-col items-center justify-center rounded-md border border-dashed py-16 text-center text-sm text-muted-foreground">
                             <Rss className="mb-2 h-7 w-7 opacity-40" />
-                            No saved feeds yet. Create one, or use per-topic feeds from the board.
+                            No saved feeds yet. Create one, or use per-story feeds from the board.
                         </div>
                     ) : (
                         <div className="rounded-md border">

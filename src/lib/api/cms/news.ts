@@ -145,17 +145,17 @@ export async function deleteNewsOlderThan(
 
 // ─── Topic-centric management ───────────────────────────────
 
-/** Aggregated topic rows with per-status counts. GET /admin/content/topics */
+/** Aggregated topic rows with per-status counts. GET /admin/content/stories */
 export async function listTopics(
     params: ListTopicsParams = {}
 ): Promise<TopicsListResponse> {
-    return cmsClient.get<TopicsListResponse>('/admin/content/topics', {
+    return cmsClient.get<TopicsListResponse>('/admin/content/stories', {
         type: 'NEWS',
         ...params,
     });
 }
 
-/** A topic's content (by topic_id / "none" / all), filtered + paginated. */
+/** A topic's content (by story_id / "none" / all), filtered + paginated. */
 export async function listTopicContent(
     params: TopicContentParams
 ): Promise<ListContentResponse> {
@@ -167,7 +167,7 @@ export async function listTopicContent(
 
 /**
  * Bulk status change (publish / archive / restore). Pass `ids` for explicit
- * rows, or a filter (topic_id/status/…) to act on the whole matching set in one
+ * rows, or a filter (story_id/status/…) to act on the whole matching set in one
  * uncapped call. `dry_run` returns the affected count.
  * POST /admin/content/bulk-status
  */
@@ -178,7 +178,7 @@ export async function bulkSetStatus(
 }
 
 /**
- * Bulk delete by explicit ids or filter (topic_id-scoped, uncapped).
+ * Bulk delete by explicit ids or filter (story_id-scoped, uncapped).
  * POST /admin/content/bulk-delete
  */
 export async function bulkDeleteNews(body: {
@@ -186,7 +186,7 @@ export async function bulkDeleteNews(body: {
     status?: string;
     type?: string;
     topic?: string;
-    topic_id?: string;
+    story_id?: string;
     source_name?: string;
     created_before?: string;
     dry_run?: boolean;
@@ -196,24 +196,24 @@ export async function bulkDeleteNews(body: {
 
 // ─── First-class topic management ───────────────────────────
 
-/** Rename a topic. PATCH /admin/topics/:id */
+/** Rename a topic. PATCH /admin/stories/:id */
 export async function renameTopic(id: string, label: string): Promise<unknown> {
-    return cmsClient.patch('/admin/topics/' + id, { label });
+    return cmsClient.patch('/admin/stories/' + id, { label });
 }
 
-/** Merge source topics into a target. POST /admin/topics/merge */
+/** Merge source topics into a target. POST /admin/stories/merge */
 export async function mergeTopics(body: MergeTopicsBody): Promise<unknown> {
-    return cmsClient.post('/admin/topics/merge', body);
+    return cmsClient.post('/admin/stories/merge', body);
 }
 
-/** Delete a topic (its content becomes uncategorized). DELETE /admin/topics/:id */
+/** Delete a topic (its content becomes uncategorized). DELETE /admin/stories/:id */
 export async function deleteTopic(id: string): Promise<unknown> {
-    return cmsClient.delete('/admin/topics/' + id);
+    return cmsClient.delete('/admin/stories/' + id);
 }
 
 /**
  * Move a selection (ids or filter) to a target topic, or uncategorize
- * (target_topic_id empty). POST /admin/content/bulk-topic
+ * (target_story_id empty). POST /admin/content/bulk-topic
  */
 export async function assignTopic(body: BulkTopicBody): Promise<BulkStatusResult> {
     return cmsClient.post<BulkStatusResult>('/admin/content/bulk-topic', body);
@@ -221,17 +221,17 @@ export async function assignTopic(body: BulkTopicBody): Promise<BulkStatusResult
 
 /** Backfill classification for a batch of unclassified articles. */
 export async function reclassifyTopics(limit = 25): Promise<ReclassifyResult> {
-    return cmsClient.post<ReclassifyResult>('/admin/topics/reclassify', { limit });
+    return cmsClient.post<ReclassifyResult>('/admin/stories/reclassify', { limit });
 }
 
 /**
  * Full re-cluster pass — rebuilds the whole taxonomy by k-means over all
  * article embeddings. Fast (no LLM); naming follows via labelTopicsBatch.
- * POST /admin/topics/recluster
+ * POST /admin/stories/recluster
  */
 export async function reclusterTopics(k?: number): Promise<ReclusterResult> {
     return cmsClient.post<ReclusterResult>(
-        '/admin/topics/recluster',
+        '/admin/stories/recluster',
         k && k > 0 ? { k } : {}
     );
 }
@@ -312,5 +312,5 @@ export const getCirculationAutopilotRun = (id: string) =>
 
 /** Name one batch of freshly-clustered topics via the LLM. */
 export async function labelTopicsBatch(limit = 8): Promise<LabelBatchResult> {
-    return cmsClient.post<LabelBatchResult>('/admin/topics/label-batch', { limit });
+    return cmsClient.post<LabelBatchResult>('/admin/stories/label-batch', { limit });
 }

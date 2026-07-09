@@ -59,7 +59,7 @@ export function RecclusterDialog({ open, onClose }: RecclusterDialogProps) {
                 const r = await labelTopicsBatch(8);
                 done += r.processed;
                 setNamed(done);
-                qc.invalidateQueries({ queryKey: newsKeys.topics() });
+                qc.invalidateQueries({ queryKey: newsKeys.stories() });
                 if (r.remaining === 0 || r.processed === 0) break;
             }
             qc.invalidateQueries({ queryKey: newsKeys.all });
@@ -68,7 +68,7 @@ export function RecclusterDialog({ open, onClose }: RecclusterDialogProps) {
                 title: 'Story rebuild started',
                 description:
                     res.message ||
-                    `${res.clusters} topics from ${res.articles.toLocaleString()} articles.`,
+                    `${res.clusters} stories from ${res.articles.toLocaleString()} articles.`,
                 variant: 'success',
             });
         } catch (e) {
@@ -87,7 +87,7 @@ export function RecclusterDialog({ open, onClose }: RecclusterDialogProps) {
         <Dialog open={open} onOpenChange={(o) => !o && close()}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Re-cluster all topics</DialogTitle>
+                    <DialogTitle>Re-cluster all stories</DialogTitle>
                     <DialogDescription>
                         Rebuilds all stories from scratch — replays every article through
                         event-level clustering in the background (cosine threshold + activity
@@ -101,12 +101,12 @@ export function RecclusterDialog({ open, onClose }: RecclusterDialogProps) {
                         <div className="flex items-start gap-2 rounded-md border border-amber-300/50 bg-amber-50/50 p-3 text-sm text-amber-900">
                             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                             <span>
-                                This replaces all current topics and reassigns every article.
+                                This replaces all current stories and reassigns every article.
                                 Manual renames and merges will be lost.
                             </span>
                         </div>
                         <div className="space-y-1.5">
-                            <Label htmlFor="k">Number of topics (optional)</Label>
+                            <Label htmlFor="k">Number of stories (optional)</Label>
                             <Input
                                 id="k"
                                 type="number"
@@ -116,7 +116,7 @@ export function RecclusterDialog({ open, onClose }: RecclusterDialogProps) {
                                 placeholder="Auto"
                             />
                             <p className="text-xs text-muted-foreground">
-                                Leave blank to auto-pick (~1 topic per 30 articles).
+                                Leave blank to auto-pick (~1 story per 30 articles).
                             </p>
                         </div>
                     </div>
@@ -128,7 +128,7 @@ export function RecclusterDialog({ open, onClose }: RecclusterDialogProps) {
                             <Loader2 className="h-4 w-4 animate-spin" />
                             {phase === 'clustering'
                                 ? 'Clustering articles…'
-                                : `Naming topics ${named}${total ? ` / ${total}` : ''}…`}
+                                : `Naming stories ${named}${total ? ` / ${total}` : ''}…`}
                         </div>
                         {phase === 'naming' && total > 0 && (
                             <div className="h-1.5 w-full overflow-hidden rounded bg-muted">
@@ -143,7 +143,7 @@ export function RecclusterDialog({ open, onClose }: RecclusterDialogProps) {
 
                 {phase === 'done' && (
                     <p className="py-2 text-sm text-muted-foreground">
-                        Done — {total} topics created and named.
+                        Done — {total} stories created and named.
                     </p>
                 )}
 

@@ -30,8 +30,8 @@ import type { TopicSelection } from '@/types/platform/news';
 type NewsViewTab = 'overview' | 'topics' | 'library';
 
 const VIEW_SUBTITLES: Record<NewsViewTab, string> = {
-    overview: 'News Center — feed health, topic backlog, and ingestion at a glance.',
-    topics: 'Rotate the feed by topic — publish, archive, and curate whole topics at once.',
+    overview: 'News Center — feed health, story backlog, and ingestion at a glance.',
+    topics: 'Rotate the feed by story — publish, archive, and curate whole stories at once.',
     library: 'Browse, filter, and manage every news and article item.',
 };
 
@@ -86,7 +86,7 @@ export default function NewsPage() {
             }
             toast({
                 title: 'Classification complete',
-                description: last === 0 ? 'Nothing to classify.' : 'Topics updated.',
+                description: last === 0 ? 'Nothing to classify.' : 'Stories updated.',
                 variant: 'success',
             });
         } finally {
@@ -109,12 +109,12 @@ export default function NewsPage() {
                                 className="mb-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                             >
                                 <ArrowLeft className="h-4 w-4" />
-                                All topics
+                                All stories
                             </button>
                             <h1 className="truncate text-3xl font-bold tracking-tight" title={active.label}>
                                 {active.label}
                             </h1>
-                            <p className="text-muted-foreground">Manage this topic’s news — item by item.</p>
+                            <p className="text-muted-foreground">Manage this story’s news — item by item.</p>
                         </>
                     ) : (
                         <>
@@ -138,7 +138,7 @@ export default function NewsPage() {
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline">
-                                Auto-topics
+                                Auto-stories
                                 <ChevronDown className="ml-1 h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
@@ -166,7 +166,7 @@ export default function NewsPage() {
             <Tabs value={view} onValueChange={(v) => setView(v as NewsViewTab)}>
                 <TabsList>
                     <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="topics">Topics</TabsTrigger>
+                    <TabsTrigger value="topics">Stories</TabsTrigger>
                     <TabsTrigger value="library">Library</TabsTrigger>
                 </TabsList>
             </Tabs>

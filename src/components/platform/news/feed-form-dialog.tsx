@@ -53,7 +53,7 @@ export function FeedFormDialog({ open, feed, onClose }: FeedFormDialogProps) {
         setName(feed?.name ?? '');
         setTitle(feed?.title ?? '');
         setDescription(feed?.description ?? '');
-        setTopicId(feed?.topic_id ? feed.topic_id : ALL);
+        setTopicId(feed?.story_id ? feed.story_id : ALL);
         setType(feed?.content_type ? feed.content_type : ALL);
         setLimit(feed?.item_limit ?? 50);
     }, [open, feed]);
@@ -63,7 +63,7 @@ export function FeedFormDialog({ open, feed, onClose }: FeedFormDialogProps) {
             name: name.trim(),
             title: title.trim(),
             description: description.trim(),
-            topic_id: topicId === ALL ? null : topicId,
+            story_id: topicId === ALL ? null : topicId,
             content_type: type === ALL ? '' : type,
             item_limit: limit,
         };
@@ -115,13 +115,13 @@ export function FeedFormDialog({ open, feed, onClose }: FeedFormDialogProps) {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label>Topic</Label>
+                            <Label>Story</Label>
                             <Select value={topicId} onValueChange={setTopicId}>
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value={ALL}>All topics</SelectItem>
+                                    <SelectItem value={ALL}>All stories</SelectItem>
                                     {(topics.data?.data ?? []).map((t) => (
                                         <SelectItem key={t.id} value={t.id}>
                                             {t.label}

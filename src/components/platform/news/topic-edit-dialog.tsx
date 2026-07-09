@@ -63,10 +63,10 @@ export function TopicEditDialog({ topic, mode, onClose }: TopicEditDialogProps) 
         <Dialog open={Boolean(topic)} onOpenChange={(o) => !o && onClose()}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>{isMerge ? 'Merge topic' : 'Rename topic'}</DialogTitle>
+                    <DialogTitle>{isMerge ? 'Merge story' : 'Rename story'}</DialogTitle>
                     <DialogDescription>
                         {isMerge
-                            ? `Move all of "${topic?.label}" into another topic, then delete it.`
+                            ? `Move all of "${topic?.label}" into another story, then delete it.`
                             : `Rename "${topic?.label}".`}
                     </DialogDescription>
                 </DialogHeader>
@@ -76,7 +76,7 @@ export function TopicEditDialog({ topic, mode, onClose }: TopicEditDialogProps) 
                         <Label>Merge into</Label>
                         <Select value={target} onValueChange={setTarget}>
                             <SelectTrigger>
-                                <SelectValue placeholder="Choose target topic…" />
+                                <SelectValue placeholder="Choose target story…" />
                             </SelectTrigger>
                             <SelectContent>
                                 {others.map((t) => (

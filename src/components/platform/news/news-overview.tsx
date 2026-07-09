@@ -129,15 +129,15 @@ export function NewsOverview({ onOpenLibrary, onOpenTopics }: NewsOverviewProps)
             </div>
 
             <div className="grid gap-5 xl:grid-cols-3">
-                {/* Topic health */}
+                {/* Story health */}
                 <Card>
                     <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Topic Health</CardTitle>
+                        <CardTitle className="text-base">Story Health</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
                         <div className="flex items-center gap-3 rounded-md border px-3 py-2">
                             <FolderKanban className="h-4 w-4 text-muted-foreground" />
-                            <div className="flex-1 text-sm">Topics</div>
+                            <div className="flex-1 text-sm">Stories</div>
                             <div className="font-mono text-sm tabular-nums">{topicCount}</div>
                         </div>
                         <div className="flex items-center gap-3 rounded-md border px-3 py-2">
@@ -146,10 +146,10 @@ export function NewsOverview({ onOpenLibrary, onOpenTopics }: NewsOverviewProps)
                             <div className="font-mono text-sm tabular-nums">{unclassified}</div>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                            Classify and re-cluster live under the Auto-topics menu in the header.
+                            Classify and re-cluster live under the Auto-stories menu in the header.
                         </p>
                         <Button variant="outline" size="sm" className="w-full" onClick={onOpenTopics}>
-                            Open topic board
+                            Open story board
                         </Button>
                     </CardContent>
                 </Card>

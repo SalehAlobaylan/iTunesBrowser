@@ -151,7 +151,7 @@ export function NewsCard({
                             )}
                             <DropdownMenuItem onClick={() => onMove?.(item.id)} disabled={busy}>
                                 <FolderInput className="mr-2 h-4 w-4" />
-                                Move to topic
+                                Move to story
                             </DropdownMenuItem>
                             {item.original_url && (
                                 <DropdownMenuItem asChild>

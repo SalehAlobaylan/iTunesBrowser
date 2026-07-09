@@ -43,7 +43,7 @@ interface TopicStageCardProps {
     status: Stage;
     isUncategorized?: boolean;
     busy?: boolean;
-    /** Public RSS URL for this topic (omitted until the public base is known). */
+    /** Public RSS URL for this story (omitted until the public base is known). */
     rssUrl?: string;
     onManage: () => void;
     onPrimary: () => void;
@@ -111,7 +111,7 @@ export function TopicStageCard({
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Topic actions">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Story actions">
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>

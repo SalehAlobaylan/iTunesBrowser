@@ -79,7 +79,7 @@ export function NewsColumn({
     const topicParam = topicId === 'all' ? undefined : topicId;
 
     const { data, isLoading, error } = useTopicContent(
-        { topic_id: topicParam, status, search: search || undefined, page: 1, limit },
+        { story_id: topicParam, status, search: search || undefined, page: 1, limit },
         { paused: busy }
     );
 
@@ -111,7 +111,7 @@ export function NewsColumn({
 
     const selectionForMove = (): { sel: BulkSelection; count: number } =>
         scope === 'all'
-            ? { sel: { topic_id: topicParam, status, type: 'NEWS' }, count: matchingTotal }
+            ? { sel: { story_id: topicParam, status, type: 'NEWS' }, count: matchingTotal }
             : { sel: { ids: [...selected] }, count: selected.size };
 
     // ── Row actions ──
@@ -141,7 +141,7 @@ export function NewsColumn({
                     bulkSetStatus({
                         from_status: status,
                         to_status: transition.to,
-                        topic_id: topicParam,
+                        story_id: topicParam,
                         type: 'NEWS',
                         dry_run: true,
                     }).then((r) => r.updated_count),
@@ -150,7 +150,7 @@ export function NewsColumn({
                         .mutateAsync({
                             from_status: status,
                             to_status: transition.to,
-                            topic_id: topicParam,
+                            story_id: topicParam,
                             type: 'NEWS',
                         })
                         .then(clear),
@@ -168,10 +168,10 @@ export function NewsColumn({
                 noun: 'article',
                 destructive: true,
                 preview: () =>
-                    bulkDeleteNews({ topic_id: topicParam, status, dry_run: true }).then(
+                    bulkDeleteNews({ story_id: topicParam, status, dry_run: true }).then(
                         (r) => r.deleted_count
                     ),
-                commit: () => bulkDelete.mutateAsync({ topic_id: topicParam, status }).then(clear),
+                commit: () => bulkDelete.mutateAsync({ story_id: topicParam, status }).then(clear),
             });
         } else {
             const ids = [...selected];

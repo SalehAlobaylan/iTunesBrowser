@@ -51,7 +51,7 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
     const publicBase = feedsData?.public_base;
     const rssUrlFor = (topicId: string): string | undefined =>
         publicBase
-            ? `${publicBase}/api/v1/feed/rss.xml?topic_id=${encodeURIComponent(topicId)}`
+            ? `${publicBase}/api/v1/feed/rss.xml?story_id=${encodeURIComponent(topicId)}`
             : undefined;
 
     useEffect(() => {
@@ -63,7 +63,7 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
     const topics = useMemo(() => data?.data ?? [], [data]);
     const unc = data?.uncategorized;
 
-    // Whole-topic stage transition (Publish/Archive/Restore all in a topic).
+    // Whole-story stage transition (Publish/Archive/Restore all in a story).
     const stageConfig = (
         topicId: string,
         label: string,
@@ -79,7 +79,7 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
                 bulkSetStatus({
                     from_status: tr.from,
                     to_status: tr.to,
-                    topic_id: topicId,
+                    story_id: topicId,
                     type: 'NEWS',
                     dry_run: true,
                 }).then((r) => r.updated_count),
@@ -87,7 +87,7 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
                 bulkStatus.mutateAsync({
                     from_status: tr.from,
                     to_status: tr.to,
-                    topic_id: topicId,
+                    story_id: topicId,
                     type: 'NEWS',
                 }),
         };
@@ -99,8 +99,8 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
         noun: 'article',
         destructive: true,
         preview: () =>
-            bulkDeleteNews({ topic_id: topicId, dry_run: true }).then((r) => r.deleted_count),
-        commit: () => bulkDelete.mutateAsync({ topic_id: topicId }),
+            bulkDeleteNews({ story_id: topicId, dry_run: true }).then((r) => r.deleted_count),
+        commit: () => bulkDelete.mutateAsync({ story_id: topicId }),
     });
 
     const renderCard = (
@@ -131,7 +131,7 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
                 <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search topics…"
+                    placeholder="Search stories…"
                     className="pl-9"
                 />
             </div>
@@ -163,7 +163,7 @@ export function TopicBoard({ onOpenTopic }: { onOpenTopic: (sel: TopicSelection)
                                 ) : totalInColumn === 0 ? (
                                     <div className="flex flex-col items-center justify-center px-3 py-10 text-center text-xs text-muted-foreground">
                                         <Newspaper className="mb-1.5 h-5 w-5 opacity-40" />
-                                        No topics here.
+                                        No stories here.
                                     </div>
                                 ) : (
                                     <>

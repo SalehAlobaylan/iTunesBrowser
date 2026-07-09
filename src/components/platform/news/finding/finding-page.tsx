@@ -211,7 +211,7 @@ export function FindingPage() {
                                 <Plus className="mr-2 h-4 w-4" /> New interest
                             </Button>
                             <Button variant="outline" onClick={() => setSuggestOpen(true)}>
-                                <Lightbulb className="mr-2 h-4 w-4" /> Suggest from topics
+                                <Lightbulb className="mr-2 h-4 w-4" /> Suggest from stories
                             </Button>
                         </div>
                     </CardContent>
@@ -240,7 +240,7 @@ export function FindingPage() {
                             />
                         ))}
                         <Button variant="ghost" size="sm" className="mt-2 w-full justify-start text-muted-foreground" onClick={() => setSuggestOpen(true)}>
-                            <Lightbulb className="mr-2 h-4 w-4" /> Suggest from topics
+                            <Lightbulb className="mr-2 h-4 w-4" /> Suggest from stories
                         </Button>
                     </aside>
 
@@ -653,11 +653,11 @@ function SuggestProfilesDialog({ onClose }: { onClose: () => void }) {
         <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
             <DialogContent className="max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Suggested interests from your topics</DialogTitle>
+                    <DialogTitle>Suggested interests from your stories</DialogTitle>
                 </DialogHeader>
-                {suggest.isPending && <p className="py-6 text-center text-sm text-muted-foreground">Reading your topics…</p>}
+                {suggest.isPending && <p className="py-6 text-center text-sm text-muted-foreground">Reading your stories…</p>}
                 {!suggest.isPending && drafts.length === 0 && (
-                    <p className="py-6 text-center text-sm text-muted-foreground">No new topic-based suggestions.</p>
+                    <p className="py-6 text-center text-sm text-muted-foreground">No new story-based suggestions.</p>
                 )}
                 <div className="space-y-2">
                     {drafts.map((d) => (

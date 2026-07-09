@@ -73,9 +73,10 @@ export const newsKeys = {
     queues: () => [...newsKeys.all, 'queue'] as const,
     queue: (params: { page?: number; limit?: number; search?: string }) =>
         [...newsKeys.queues(), params] as const,
-    topics: () => [...newsKeys.all, 'topics'] as const,
+    topics: () => [...newsKeys.all, 'stories'] as const,
+    stories: () => [...newsKeys.all, 'stories'] as const,
     topicList: (params: ListTopicsParams) =>
-        [...newsKeys.topics(), params] as const,
+        [...newsKeys.stories(), params] as const,
     topicContents: () => [...newsKeys.all, 'topic-content'] as const,
     topicContent: (params: TopicContentParams) =>
         [...newsKeys.topicContents(), params] as const,

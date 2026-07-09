@@ -100,7 +100,7 @@ function isEditorialType(t: NewsLibraryType): boolean {
 
 type StatusFilter = 'all' | ContentStatus;
 
-/** Product-language status labels — same vocabulary as the topic board columns. */
+/** Product-language status labels — same vocabulary as the story board columns. */
 const NEWS_STATUS_LABELS: Record<ContentStatus, string> = {
     PENDING: 'Queue',
     PROCESSING: 'Processing',
@@ -206,7 +206,7 @@ export function NewsLibrary({ initialType = 'NEWS', initialStatus = 'all' }: New
     const { data, isLoading, error } = useTopicContent(
         {
             type,
-            topic_id: topicId === 'all' ? undefined : topicId,
+            story_id: topicId === 'all' ? undefined : topicId,
             status: status === 'all' ? undefined : status,
             source_name: sourceName || undefined,
             search: debounced || undefined,
@@ -227,7 +227,7 @@ export function NewsLibrary({ initialType = 'NEWS', initialStatus = 'all' }: New
     /** The active filter set, as a bulk-API selection (used for "all matching"). */
     const filterSelection: BulkSelection = {
         type,
-        topic_id: topicId === 'all' ? undefined : topicId,
+        story_id: topicId === 'all' ? undefined : topicId,
         status: status === 'all' ? undefined : status,
         source_name: sourceName || undefined,
     };
@@ -393,10 +393,10 @@ export function NewsLibrary({ initialType = 'NEWS', initialStatus = 'all' }: New
                 {isEditorial && (
                     <Select value={topicId} onValueChange={setTopicId}>
                         <SelectTrigger className="w-[170px] rounded-sm">
-                            <SelectValue placeholder="Topic" />
+                            <SelectValue placeholder="Story" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All topics</SelectItem>
+                            <SelectItem value="all">All stories</SelectItem>
                             <SelectItem value="none">Uncategorized</SelectItem>
                             {(topics.data?.data ?? []).map((t) => (
                                 <SelectItem key={t.id} value={t.id}>
@@ -748,7 +748,7 @@ function NewsRow({
                         </DropdownMenuSub>
                         {editorialItem && (
                             <DropdownMenuItem onClick={onMove}>
-                                <FolderInput className="mr-2 h-4 w-4" /> Move to topic
+                                <FolderInput className="mr-2 h-4 w-4" /> Move to story
                             </DropdownMenuItem>
                         )}
                         <DropdownMenuItem onClick={reEnrich}>

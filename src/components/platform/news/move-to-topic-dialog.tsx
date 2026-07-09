@@ -44,7 +44,7 @@ export function MoveToTopicDialog({ selection, count, onClose, onDone }: MoveToT
     const commit = () => {
         if (!selection || !target) return;
         assign.mutate(
-            { ...selection, target_topic_id: target === UNCATEGORIZE ? '' : target },
+            { ...selection, target_story_id: target === UNCATEGORIZE ? '' : target },
             {
                 onSuccess: () => {
                     onDone?.();
@@ -58,15 +58,15 @@ export function MoveToTopicDialog({ selection, count, onClose, onDone }: MoveToT
         <Dialog open={Boolean(selection)} onOpenChange={(o) => !o && close()}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Move to topic</DialogTitle>
+                    <DialogTitle>Move to story</DialogTitle>
                     <DialogDescription>
-                        Move {count.toLocaleString()} article{count === 1 ? '' : 's'} to another topic.
+                        Move {count.toLocaleString()} article{count === 1 ? '' : 's'} to another story.
                     </DialogDescription>
                 </DialogHeader>
 
                 <Select value={target} onValueChange={setTarget}>
                     <SelectTrigger>
-                        <SelectValue placeholder="Choose a topic…" />
+                        <SelectValue placeholder="Choose a story…" />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value={UNCATEGORIZE}>Uncategorized</SelectItem>

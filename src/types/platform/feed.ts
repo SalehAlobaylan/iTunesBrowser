@@ -7,7 +7,7 @@ export interface RSSFeed {
     name: string;
     title: string;
     description: string;
-    topic_id?: string | null;
+    story_id?: string | null;
     content_type: string;
     item_limit: number;
     enabled: boolean;
@@ -28,7 +28,7 @@ export interface CreateFeedRequest {
     name: string;
     title?: string;
     description?: string;
-    topic_id?: string | null;
+    story_id?: string | null;
     content_type?: string;
     item_limit?: number;
     slug?: string;
