@@ -21,7 +21,14 @@ export function ProposalsTab() {
     const [mergeTarget, setMergeTarget] = useState<TopicProposal | null>(null);
     const [rejectTarget, setRejectTarget] = useState<TopicProposal | null>(null);
 
-    const rows = proposals.data?.data ?? [];
+    // Ranked queue (§13.3): highest autopilot confidence first so approve becomes
+    // one glance + one click; unscored proposals fall back to recency order.
+    const rows = [...(proposals.data?.data ?? [])].sort((a, b) => {
+        const ca = a.confidence ?? -1;
+        const cb = b.confidence ?? -1;
+        if (ca !== cb) return cb - ca;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
     return (
         <Card>

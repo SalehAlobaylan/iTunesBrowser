@@ -37,6 +37,20 @@ export interface TopicProposal {
     resolved_by?: string;
     resolved_at?: string;
     created_at: string;
+    // Preferences Autopilot advisor columns (populated in Safe Auto).
+    confidence?: number;
+    autopilot_flags?: TopicProposalFlags;
+    predicted_verdict?: 'high_confidence' | 'review' | 'suggest_reject' | '';
+}
+
+export interface TopicProposalFlags {
+    duplicate?: boolean;
+    duplicate_of?: string;
+    category_unknown?: boolean;
+    needs_label?: boolean;
+    embedding_ready?: boolean;
+    review_priority?: number;
+    suggest_reject?: boolean;
 }
 
 export interface TopicCatalogResponse {

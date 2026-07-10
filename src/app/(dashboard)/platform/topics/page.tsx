@@ -1,15 +1,16 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FolderTree, Layers, Lightbulb, SlidersHorizontal } from 'lucide-react';
+import { FolderTree, Gauge, Layers, Lightbulb, SlidersHorizontal } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CommandBar } from '@/components/platform/topics/command-bar';
 import { CatalogTab } from '@/components/platform/topics/catalog-tab';
 import { ProposalsTab } from '@/components/platform/topics/proposals-tab';
 import { CategoriesTab } from '@/components/platform/topics/categories-tab';
 import { SettingsTab } from '@/components/platform/topics/settings-tab';
+import { AutopilotTab } from '@/components/platform/topics/autopilot/autopilot-tab';
 
-const TABS = ['catalog', 'proposals', 'categories', 'settings'] as const;
+const TABS = ['catalog', 'proposals', 'categories', 'settings', 'autopilot'] as const;
 type Tab = (typeof TABS)[number];
 
 export default function TopicsPage() {
@@ -25,7 +26,7 @@ export default function TopicsPage() {
     };
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-4 sm:p-6">
             <CommandBar />
 
             <Tabs value={tab} onValueChange={setTab} className="space-y-4">
@@ -42,6 +43,9 @@ export default function TopicsPage() {
                     <TabsTrigger value="settings" className="gap-1.5">
                         <SlidersHorizontal className="h-3.5 w-3.5" /> Personalization
                     </TabsTrigger>
+                    <TabsTrigger value="autopilot" className="gap-1.5">
+                        <Gauge className="h-3.5 w-3.5" /> Autopilot
+                    </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="catalog">
@@ -55,6 +59,12 @@ export default function TopicsPage() {
                 </TabsContent>
                 <TabsContent value="settings">
                     <SettingsTab />
+                </TabsContent>
+                <TabsContent value="autopilot">
+                    <AutopilotTab
+                        onGoToSettings={() => setTab('settings')}
+                        onGoToProposals={() => setTab('proposals')}
+                    />
                 </TabsContent>
             </Tabs>
         </div>

@@ -12,6 +12,12 @@ const STATUS_VARIANT: Record<string, 'secondary' | 'success' | 'destructive' | '
     merged: 'outline',
 };
 
+const CONFIDENCE_VARIANT: Record<string, 'secondary' | 'success' | 'destructive' | 'info'> = {
+    high_confidence: 'success',
+    review: 'info',
+    suggest_reject: 'destructive',
+};
+
 export function ProposalCard({
     proposal,
     onApprove,
@@ -32,9 +38,25 @@ export function ProposalCard({
         <div className="rounded-xl border border-border bg-card p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold">{proposal.suggested_label_en || proposal.suggested_slug}</span>
                         <Badge variant={STATUS_VARIANT[proposal.status] ?? 'secondary'}>{proposal.status}</Badge>
+                        {typeof proposal.confidence === 'number' && (
+                            <Badge variant={CONFIDENCE_VARIANT[proposal.predicted_verdict ?? ''] ?? 'secondary'}>
+                                {(proposal.confidence * 100).toFixed(0)}% ·{' '}
+                                {(proposal.predicted_verdict || 'review').replace('_', ' ')}
+                            </Badge>
+                        )}
+                        {proposal.autopilot_flags?.duplicate && (
+                            <Badge variant="destructive" className="text-[10px]">
+                                dup{proposal.autopilot_flags.duplicate_of ? ` of ${proposal.autopilot_flags.duplicate_of}` : ''}
+                            </Badge>
+                        )}
+                        {proposal.autopilot_flags?.needs_label && (
+                            <Badge variant="warning" className="text-[10px]">
+                                needs label
+                            </Badge>
+                        )}
                     </div>
                     <div className="text-sm text-muted-foreground" dir="rtl">
                         {proposal.suggested_label_ar || proposal.suggested_slug}
