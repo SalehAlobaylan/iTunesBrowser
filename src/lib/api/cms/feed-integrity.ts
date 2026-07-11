@@ -7,6 +7,8 @@ import type {
     FeedIntegrityStatus,
     FeedIntegritySuppression,
     FeedIntegrityTier,
+    FeedIntegrityAction,
+    FeedIntegrityAutopilotStatus,
 } from '@/types/platform/feed-integrity';
 
 type Envelope<T> = { data: T };
@@ -27,7 +29,21 @@ export const listFeedIntegrityFindings = () =>
     unwrap(cmsClient.get<Envelope<{ items: FeedIntegrityFinding[] }>>(`${BASE}/findings`));
 export const listFeedIntegrityEpisodes = () =>
     unwrap(cmsClient.get<Envelope<{ items: FeedIntegrityEpisode[] }>>(`${BASE}/episodes`));
-export const closeFeedIntegrityEpisode = (id: string, reason_class = 'resolved_manually') =>
+export const closeFeedIntegrityEpisode = (id: string, reason_class = 'resolved') =>
     unwrap(cmsClient.post<Envelope<FeedIntegrityEpisode>>(`${BASE}/episodes/${id}/close`, { reason_class }));
 export const revokeFeedIntegritySuppression = (id: string) =>
     unwrap(cmsClient.delete<Envelope<{ revoked_at: string }>>(`${BASE}/suppressions/${id}`));
+export const getFeedIntegrityAutopilotStatus = () =>
+    unwrap(cmsClient.get<Envelope<FeedIntegrityAutopilotStatus>>(`${BASE}/autopilot/status`));
+export const updateFeedIntegrityAutopilotPolicy = (patch: Partial<FeedIntegrityPolicy>) =>
+    unwrap(cmsClient.put<Envelope<FeedIntegrityPolicy>>(`${BASE}/autopilot/policy`, patch));
+export const runFeedIntegrityAutopilot = () =>
+    unwrap(cmsClient.post<Envelope<FeedIntegrityRun>>(`${BASE}/autopilot/run`, {}));
+export const pauseFeedIntegrityAutopilot = (minutes: number) =>
+    unwrap(cmsClient.post<Envelope<{ autopilot_paused_until: string | null }>>(`${BASE}/autopilot/pause`, { minutes }));
+export const listFeedIntegrityAutopilotActions = () =>
+    unwrap(cmsClient.get<Envelope<{ items: FeedIntegrityAction[] }>>(`${BASE}/autopilot/actions?limit=100`));
+export const approveFeedIntegrityAutopilotAction = (id: string) =>
+    unwrap(cmsClient.post<Envelope<FeedIntegrityAction>>(`${BASE}/autopilot/actions/${id}/approve`, {}));
+export const rejectFeedIntegrityAutopilotAction = (id: string, reason: string) =>
+    unwrap(cmsClient.post<Envelope<FeedIntegrityAction>>(`${BASE}/autopilot/actions/${id}/reject`, { reason }));

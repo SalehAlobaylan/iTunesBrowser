@@ -16,6 +16,7 @@ import {
     useUpdateFeedIntegrityPolicy,
 } from '@/hooks/use-feed-integrity';
 import type { FeedIntegrityFeedResult } from '@/types/platform/feed-integrity';
+import { FeedIntegrityAutopilotPanel } from '@/components/platform/feed-integrity/feed-integrity-autopilot-panel';
 
 function tone(value?: string) {
     if (value === 'healthy' || value === 'completed') return 'success' as const;
@@ -83,6 +84,8 @@ export default function FeedIntegrityPage() {
             </Card>
 
             <div className="grid gap-4 md:grid-cols-2"><FeedCard title="For You" result={results?.foryou} /><FeedCard title="News" result={results?.news} /></div>
+
+            <FeedIntegrityAutopilotPanel />
 
             <div className="grid gap-6 xl:grid-cols-2">
                 <Card>
