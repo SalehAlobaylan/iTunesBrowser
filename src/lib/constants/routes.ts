@@ -14,6 +14,7 @@ import {
     Shield,
     HardDrive,
     HeartPulse,
+    ScanSearch,
     Recycle,
     type LucideIcon,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ export const navigation: NavigationSection[] = [
         items: [
             { name: 'Dashboard', href: '/', icon: LayoutDashboard },
             { name: 'System Health', href: '/platform/system-health', icon: HeartPulse },
+            { name: 'Feed Integrity', href: '/platform/feed-integrity', icon: ScanSearch },
         ],
     },
     {
@@ -84,6 +86,7 @@ export const ROUTES = {
         TOPICS: '/platform/topics',
         ENRICHMENT: '/platform/enrichment',
         SYSTEM_HEALTH: '/platform/system-health',
+        FEED_INTEGRITY: '/platform/feed-integrity',
     },
     ADMIN: {
         USERS: '/admin/users',
