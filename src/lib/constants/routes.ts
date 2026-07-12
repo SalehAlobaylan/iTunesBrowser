@@ -19,6 +19,7 @@ import {
     Gauge,
     Boxes,
     CircleDollarSign,
+    ShieldAlert,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -38,6 +39,7 @@ export const navigation: NavigationSection[] = [
         title: 'Overview',
         items: [
             { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+            { name: 'Operations', href: '/platform/operations', icon: ShieldAlert },
             { name: 'System Health', href: '/platform/system-health', icon: HeartPulse },
             { name: 'Feed Integrity', href: '/platform/feed-integrity', icon: ScanSearch },
             { name: 'Real Experience', href: '/platform/real-experience', icon: Gauge },
@@ -92,6 +94,7 @@ export const ROUTES = {
         TOPICS: '/platform/topics',
         ENRICHMENT: '/platform/enrichment',
         SYSTEM_HEALTH: '/platform/system-health',
+        OPERATIONS: '/platform/operations',
         FEED_INTEGRITY: '/platform/feed-integrity',
         REAL_EXPERIENCE: '/platform/real-experience',
         ECONOMICS: '/platform/economics',
