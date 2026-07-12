@@ -17,6 +17,7 @@ import {
     ScanSearch,
     Recycle,
     Gauge,
+    Boxes,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -55,6 +56,7 @@ export const navigation: NavigationSection[] = [
             { name: 'Storage', href: '/platform/storage', icon: HardDrive },
             { name: 'Pipeline', href: '/platform/pipeline', icon: Activity },
             { name: 'Intelligence', href: '/platform/intelligence', icon: Brain },
+            { name: 'Embeddings', href: '/platform/intelligence/embeddings', icon: Boxes },
             { name: 'Topics', href: '/platform/topics', icon: Tags },
             { name: 'Enrichment', href: '/platform/enrichment', icon: Sparkles },
         ],
