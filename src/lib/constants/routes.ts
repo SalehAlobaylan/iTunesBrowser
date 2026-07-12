@@ -18,6 +18,7 @@ import {
     Recycle,
     Gauge,
     Boxes,
+    CircleDollarSign,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -40,6 +41,7 @@ export const navigation: NavigationSection[] = [
             { name: 'System Health', href: '/platform/system-health', icon: HeartPulse },
             { name: 'Feed Integrity', href: '/platform/feed-integrity', icon: ScanSearch },
             { name: 'Real Experience', href: '/platform/real-experience', icon: Gauge },
+            { name: 'AI Economics', href: '/platform/economics', icon: CircleDollarSign },
         ],
     },
     {
@@ -92,6 +94,7 @@ export const ROUTES = {
         SYSTEM_HEALTH: '/platform/system-health',
         FEED_INTEGRITY: '/platform/feed-integrity',
         REAL_EXPERIENCE: '/platform/real-experience',
+        ECONOMICS: '/platform/economics',
     },
     ADMIN: {
         USERS: '/admin/users',
