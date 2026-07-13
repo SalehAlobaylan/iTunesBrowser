@@ -1,24 +1,25 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-    getEnrichmentStats,
-    getMissingEnrichments,
-    getMissingEnrichmentCounts,
-    getEnrichmentHealth,
-    triggerEnrichment,
-    triggerBatchEnrichment,
-    triggerAllEnrichment,
-    getBulkEnrichStatus,
-    getEnrichmentAutopilot,
-    updateEnrichmentAutopilotPolicy,
-    runEnrichmentAutopilotNow,
-    pauseEnrichmentAutopilot,
-    elevateEnrichmentAutopilot,
-    listEnrichmentAutopilotRuns,
-    getEnrichmentAutopilotRun,
+  getEnrichmentStats,
+  getMissingEnrichments,
+  getMissingEnrichmentCounts,
+  getEnrichmentHealth,
+  triggerEnrichment,
+  triggerBatchEnrichment,
+  triggerAllEnrichment,
+  getBulkEnrichStatus,
+  getEnrichmentAutopilot,
+  updateEnrichmentAutopilotPolicy,
+  runEnrichmentAutopilotNow,
+  pauseEnrichmentAutopilot,
+  elevateEnrichmentAutopilot,
+  resetEnrichmentAutopilotTrust,
+  listEnrichmentAutopilotRuns,
+  getEnrichmentAutopilotRun,
 } from '@/lib/api/cms/enrichment';
 import type {
-    MissingEnrichmentsParams,
-    EnrichmentAutopilotPolicy,
+  MissingEnrichmentsParams,
+  EnrichmentAutopilotPolicy,
 } from '@/types/platform/enrichment';
 import { toast } from '@/components/ui/toast';
 import { CACHE_CONFIG } from '@/app/providers';
@@ -26,117 +27,119 @@ import { CACHE_CONFIG } from '@/app/providers';
 // ── Query Keys ──────────────────────────────────────────────
 
 export const enrichmentKeys = {
-    all: ['enrichment'] as const,
-    stats: () => [...enrichmentKeys.all, 'stats'] as const,
-    health: () => [...enrichmentKeys.all, 'health'] as const,
-    missing: () => [...enrichmentKeys.all, 'missing'] as const,
-    missingList: (params: MissingEnrichmentsParams) =>
-        [...enrichmentKeys.missing(), params] as const,
-    missingCounts: (type: string, status: string) =>
-        [...enrichmentKeys.missing(), 'counts', type, status] as const,
-    bulkStatus: () => [...enrichmentKeys.all, 'bulk-status'] as const,
-    autopilot: () => [...enrichmentKeys.all, 'autopilot'] as const,
-    autopilotRuns: (limit: number) => [...enrichmentKeys.all, 'autopilot-runs', limit] as const,
-    autopilotRun: (id: string) => [...enrichmentKeys.all, 'autopilot-run', id] as const,
+  all: ['enrichment'] as const,
+  stats: () => [...enrichmentKeys.all, 'stats'] as const,
+  health: () => [...enrichmentKeys.all, 'health'] as const,
+  missing: () => [...enrichmentKeys.all, 'missing'] as const,
+  missingList: (params: MissingEnrichmentsParams) =>
+    [...enrichmentKeys.missing(), params] as const,
+  missingCounts: (type: string, status: string) =>
+    [...enrichmentKeys.missing(), 'counts', type, status] as const,
+  bulkStatus: () => [...enrichmentKeys.all, 'bulk-status'] as const,
+  autopilot: () => [...enrichmentKeys.all, 'autopilot'] as const,
+  autopilotRuns: (limit: number) =>
+    [...enrichmentKeys.all, 'autopilot-runs', limit] as const,
+  autopilotRun: (id: string) =>
+    [...enrichmentKeys.all, 'autopilot-run', id] as const,
 };
 
 // ── Hooks ───────────────────────────────────────────────────
 
 export function useEnrichmentStats() {
-    return useQuery({
-        queryKey: enrichmentKeys.stats(),
-        queryFn: getEnrichmentStats,
-        staleTime: CACHE_CONFIG.lists.staleTime,
-        gcTime: CACHE_CONFIG.lists.gcTime,
-        refetchInterval: 30 * 1000, // Auto-refresh every 30s
-    });
+  return useQuery({
+    queryKey: enrichmentKeys.stats(),
+    queryFn: getEnrichmentStats,
+    staleTime: CACHE_CONFIG.lists.staleTime,
+    gcTime: CACHE_CONFIG.lists.gcTime,
+    refetchInterval: 30 * 1000, // Auto-refresh every 30s
+  });
 }
 
 export function useEnrichmentHealth() {
-    return useQuery({
-        queryKey: enrichmentKeys.health(),
-        queryFn: getEnrichmentHealth,
-        staleTime: 15 * 1000,
-        gcTime: 60 * 1000,
-        refetchInterval: 30 * 1000,
-    });
+  return useQuery({
+    queryKey: enrichmentKeys.health(),
+    queryFn: getEnrichmentHealth,
+    staleTime: 15 * 1000,
+    gcTime: 60 * 1000,
+    refetchInterval: 30 * 1000,
+  });
 }
 
 export function useMissingEnrichments(params: MissingEnrichmentsParams = {}) {
-    return useQuery({
-        queryKey: enrichmentKeys.missingList(params),
-        queryFn: () => getMissingEnrichments(params),
-        staleTime: CACHE_CONFIG.lists.staleTime,
-        gcTime: CACHE_CONFIG.lists.gcTime,
-    });
+  return useQuery({
+    queryKey: enrichmentKeys.missingList(params),
+    queryFn: () => getMissingEnrichments(params),
+    staleTime: CACHE_CONFIG.lists.staleTime,
+    gcTime: CACHE_CONFIG.lists.gcTime,
+  });
 }
 
 export function useMissingEnrichmentCounts(type: string, status = 'READY') {
-    return useQuery({
-        queryKey: enrichmentKeys.missingCounts(type, status),
-        queryFn: () => getMissingEnrichmentCounts({ type, status }),
-        staleTime: CACHE_CONFIG.lists.staleTime,
-        gcTime: CACHE_CONFIG.lists.gcTime,
-    });
+  return useQuery({
+    queryKey: enrichmentKeys.missingCounts(type, status),
+    queryFn: () => getMissingEnrichmentCounts({ type, status }),
+    staleTime: CACHE_CONFIG.lists.staleTime,
+    gcTime: CACHE_CONFIG.lists.gcTime,
+  });
 }
 
 export function useTriggerEnrichment() {
-    const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-    return useMutation({
-        mutationFn: ({ id, types }: { id: string; types: string[] }) =>
-            triggerEnrichment(id, types),
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: enrichmentKeys.all });
-            const errorCount = data.errors?.length ?? 0;
-            if (errorCount > 0) {
-                toast({
-                    title: 'Enrichment partially completed',
-                    description: data.errors.join(', '),
-                    variant: 'destructive',
-                });
-            } else {
-                toast({
-                    title: 'Enrichment triggered',
-                    description: data.results?.join(', ') || 'Processing started',
-                    variant: 'success',
-                });
-            }
-        },
-        onError: (error: Error) => {
-            toast({
-                title: 'Failed to trigger enrichment',
-                description: error.message,
-                variant: 'destructive',
-            });
-        },
-    });
+  return useMutation({
+    mutationFn: ({ id, types }: { id: string; types: string[] }) =>
+      triggerEnrichment(id, types),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: enrichmentKeys.all });
+      const errorCount = data.errors?.length ?? 0;
+      if (errorCount > 0) {
+        toast({
+          title: 'Enrichment partially completed',
+          description: data.errors.join(', '),
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Enrichment triggered',
+          description: data.results?.join(', ') || 'Processing started',
+          variant: 'success',
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to trigger enrichment',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 }
 
 export function useTriggerBatchEnrichment() {
-    const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-    return useMutation({
-        mutationFn: ({ ids, types }: { ids: string[]; types: string[] }) =>
-            triggerBatchEnrichment(ids, types),
-        onSuccess: (results) => {
-            queryClient.invalidateQueries({ queryKey: enrichmentKeys.all });
-            const succeeded = results.filter((r) => r.status === 'triggered').length;
-            const failed = results.filter((r) => r.status === 'error').length;
-            toast({
-                title: 'Batch enrichment completed',
-                description: `${succeeded} triggered, ${failed} failed`,
-                variant: failed > 0 ? 'destructive' : 'success',
-            });
-        },
-        onError: (error: Error) => {
-            toast({
-                title: 'Batch enrichment failed',
-                description: error.message,
-                variant: 'destructive',
-            });
-        },
-    });
+  return useMutation({
+    mutationFn: ({ ids, types }: { ids: string[]; types: string[] }) =>
+      triggerBatchEnrichment(ids, types),
+    onSuccess: (results) => {
+      queryClient.invalidateQueries({ queryKey: enrichmentKeys.all });
+      const succeeded = results.filter((r) => r.status === 'triggered').length;
+      const failed = results.filter((r) => r.status === 'error').length;
+      toast({
+        title: 'Batch enrichment completed',
+        description: `${succeeded} triggered, ${failed} failed`,
+        variant: failed > 0 ? 'destructive' : 'success',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Batch enrichment failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 }
 
 /**
@@ -144,125 +147,167 @@ export function useTriggerBatchEnrichment() {
  * run is active, idle otherwise.
  */
 export function useBulkEnrichStatus() {
-    return useQuery({
-        queryKey: enrichmentKeys.bulkStatus(),
-        queryFn: getBulkEnrichStatus,
-        refetchInterval: (query) => (query.state.data?.running ? 2000 : false),
-        staleTime: 0,
-        gcTime: 60 * 1000,
-    });
+  return useQuery({
+    queryKey: enrichmentKeys.bulkStatus(),
+    queryFn: getBulkEnrichStatus,
+    refetchInterval: (query) => (query.state.data?.running ? 2000 : false),
+    staleTime: 0,
+    gcTime: 60 * 1000,
+  });
 }
 
 // ── Autopilot ───────────────────────────────────────────────
 
 export function useEnrichmentAutopilot() {
-    return useQuery({
-        queryKey: enrichmentKeys.autopilot(),
-        queryFn: getEnrichmentAutopilot,
-        staleTime: 15 * 1000,
-        gcTime: 60 * 1000,
-        refetchInterval: 30 * 1000,
-    });
+  return useQuery({
+    queryKey: enrichmentKeys.autopilot(),
+    queryFn: getEnrichmentAutopilot,
+    staleTime: 15 * 1000,
+    gcTime: 60 * 1000,
+    refetchInterval: 30 * 1000,
+  });
 }
 
 export function useEnrichmentAutopilotRuns(limit = 20) {
-    return useQuery({
-        queryKey: enrichmentKeys.autopilotRuns(limit),
-        queryFn: () => listEnrichmentAutopilotRuns(limit),
-        staleTime: 10 * 1000,
-    });
+  return useQuery({
+    queryKey: enrichmentKeys.autopilotRuns(limit),
+    queryFn: () => listEnrichmentAutopilotRuns(limit),
+    staleTime: 10 * 1000,
+  });
 }
 
 export function useEnrichmentAutopilotRun(id: string | null) {
-    return useQuery({
-        queryKey: enrichmentKeys.autopilotRun(id ?? 'none'),
-        queryFn: () => getEnrichmentAutopilotRun(id as string),
-        enabled: !!id,
-        staleTime: 10 * 1000,
-    });
+  return useQuery({
+    queryKey: enrichmentKeys.autopilotRun(id ?? 'none'),
+    queryFn: () => getEnrichmentAutopilotRun(id as string),
+    enabled: !!id,
+    staleTime: 10 * 1000,
+  });
 }
 
 export function useUpdateEnrichmentAutopilotPolicy() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (patch: Partial<EnrichmentAutopilotPolicy>) =>
-            updateEnrichmentAutopilotPolicy(patch),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: enrichmentKeys.autopilot() });
-            toast({ title: 'Autopilot settings saved', variant: 'success' });
-        },
-        onError: (error: Error) =>
-            toast({ title: 'Failed to save settings', description: error.message, variant: 'destructive' }),
-    });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<EnrichmentAutopilotPolicy>) =>
+      updateEnrichmentAutopilotPolicy(patch),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: enrichmentKeys.autopilot() });
+      toast({ title: 'Autopilot settings saved', variant: 'success' });
+    },
+    onError: (error: Error) =>
+      toast({
+        title: 'Failed to save settings',
+        description: error.message,
+        variant: 'destructive',
+      }),
+  });
 }
 
 export function useRunEnrichmentAutopilotNow() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: runEnrichmentAutopilotNow,
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: enrichmentKeys.all });
-            toast({
-                title: 'Autopilot run complete',
-                description: data.run.summary || data.run.status,
-                variant: data.run.status === 'failed' ? 'destructive' : 'success',
-            });
-        },
-        onError: (error: Error) =>
-            toast({ title: 'Autopilot run failed', description: error.message, variant: 'destructive' }),
-    });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: runEnrichmentAutopilotNow,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: enrichmentKeys.all });
+      toast({
+        title: 'Autopilot run complete',
+        description: data.run.summary || data.run.status,
+        variant: data.run.status === 'failed' ? 'destructive' : 'success',
+      });
+    },
+    onError: (error: Error) =>
+      toast({
+        title: 'Autopilot run failed',
+        description: error.message,
+        variant: 'destructive',
+      }),
+  });
 }
 
 export function usePauseEnrichmentAutopilot() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: (minutes: number) => pauseEnrichmentAutopilot(minutes),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: enrichmentKeys.autopilot() }),
-        onError: (error: Error) =>
-            toast({ title: 'Failed to update pause', description: error.message, variant: 'destructive' }),
-    });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (minutes: number) => pauseEnrichmentAutopilot(minutes),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: enrichmentKeys.autopilot() }),
+    onError: (error: Error) =>
+      toast({
+        title: 'Failed to update pause',
+        description: error.message,
+        variant: 'destructive',
+      }),
+  });
 }
 
 export function useElevateEnrichmentAutopilot() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: ({ mode, minutes }: { mode: string; minutes?: number }) =>
-            elevateEnrichmentAutopilot(mode, minutes),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: enrichmentKeys.autopilot() }),
-        onError: (error: Error) =>
-            toast({ title: 'Failed to update elevated mode', description: error.message, variant: 'destructive' }),
-    });
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ mode, minutes }: { mode: string; minutes?: number }) =>
+      elevateEnrichmentAutopilot(mode, minutes),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: enrichmentKeys.autopilot() }),
+    onError: (error: Error) =>
+      toast({
+        title: 'Failed to update elevated mode',
+        description: error.message,
+        variant: 'destructive',
+      }),
+  });
+}
+
+export function useResetEnrichmentAutopilotTrust() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: resetEnrichmentAutopilotTrust,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: enrichmentKeys.autopilot() });
+      toast({ title: 'Trust reset', variant: 'success' });
+    },
+    onError: (error: Error) =>
+      toast({
+        title: 'Failed to reset trust',
+        description: error.message,
+        variant: 'destructive',
+      }),
+  });
 }
 
 export function useTriggerAllEnrichment() {
-    const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
 
-    return useMutation({
-        mutationFn: ({ types, type, max }: { types: string[]; type?: string; max?: number }) =>
-            triggerAllEnrichment(types, type, max),
-        onSuccess: (data) => {
-            // Start polling the run + reflect that work has begun.
-            queryClient.invalidateQueries({ queryKey: enrichmentKeys.bulkStatus() });
-            if (data.started) {
-                toast({
-                    title: 'Bulk enrichment started',
-                    description: `Enriching ${data.total} item${data.total === 1 ? '' : 's'} in the background`,
-                    variant: 'success',
-                });
-            } else {
-                toast({
-                    title: 'Nothing to enrich',
-                    description: 'No items are missing this artifact',
-                    variant: 'default',
-                });
-            }
-        },
-        onError: (error: Error) => {
-            toast({
-                title: 'Failed to start bulk enrichment',
-                description: error.message,
-                variant: 'destructive',
-            });
-        },
-    });
+  return useMutation({
+    mutationFn: ({
+      types,
+      type,
+      max,
+    }: {
+      types: string[];
+      type?: string;
+      max?: number;
+    }) => triggerAllEnrichment(types, type, max),
+    onSuccess: (data) => {
+      // Start polling the run + reflect that work has begun.
+      queryClient.invalidateQueries({ queryKey: enrichmentKeys.bulkStatus() });
+      if (data.started) {
+        toast({
+          title: 'Bulk enrichment started',
+          description: `Enriching ${data.total} item${data.total === 1 ? '' : 's'} in the background`,
+          variant: 'success',
+        });
+      } else {
+        toast({
+          title: 'Nothing to enrich',
+          description: 'No items are missing this artifact',
+          variant: 'default',
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to start bulk enrichment',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 }

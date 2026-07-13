@@ -102,6 +102,11 @@ export const elevatePipelineAutopilot = (mode: string, minutes?: number) =>
         )
     );
 
+export const resetPipelineAutopilotTrust = () =>
+    unwrapCmsData(
+        cmsClient.post<CmsEnvelope<PipelineAutopilotStatus>>('/admin/pipeline/autopilot/trust/reset', {})
+    );
+
 export const listPipelineAutopilotRuns = (limit = 20) =>
     unwrapCmsData(
         cmsClient.get<CmsEnvelope<{ items: PipelineAutopilotRun[] }>>(

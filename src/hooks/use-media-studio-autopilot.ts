@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     getStudioAutopilotInsights,
     getStudioAutopilotRun,
+    listStudioAutopilotProposals,
     getStudioAutopilotStatus,
     listStudioAutopilotRuns,
     pauseStudioAutopilot,
@@ -17,6 +18,7 @@ export const studioAutopilotKeys = {
     insights: () => [...studioAutopilotKeys.all, 'insights'] as const,
     runs: () => [...studioAutopilotKeys.all, 'runs'] as const,
     run: (id: string) => [...studioAutopilotKeys.all, 'run', id] as const,
+    proposals: () => [...studioAutopilotKeys.all, 'proposals'] as const,
 };
 
 export function useStudioAutopilotStatus() {
@@ -47,6 +49,14 @@ export function useStudioAutopilotRun(id: string | null) {
         queryKey: studioAutopilotKeys.run(id ?? ''),
         queryFn: () => getStudioAutopilotRun(id as string),
         enabled: !!id,
+    });
+}
+
+export function useStudioAutopilotProposals() {
+    return useQuery({
+        queryKey: studioAutopilotKeys.proposals(),
+        queryFn: listStudioAutopilotProposals,
+        refetchInterval: 30_000,
     });
 }
 

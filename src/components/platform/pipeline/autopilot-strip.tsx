@@ -24,6 +24,7 @@ import {
     usePipelineAutopilot,
     useRetryFailed,
     useRunPipelineAutopilotNow,
+	useResetPipelineAutopilotTrust,
     useUpdatePipelineAutopilotPolicy,
 } from '@/hooks/use-pipeline';
 import { PipelineAutopilotRunsSheet } from './autopilot-runs-sheet';
@@ -65,6 +66,7 @@ export function PipelineAutopilotStrip() {
     const elevate = useElevatePipelineAutopilot();
     const retryFailed = useRetryFailed();
     const bulkStatus = useBulkStatusChange();
+	const resetTrust = useResetPipelineAutopilotTrust();
 
     const [runsOpen, setRunsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -208,6 +210,17 @@ export function PipelineAutopilotStrip() {
                             <span className="opacity-70">{t.state === 'trusted' ? 'ok' : t.state === 'demoted' ? 'held' : `${t.outcomes}`}</span>
                         </span>
                     ))}
+					{trust.some((t) => t.state === 'demoted') ? (
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={resetTrust.isPending}
+							title="Clears the trust window so demoted lanes re-enter probation. Attempt caps and backoff are unaffected."
+							onClick={() => resetTrust.mutate()}
+						>
+							Reset trust
+						</Button>
+					) : null}
                 </div>
             ) : null}
 
@@ -294,7 +307,12 @@ function SettingsSheet({
                                 id={k.key}
                                 type="number"
                                 value={value(k.key)}
-                                onChange={(e) => setDraft((d) => ({ ...d, [k.key]: Number(e.target.value) }))}
+								onChange={(e) => {
+									const raw = e.target.value;
+									const n = Number(raw);
+									if (raw === '' || !Number.isFinite(n)) return;
+									setDraft((d) => ({ ...d, [k.key]: n }));
+								}}
                             />
                             <p className="text-[11px] text-muted-foreground">{k.hint}</p>
                         </div>

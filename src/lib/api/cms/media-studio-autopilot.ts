@@ -5,6 +5,7 @@ import type {
     MediaStudioAutopilotStatus,
     MediaStudioRun,
     MediaStudioRunDetail,
+    MediaStudioProposalInboxItem,
 } from '@/types/platform/media-studio-autopilot';
 
 const BASE = '/admin/media/studio/autopilot';
@@ -53,6 +54,12 @@ export async function listStudioAutopilotRuns(limit = 20): Promise<MediaStudioRu
 export async function getStudioAutopilotRun(id: string): Promise<MediaStudioRunDetail> {
     const res = await cmsClient.get<{ data: MediaStudioRunDetail }>(`${BASE}/runs/${id}`);
     return res.data;
+}
+
+/** GET /admin/media/studio/autopilot/proposals — durable human proposal inbox. */
+export async function listStudioAutopilotProposals(): Promise<MediaStudioProposalInboxItem[]> {
+    const res = await cmsClient.get<{ data: { items: MediaStudioProposalInboxItem[] } }>(`${BASE}/proposals`);
+    return res.data.items;
 }
 
 /** POST /admin/media/studio/autopilot/pause */

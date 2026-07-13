@@ -9,6 +9,7 @@ import {
     runPipelineAutopilotNow,
     pausePipelineAutopilot,
     elevatePipelineAutopilot,
+	resetPipelineAutopilotTrust,
     listPipelineAutopilotRuns,
     getPipelineAutopilotRun,
 } from '@/lib/api/cms/pipeline';
@@ -205,5 +206,18 @@ export function useElevatePipelineAutopilot() {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: pipelineKeys.autopilot() }),
         onError: (error: Error) =>
             toast({ title: 'Failed to update Pipeline Autopilot elevation', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function useResetPipelineAutopilotTrust() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: resetPipelineAutopilotTrust,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: pipelineKeys.autopilot() });
+            toast({ title: 'Pipeline trust reset', variant: 'success' });
+        },
+        onError: (error: Error) =>
+            toast({ title: 'Failed to reset Pipeline trust', description: error.message, variant: 'destructive' }),
     });
 }

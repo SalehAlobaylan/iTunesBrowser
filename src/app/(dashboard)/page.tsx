@@ -1,167 +1,322 @@
 'use client';
 
 import Link from 'next/link';
-import { Database, FileText, Shield, Activity, ArrowRight, Rss, Video, MessageSquare, Clock } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useMemo } from 'react';
+import { AlertTriangle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { AggregationHealthPanel } from '@/components/platform/aggregation-health-panel';
-import { isAggregationConfigured } from '@/lib/api/aggregation';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useOpsAttention, useOpsStatus } from '@/hooks/use-operations-command-center';
+import { useSystemHealth } from '@/hooks/use-system-health';
+import { useFeedIntegrityStatus } from '@/hooks/use-feed-integrity';
+import { useExperienceStatus } from '@/hooks/use-real-experience';
+import { useAISpendStatus } from '@/hooks/use-ai-spend';
+import { useStatusCounts } from '@/hooks/use-pipeline';
+import { useStorageHealth } from '@/hooks/use-storage';
 import { useSources } from '@/hooks/use-sources';
-import { useContent } from '@/hooks/use-content';
+import type { RuxVerdict } from '@/types/platform/real-experience';
+
+type BadgeTone = 'success' | 'warning' | 'destructive' | 'secondary';
+
+const GOOD = ['healthy', 'all_clear', 'within', 'ok', 'running', 'idle', 'completed'];
+const BAD = ['degraded_major', 'broken', 'critical', 'unhealthy', 'incident', 'errored', 'stalled', 'failed', 'over_budget', 'bounded_stop'];
+const WATCH = ['watching', 'watch', 'warning', 'degraded', 'degraded_minor', 'minor', 'attention', 'paused', 'pressure', 'over_pace', 'recovering', 'telemetry_degraded'];
+
+function tone(value?: string | null): BadgeTone {
+    if (!value) return 'secondary';
+    const v = value.toLowerCase();
+    if (GOOD.includes(v)) return 'success';
+    if (BAD.includes(v)) return 'destructive';
+    if (WATCH.includes(v)) return 'warning';
+    return 'secondary';
+}
+
+const label = (value?: string | null) => (value ? value.replaceAll('_', ' ') : 'unknown');
+
+const relative = (value?: string | null) => {
+    if (!value) return 'never';
+    const minutes = Math.round((new Date(value).getTime() - Date.now()) / 60_000);
+    if (Math.abs(minutes) >= 60 * 24) return new Intl.RelativeTimeFormat('en').format(Math.round(minutes / (60 * 24)), 'day');
+    if (Math.abs(minutes) >= 60) return new Intl.RelativeTimeFormat('en').format(Math.round(minutes / 60), 'hour');
+    return new Intl.RelativeTimeFormat('en').format(minutes, 'minute');
+};
+
+const RUX_ORDER: RuxVerdict[] = ['critical', 'degraded', 'telemetry_degraded', 'watching', 'insufficient_data', 'healthy'];
 
 export default function DashboardPage() {
-    const { data: sourcesData } = useSources({ page: 1, limit: 1 });
-    const { data: contentData } = useContent({ page: 1, limit: 1 });
-    const { data: readyData } = useContent({ page: 1, limit: 1, status: 'READY' });
-    const { data: pendingData } = useContent({ page: 1, limit: 1, status: 'PENDING' });
-    const { data: failedData } = useContent({ page: 1, limit: 1, status: 'FAILED' });
+    const ops = useOpsStatus();
+    const attention = useOpsAttention();
+    const systemHealth = useSystemHealth();
+    const feedIntegrity = useFeedIntegrityStatus();
+    const experience = useExperienceStatus();
+    const spend = useAISpendStatus();
+    const statusCounts = useStatusCounts();
+    const storage = useStorageHealth();
+    const sources = useSources({ page: 1, limit: 1 });
 
-    const stats = [
-        {
-            label: 'Total Sources',
-            value: sourcesData?.total ?? 0,
-            icon: Database,
-            href: '/platform/sources',
-            color: 'text-blue-500',
-            bgColor: 'bg-blue-500/10',
-        },
-        {
-            label: 'Content Items',
-            value: contentData?.total ?? 0,
-            icon: FileText,
-            href: '/platform/content',
-            color: 'text-indigo-500',
-            bgColor: 'bg-indigo-500/10',
-        },
-        {
-            label: 'Ready',
-            value: readyData?.total ?? 0,
-            icon: Activity,
-            href: '/platform/content',
-            color: 'text-emerald-500',
-            bgColor: 'bg-emerald-500/10',
-        },
-        {
-            label: 'Pending',
-            value: pendingData?.total ?? 0,
-            icon: Clock,
-            href: '/platform/pipeline',
-            color: 'text-amber-500',
-            bgColor: 'bg-amber-500/10',
-        },
-        {
-            label: 'Failed',
-            value: failedData?.total ?? 0,
-            icon: Activity,
-            href: '/platform/pipeline',
-            color: 'text-red-500',
-            bgColor: 'bg-red-500/10',
-        },
-    ];
+    const attentionItems = useMemo(
+        () => (attention.data?.items ?? []).filter((item) => !item.snoozed).slice(0, 6),
+        [attention.data],
+    );
 
-    const quickLinks = [
-        {
-            title: 'Content Sources',
-            description: 'Manage RSS feeds, YouTube channels, Telegram channels, and other content ingestion sources.',
-            href: '/platform/sources',
-            icon: Rss,
-            badges: ['RSS', 'YouTube', 'Telegram'],
-        },
-        {
-            title: 'Content Browser',
-            description: 'Browse, filter, and manage all ingested content items. Bulk delete, archive, and review.',
-            href: '/platform/content',
-            icon: Video,
-            badges: ['Articles', 'Videos', 'Podcasts'],
-        },
-        {
-            title: 'Pipeline Control',
-            description: 'Monitor queue health, retry pending/failed items, and manage content processing.',
-            href: '/platform/pipeline',
-            icon: Activity,
-            badges: ['Queues', 'Retry', 'Monitoring'],
-        },
-        {
-            title: 'Admin Users',
-            description: 'Manage admin access, roles, and permissions for the Platform Console.',
-            href: '/admin/users',
-            icon: Shield,
-            badges: ['RBAC', 'JWT'],
-        },
-    ];
+    // Services verdict
+    const unhealthyServices = (systemHealth.data?.services ?? []).filter((s) => s.status !== 'healthy');
+
+    // Feed integrity verdicts per feed (worst consumer verdict shown as badge)
+    const feedResults = Object.values(feedIntegrity.data?.latest_run?.feed_results ?? {});
+    const openEpisodes = feedIntegrity.data?.open_episodes?.length ?? 0;
+
+    // Experience: worst surface verdict
+    const ruxVerdicts = Object.values(experience.data?.surface_verdicts ?? {}).map((s) => s.verdict);
+    const worstRux = RUX_ORDER.find((v) => ruxVerdicts.includes(v)) ?? (experience.data ? 'insufficient_data' : undefined);
+
+    // Spend: worst budget state + month total
+    const budgets = spend.data?.budgets ?? [];
+    const spendTotal = budgets.reduce((sum, b) => sum + b.spend_usd, 0);
+    const spendState = budgets.some((b) => b.paused_until && new Date(b.paused_until) > new Date())
+        ? 'paused'
+        : budgets.some((b) => b.cap_usd && b.spend_usd >= b.cap_usd * (b.hard_pct / 100))
+            ? 'over_budget'
+            : budgets.some((b) => b.cap_usd && b.spend_usd >= b.cap_usd * (b.warn_pct / 100))
+                ? 'warning'
+                : budgets.length
+                    ? 'within'
+                    : undefined;
+
+    // Fleet: lane states from ops
+    const fleet = ops.data?.fleet ?? [];
+    const stalled = fleet.filter((f) => f.state === 'stalled' || f.state === 'errored').length;
+    const pausedLanes = fleet.filter((f) => f.state === 'paused').length;
+    const fleetState = fleet.length ? (stalled ? 'stalled' : pausedLanes ? 'paused' : 'all_clear') : undefined;
+
+    const counts = statusCounts.data;
+    const proof = storage.data?.proof;
 
     return (
         <div className="space-y-8">
-            {/* Page header */}
+            {/* What is happening */}
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-                <p className="mt-1 text-muted-foreground">
-                    Overview of your content platform
-                </p>
-            </div>
-
-            {/* Stats grid */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                {stats.map((stat) => {
-                    const Icon = stat.icon;
-                    return (
-                        <Link key={stat.label} href={stat.href}>
-                            <Card className="transition-colors hover:border-primary/30">
-                                <CardContent className="flex items-center gap-4 p-5">
-                                    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${stat.bgColor}`}>
-                                        <Icon className={`h-5 w-5 ${stat.color}`} />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <p className="text-sm text-muted-foreground">{stat.label}</p>
-                                        <p className="text-2xl font-semibold tabular-nums">{stat.value.toLocaleString()}</p>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </Link>
-                    );
-                })}
-            </div>
-
-            {isAggregationConfigured() && <AggregationHealthPanel />}
-
-            {/* Quick links */}
-            <div>
-                <h2 className="mb-4 text-lg font-semibold">Quick Access</h2>
-                <div className="grid gap-4 md:grid-cols-3">
-                    {quickLinks.map((link) => {
-                        const Icon = link.icon;
-                        return (
-                            <Card key={link.href} className="group transition-all hover:border-primary/30 hover:shadow-sm">
-                                <CardHeader className="pb-3">
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                                            <Icon className="h-4 w-4 text-primary" />
-                                        </div>
-                                        <CardTitle className="text-base">{link.title}</CardTitle>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="space-y-3">
-                                    <CardDescription className="line-clamp-2">{link.description}</CardDescription>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {link.badges.map((badge) => (
-                                            <Badge key={badge} variant="secondary" className="text-xs font-normal">
-                                                {badge}
-                                            </Badge>
-                                        ))}
-                                    </div>
-                                    <Button variant="ghost" size="sm" className="group-hover:text-primary -ml-2" asChild>
-                                        <Link href={link.href}>
-                                            Open
-                                            <ArrowRight className="ml-1 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-                                        </Link>
-                                    </Button>
-                                </CardContent>
-                            </Card>
-                        );
-                    })}
+                <div className="flex flex-wrap items-center gap-3">
+                    <h1 className="text-3xl font-bold tracking-tight">Platform Overview</h1>
+                    {ops.data ? <Badge variant={tone(ops.data.headline)}>{label(ops.data.headline)}</Badge> : null}
                 </div>
+                <p className="mt-1 text-muted-foreground">
+                    {ops.data?.summary ?? 'Health, attention, and content flow across the platform.'}
+                </p>
+                {ops.data ? (
+                    <p className="mt-1 text-xs text-muted-foreground">Snapshot {new Date(ops.data.as_of).toLocaleString()}</p>
+                ) : null}
             </div>
+
+            {/* Is it healthy — one tile per governance surface */}
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                <VerdictTile
+                    href="/platform/system-health"
+                    title="Services"
+                    loading={systemHealth.isLoading}
+                    verdict={systemHealth.data?.overall}
+                    detail={
+                        systemHealth.data
+                            ? unhealthyServices.length
+                                ? `${unhealthyServices.map((s) => s.displayName).join(', ')} not healthy`
+                                : `${systemHealth.data.services.length} services healthy`
+                            : undefined
+                    }
+                />
+                <VerdictTile
+                    href="/platform/feed-integrity"
+                    title="Feed Integrity"
+                    loading={feedIntegrity.isLoading}
+                    verdict={feedIntegrity.data?.latest_run?.headline}
+                    detail={
+                        feedIntegrity.data
+                            ? feedResults.length
+                                ? `${feedResults.map((f) => `${f.feed} ${label(f.consumer_verdict)}`).join(' · ')}${openEpisodes ? ` · ${openEpisodes} open episodes` : ''}`
+                                : 'No runs yet'
+                            : undefined
+                    }
+                />
+                <VerdictTile
+                    href="/platform/real-experience"
+                    title="Real Experience"
+                    loading={experience.isLoading}
+                    verdict={worstRux}
+                    detail={
+                        experience.data
+                            ? `${experience.data.open_incidents} open incidents${experience.data.telemetry_fresh ? '' : ' · telemetry stale'}`
+                            : undefined
+                    }
+                />
+                <VerdictTile
+                    href="/platform/economics"
+                    title="AI Spend"
+                    loading={spend.isLoading}
+                    verdict={spendState}
+                    detail={spend.data ? `$${spendTotal.toFixed(2)} across ${budgets.length} budgets` : undefined}
+                />
+                <VerdictTile
+                    href="/platform/operations"
+                    title="Autopilot Fleet"
+                    loading={ops.isLoading}
+                    verdict={fleetState}
+                    detail={
+                        ops.data
+                            ? `${fleet.length} lanes · ${stalled} stalled · ${pausedLanes} paused`
+                            : undefined
+                    }
+                />
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+                {/* What needs me */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-amber-500" />
+                            Needs attention
+                        </CardTitle>
+                        <CardDescription>Top open items across the fleet. Act on them from Operations.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {attention.isLoading ? (
+                            <Skeleton className="h-24" />
+                        ) : attentionItems.length ? (
+                            <>
+                                {attentionItems.map((item) => (
+                                    <div key={item.key} className="rounded-md border p-3">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Badge variant={tone(item.severity)}>{item.severity}</Badge>
+                                            <Badge variant="outline">{item.system}</Badge>
+                                            <span className="ml-auto text-xs text-muted-foreground">{relative(item.first_seen)}</span>
+                                        </div>
+                                        <Link href={item.href} className="mt-2 block font-medium hover:underline">
+                                            {item.title}
+                                        </Link>
+                                        {item.detail ? <p className="text-sm text-muted-foreground">{item.detail}</p> : null}
+                                    </div>
+                                ))}
+                                <Link
+                                    href="/platform/operations"
+                                    className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                                >
+                                    Open Operations
+                                    <ArrowRight className="h-3.5 w-3.5" />
+                                </Link>
+                            </>
+                        ) : (
+                            <p className="py-6 text-center text-sm text-muted-foreground">
+                                <CheckCircle2 className="mx-auto mb-2 h-5 w-5 text-success" />
+                                Nothing needs attention right now.
+                            </p>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Is content flowing */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Content flow</CardTitle>
+                        <CardDescription>Pipeline, supply, and storage at a glance.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-1">
+                        <FlowRow href="/platform/pipeline" label="Pending" value={counts?.PENDING} loading={statusCounts.isLoading} toneOverride={counts && counts.PENDING > 0 ? 'warning' : undefined} />
+                        <FlowRow href="/platform/pipeline" label="Processing" value={counts?.PROCESSING} loading={statusCounts.isLoading} />
+                        <FlowRow href="/platform/content" label="Ready" value={counts?.READY} loading={statusCounts.isLoading} toneOverride="success" />
+                        <FlowRow href="/platform/pipeline" label="Failed" value={counts?.FAILED} loading={statusCounts.isLoading} toneOverride={counts && counts.FAILED > 0 ? 'destructive' : undefined} />
+                        <FlowRow href="/platform/content" label="Archived" value={counts?.ARCHIVED} loading={statusCounts.isLoading} />
+                        <div className="my-3 border-t" />
+                        <FlowRow href="/platform/sources" label="Sources" value={sources.data?.total} loading={sources.isLoading} />
+                        <div className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm">
+                            <Link href="/platform/storage" className="text-muted-foreground hover:text-foreground hover:underline">
+                                Storage
+                            </Link>
+                            {storage.isLoading ? (
+                                <Skeleton className="h-4 w-16" />
+                            ) : proof ? (
+                                <span className="flex items-center gap-2">
+                                    <Badge variant={tone(storage.data?.state)}>{label(storage.data?.state)}</Badge>
+                                    <span className="font-medium tabular-nums">{proof.utilization_pct.toFixed(0)}%</span>
+                                </span>
+                            ) : (
+                                <span className="text-muted-foreground">—</span>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+}
+
+function VerdictTile({
+    href,
+    title,
+    verdict,
+    detail,
+    loading,
+}: {
+    href: string;
+    title: string;
+    verdict?: string | null;
+    detail?: string;
+    loading?: boolean;
+}) {
+    return (
+        <Link href={href}>
+            <Card className="h-full transition-colors hover:border-primary/30">
+                <CardContent className="p-4">
+                    <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium">{title}</p>
+                        {loading ? (
+                            <Skeleton className="h-5 w-16" />
+                        ) : (
+                            <Badge variant={tone(verdict)}>{label(verdict ?? 'unavailable')}</Badge>
+                        )}
+                    </div>
+                    <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                        {loading ? '' : detail ?? 'Could not load status.'}
+                    </p>
+                </CardContent>
+            </Card>
+        </Link>
+    );
+}
+
+function FlowRow({
+    href,
+    label: rowLabel,
+    value,
+    loading,
+    toneOverride,
+}: {
+    href: string;
+    label: string;
+    value?: number;
+    loading?: boolean;
+    toneOverride?: BadgeTone;
+}) {
+    return (
+        <div className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm">
+            <Link href={href} className="text-muted-foreground hover:text-foreground hover:underline">
+                {rowLabel}
+            </Link>
+            {loading ? (
+                <Skeleton className="h-4 w-12" />
+            ) : (
+                <span
+                    className={
+                        toneOverride === 'destructive'
+                            ? 'font-medium tabular-nums text-destructive'
+                            : toneOverride === 'warning'
+                                ? 'font-medium tabular-nums text-amber-600 dark:text-amber-500'
+                                : toneOverride === 'success'
+                                    ? 'font-medium tabular-nums text-emerald-600 dark:text-emerald-500'
+                                    : 'font-medium tabular-nums'
+                    }
+                >
+                    {value?.toLocaleString() ?? '—'}
+                </span>
+            )}
         </div>
     );
 }

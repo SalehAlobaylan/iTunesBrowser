@@ -40,8 +40,32 @@ export interface StudioReasonCodeTrust {
     rejections: number;
     approve_pct: number;
     reversal_pct: number;
+    reversals: number;
     earned: boolean;
     locked_off: boolean;
+}
+
+export interface MediaStudioProposalInboxItem {
+    action_id: string;
+    chapter_id: string;
+    content_item_id?: string | null;
+    title: string;
+    summary?: string | null;
+    review_code?: string | null;
+    review_reason?: string | null;
+    proposal: 'publish' | 'reject';
+    confidence: number;
+    rationale: string;
+    checked: {
+        duration_ok: boolean;
+        no_sponsor_overlap: boolean;
+        coherent_start: boolean;
+        coherent_end: boolean;
+    };
+    age_hours: number;
+    aged: boolean;
+    created_at: string;
+    duration_sec?: number | null;
 }
 
 export interface MediaStudioRun {
