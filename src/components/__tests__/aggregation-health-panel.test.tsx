@@ -1,11 +1,22 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AggregationHealthPanel } from '@/components/platform/aggregation-health-panel';
 import {
     useAggregationSummary,
     useTriggerAggregationJob,
 } from '@/hooks/use-aggregation-monitoring';
+
+// The panel embeds AggregationActionBar, which needs a QueryClient in context.
+function renderPanel() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+        <QueryClientProvider client={client}>
+            <AggregationHealthPanel />
+        </QueryClientProvider>,
+    );
+}
 
 jest.mock('@/hooks/use-aggregation-monitoring', () => ({
     useAggregationSummary: jest.fn(),
@@ -57,7 +68,7 @@ describe('AggregationHealthPanel', () => {
     });
 
     it('renders summary metrics', () => {
-        render(React.createElement(AggregationHealthPanel));
+        renderPanel();
         expect(screen.getByText('Aggregation Monitoring')).toBeInTheDocument();
         expect(screen.getByText('Processed')).toBeInTheDocument();
         expect(screen.getAllByText('10').length).toBeGreaterThan(0);
@@ -72,7 +83,7 @@ describe('AggregationHealthPanel', () => {
             error: null,
             refetch,
         } as unknown as ReturnType<typeof useAggregationSummary>);
-        render(React.createElement(AggregationHealthPanel));
+        renderPanel();
         expect(screen.getByText('Loading aggregation status...')).toBeInTheDocument();
     });
 
@@ -85,18 +96,18 @@ describe('AggregationHealthPanel', () => {
             error: new Error('Failed to fetch'),
             refetch,
         } as unknown as ReturnType<typeof useAggregationSummary>);
-        render(React.createElement(AggregationHealthPanel));
+        renderPanel();
         expect(screen.getByText('Failed to fetch')).toBeInTheDocument();
     });
 
     it('refreshes when refresh button is clicked', async () => {
-        render(React.createElement(AggregationHealthPanel));
+        renderPanel();
         await userEvent.click(screen.getByRole('button', { name: /refresh/i }));
         expect(refetch).toHaveBeenCalledTimes(1);
     });
 
     it('validates trigger form URL', async () => {
-        render(React.createElement(AggregationHealthPanel));
+        renderPanel();
         await userEvent.click(screen.getByRole('button', { name: /trigger job/i }));
         await userEvent.type(
             screen.getByLabelText(/source url/i),
@@ -112,7 +123,7 @@ describe('AggregationHealthPanel', () => {
             message: 'Triggered',
         });
 
-        render(React.createElement(AggregationHealthPanel));
+        renderPanel();
         await userEvent.click(screen.getByRole('button', { name: /trigger job/i }));
         await userEvent.type(
             screen.getByLabelText(/source url/i),

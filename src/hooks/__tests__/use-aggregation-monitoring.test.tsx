@@ -15,6 +15,7 @@ import { toast } from '@/components/ui/toast';
 jest.mock('@/lib/api/aggregation', () => ({
     fetchAggregationSummary: jest.fn(),
     triggerAggregationJob: jest.fn(),
+    isAggregationConfigured: () => true,
 }));
 
 jest.mock('@/components/ui/toast', () => ({

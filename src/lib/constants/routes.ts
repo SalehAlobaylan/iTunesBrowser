@@ -38,7 +38,7 @@ export const navigation: NavigationSection[] = [
     {
         title: 'Overview',
         items: [
-            { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+            { name: 'Overview', href: '/', icon: LayoutDashboard },
             { name: 'Operations', href: '/platform/operations', icon: ShieldAlert },
             { name: 'System Health', href: '/platform/system-health', icon: HeartPulse },
             { name: 'Feed Integrity', href: '/platform/feed-integrity', icon: ScanSearch },

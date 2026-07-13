@@ -3,20 +3,19 @@
 import { FormEvent, useMemo, useState } from 'react';
 import {
     Activity,
+    AlertTriangle,
+    CheckCircle2,
+    Cpu,
     ExternalLink,
+    Hourglass,
+    Layers,
     Play,
     RefreshCw,
-    Timer,
+    type LucideIcon,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -40,6 +39,8 @@ import {
 } from '@/hooks/use-aggregation-monitoring';
 import type { AggregationTriggerSourceType } from '@/types/platform/aggregation';
 import { AggregationActionBar } from '@/components/platform/aggregation-action-bar';
+import { QueueRow } from '@/components/platform/aggregation/queue-row';
+import { healthTone, queueRollup, relativeSince, WAITING_WARN } from '@/components/platform/aggregation/aggregation-logic';
 
 const SOURCE_TYPE_OPTIONS: AggregationTriggerSourceType[] = [
     'RSS',
@@ -65,14 +66,7 @@ function isValidUrl(value: string): boolean {
 }
 
 export function AggregationHealthPanel() {
-    const {
-        data: summary,
-        isLoading,
-        isFetching,
-        isError,
-        error,
-        refetch,
-    } = useAggregationSummary();
+    const { data: summary, isLoading, isFetching, isError, error, refetch } = useAggregationSummary();
     const triggerMutation = useTriggerAggregationJob();
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -82,19 +76,7 @@ export function AggregationHealthPanel() {
     const [formError, setFormError] = useState<string | null>(null);
 
     const grafanaUrl = process.env.NEXT_PUBLIC_GRAFANA_URL || DEFAULT_GRAFANA_URL;
-
-    const statusVariant = useMemo(() => {
-        if (!summary) {
-            return 'secondary' as const;
-        }
-        if (summary.health.status === 'healthy') {
-            return 'success' as const;
-        }
-        if (summary.health.status === 'degraded') {
-            return 'warning' as const;
-        }
-        return 'destructive' as const;
-    }, [summary]);
+    const rollup = useMemo(() => queueRollup(summary), [summary]);
 
     const handleTriggerSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -124,25 +106,32 @@ export function AggregationHealthPanel() {
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <CardTitle className="flex items-center gap-2 text-lg">
                             <Activity className="h-5 w-5" />
                             Aggregation Monitoring
                         </CardTitle>
-                        <CardDescription>
-                            Queue health, throughput, and manual trigger controls.
-                        </CardDescription>
+                        <CardDescription>Queue health, throughput, and manual controls.</CardDescription>
                     </div>
-                    <Badge variant={statusVariant} className="capitalize">
-                        {summary?.health.status || 'loading'}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                        {summary ? (
+                            <span className="text-xs text-muted-foreground">updated {relativeSince(summary.health.timestamp)}</span>
+                        ) : null}
+                        <Badge variant={healthTone(summary?.health.status)} className="capitalize">
+                            {summary?.health.status || 'loading'}
+                        </Badge>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => refetch()} disabled={isFetching} aria-label="Refresh">
+                            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
+                        </Button>
+                    </div>
                 </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+
+            <CardContent className="space-y-5">
                 {isLoading ? (
                     <div className="flex items-center justify-center py-6 text-muted-foreground">
-                        <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                         Loading aggregation status...
                     </div>
                 ) : null}
@@ -154,72 +143,57 @@ export function AggregationHealthPanel() {
                 ) : null}
 
                 {summary ? (
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="rounded-md border p-3">
-                            <p className="text-xs text-muted-foreground">Processed</p>
-                            <p className="text-xl font-semibold">{summary.totalProcessed}</p>
+                    <>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            <StatTile label="Processed" value={summary.totalProcessed} icon={CheckCircle2} color="text-emerald-500" bg="bg-emerald-500/10" />
+                            <StatTile
+                                label="Waiting"
+                                value={summary.waitingJobs}
+                                icon={Hourglass}
+                                color={summary.waitingJobs >= WAITING_WARN ? 'text-warning' : 'text-muted-foreground'}
+                                bg={summary.waitingJobs >= WAITING_WARN ? 'bg-warning/10' : 'bg-muted'}
+                            />
+                            <StatTile label="Active workers" value={summary.activeWorkers} icon={Cpu} color="text-info" bg="bg-info/10" pulse={summary.activeWorkers > 0} />
+                            <StatTile
+                                label="Failed"
+                                value={summary.totalFailed}
+                                icon={AlertTriangle}
+                                color={summary.totalFailed > 0 ? 'text-destructive' : 'text-muted-foreground'}
+                                bg={summary.totalFailed > 0 ? 'bg-destructive/10' : 'bg-muted'}
+                            />
                         </div>
-                        <div className="rounded-md border p-3">
-                            <p className="text-xs text-muted-foreground">Failed</p>
-                            <p className="text-xl font-semibold">{summary.totalFailed}</p>
-                        </div>
-                        <div className="rounded-md border p-3">
-                            <p className="text-xs text-muted-foreground">Active Workers</p>
-                            <p className="text-xl font-semibold">{summary.activeWorkers}</p>
-                        </div>
-                        <div className="rounded-md border p-3">
-                            <p className="text-xs text-muted-foreground">Waiting Jobs</p>
-                            <p className="text-xl font-semibold">{summary.waitingJobs}</p>
-                        </div>
-                    </div>
-                ) : null}
 
-                {summary?.queues.length ? (
-                    <div className="rounded-md border">
-                        <div className="grid grid-cols-6 gap-2 border-b bg-muted/40 p-2 text-xs font-medium text-muted-foreground">
-                            <span>Queue</span>
-                            <span className="text-right">Waiting</span>
-                            <span className="text-right">Active</span>
-                            <span className="text-right">Completed</span>
-                            <span className="text-right">Failed</span>
-                            <span className="text-right">Delayed</span>
-                        </div>
-                        {summary.queues.map((queue) => (
-                            <div key={queue.queue} className="grid grid-cols-6 gap-2 p-2 text-sm">
-                                <span className="font-medium">{queue.queue}</span>
-                                <span className="text-right">{queue.waiting}</span>
-                                <span className="text-right">{queue.active}</span>
-                                <span className="text-right">{queue.completed}</span>
-                                <span className="text-right">{queue.failed}</span>
-                                <span className="text-right">{queue.delayed}</span>
+                        <div>
+                            <div className="mb-2 flex items-center justify-between">
+                                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                                    <Layers className="h-4 w-4 text-muted-foreground" />
+                                    Queues
+                                </h3>
+                                <span className="text-xs text-muted-foreground">
+                                    {rollup.total} {rollup.total === 1 ? 'queue' : 'queues'}
+                                    {rollup.attention > 0 ? ` · ${rollup.attention} need attention` : ' · all clear'}
+                                </span>
                             </div>
-                        ))}
-                    </div>
-                ) : null}
-
-                {summary?.health.timestamp ? (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Timer className="h-3 w-3" />
-                        Last update: {new Date(summary.health.timestamp).toLocaleString()}
-                    </div>
+                            {summary.queues.length ? (
+                                <div className="space-y-2">
+                                    {summary.queues.map((queue) => (
+                                        <QueueRow key={queue.queue} queue={queue} />
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
+                                    No queues reported.
+                                </p>
+                            )}
+                        </div>
+                    </>
                 ) : null}
 
                 <div className="flex flex-wrap gap-2">
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => refetch()}
-                        disabled={isFetching}
-                    >
-                        <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
-
                     <Button type="button" onClick={() => setIsDialogOpen(true)}>
                         <Play className="mr-2 h-4 w-4" />
                         Trigger Job
                     </Button>
-
                     {grafanaUrl ? (
                         <Button type="button" variant="secondary" asChild>
                             <a href={grafanaUrl} target="_blank" rel="noreferrer">
@@ -237,18 +211,13 @@ export function AggregationHealthPanel() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Trigger Aggregation Job</DialogTitle>
-                        <DialogDescription>
-                            Submit a manual aggregation source run.
-                        </DialogDescription>
+                        <DialogDescription>Submit a manual aggregation source run.</DialogDescription>
                     </DialogHeader>
 
                     <form className="space-y-4" onSubmit={handleTriggerSubmit}>
                         <div className="space-y-2">
                             <Label htmlFor="aggregation-source-type">Source Type</Label>
-                            <Select
-                                value={sourceType}
-                                onValueChange={(value) => setSourceType(value as AggregationTriggerSourceType)}
-                            >
+                            <Select value={sourceType} onValueChange={(value) => setSourceType(value as AggregationTriggerSourceType)}>
                                 <SelectTrigger id="aggregation-source-type">
                                     <SelectValue placeholder="Select source type" />
                                 </SelectTrigger>
@@ -283,17 +252,10 @@ export function AggregationHealthPanel() {
                             />
                         </div>
 
-                        {formError ? (
-                            <p className="text-sm text-destructive">{formError}</p>
-                        ) : null}
+                        {formError ? <p className="text-sm text-destructive">{formError}</p> : null}
 
                         <DialogFooter>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setIsDialogOpen(false)}
-                                disabled={triggerMutation.isPending}
-                            >
+                            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={triggerMutation.isPending}>
                                 Cancel
                             </Button>
                             <Button type="submit" disabled={triggerMutation.isPending}>
@@ -306,3 +268,34 @@ export function AggregationHealthPanel() {
         </Card>
     );
 }
+
+function StatTile({
+    label,
+    value,
+    icon: Icon,
+    color,
+    bg,
+    pulse,
+}: {
+    label: string;
+    value: number;
+    icon: LucideIcon;
+    color: string;
+    bg: string;
+    pulse?: boolean;
+}) {
+    return (
+        <div className="flex items-center gap-3 rounded-md border p-3">
+            <div className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${bg}`}>
+                <Icon className={`h-4 w-4 ${color}`} />
+                {pulse ? <span className="absolute right-1 top-1 h-1.5 w-1.5 animate-pulse rounded-full bg-info" /> : null}
+            </div>
+            <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="text-xl font-semibold tabular-nums">{value.toLocaleString()}</p>
+            </div>
+        </div>
+    );
+}
+
+export { StatTile as AggregationStatTile };

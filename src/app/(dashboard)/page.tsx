@@ -1,47 +1,34 @@
 'use client';
 
-import Link from 'next/link';
 import { useMemo } from 'react';
-import { AlertTriangle, ArrowRight, CheckCircle2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Database, FileText, Newspaper, Video, Radio } from 'lucide-react';
 import { useOpsAttention, useOpsStatus } from '@/hooks/use-operations-command-center';
 import { useSystemHealth } from '@/hooks/use-system-health';
-import { useFeedIntegrityStatus } from '@/hooks/use-feed-integrity';
-import { useExperienceStatus } from '@/hooks/use-real-experience';
-import { useAISpendStatus } from '@/hooks/use-ai-spend';
+import { useFeedIntegrityRuns, useFeedIntegrityStatus } from '@/hooks/use-feed-integrity';
+import { useExperienceRuns, useExperienceStatus } from '@/hooks/use-real-experience';
+import { useAISpendRollups, useAISpendStatus } from '@/hooks/use-ai-spend';
 import { useStatusCounts } from '@/hooks/use-pipeline';
 import { useStorageHealth } from '@/hooks/use-storage';
 import { useSources } from '@/hooks/use-sources';
-import type { RuxVerdict } from '@/types/platform/real-experience';
-
-type BadgeTone = 'success' | 'warning' | 'destructive' | 'secondary';
-
-const GOOD = ['healthy', 'all_clear', 'within', 'ok', 'running', 'idle', 'completed'];
-const BAD = ['degraded_major', 'broken', 'critical', 'unhealthy', 'incident', 'errored', 'stalled', 'failed', 'over_budget', 'bounded_stop'];
-const WATCH = ['watching', 'watch', 'warning', 'degraded', 'degraded_minor', 'minor', 'attention', 'paused', 'pressure', 'over_pace', 'recovering', 'telemetry_degraded'];
-
-function tone(value?: string | null): BadgeTone {
-    if (!value) return 'secondary';
-    const v = value.toLowerCase();
-    if (GOOD.includes(v)) return 'success';
-    if (BAD.includes(v)) return 'destructive';
-    if (WATCH.includes(v)) return 'warning';
-    return 'secondary';
-}
-
-const label = (value?: string | null) => (value ? value.replaceAll('_', ' ') : 'unknown');
-
-const relative = (value?: string | null) => {
-    if (!value) return 'never';
-    const minutes = Math.round((new Date(value).getTime() - Date.now()) / 60_000);
-    if (Math.abs(minutes) >= 60 * 24) return new Intl.RelativeTimeFormat('en').format(Math.round(minutes / (60 * 24)), 'day');
-    if (Math.abs(minutes) >= 60) return new Intl.RelativeTimeFormat('en').format(Math.round(minutes / 60), 'hour');
-    return new Intl.RelativeTimeFormat('en').format(minutes, 'minute');
-};
-
-const RUX_ORDER: RuxVerdict[] = ['critical', 'degraded', 'telemetry_degraded', 'watching', 'insufficient_data', 'healthy'];
+import { useContentStats } from '@/hooks/use-content';
+import { OverviewHeader } from '@/components/platform/overview/overview-header';
+import { VerdictTile } from '@/components/platform/overview/verdict-tile';
+import { AttentionPreview } from '@/components/platform/overview/attention-preview';
+import { ContentFlowPanel } from '@/components/platform/overview/content-flow-panel';
+import { ContentStatStrip } from '@/components/platform/overview/content-stat-strip';
+import { AggregationHealthPanel } from '@/components/platform/aggregation-health-panel';
+import { isAggregationConfigured } from '@/lib/api/aggregation';
+import {
+    deriveFleetState,
+    deriveServicesDetail,
+    deriveSpendState,
+    deriveWorstRux,
+    feedScoreSeries,
+    label,
+    ruxHealthSeries,
+    spendDailySeries,
+    topAttention,
+} from '@/components/platform/overview/overview-logic';
 
 export default function DashboardPage() {
     const ops = useOpsStatus();
@@ -53,270 +40,134 @@ export default function DashboardPage() {
     const statusCounts = useStatusCounts();
     const storage = useStorageHealth();
     const sources = useSources({ page: 1, limit: 1 });
+    const integrityRuns = useFeedIntegrityRuns();
+    const experienceRuns = useExperienceRuns();
+    const spendRollups = useAISpendRollups();
+    const contentStats = useContentStats();
 
-    const attentionItems = useMemo(
-        () => (attention.data?.items ?? []).filter((item) => !item.snoozed).slice(0, 6),
-        [attention.data],
+    const attentionItems = useMemo(() => topAttention(attention.data?.items), [attention.data]);
+    const integrityTrend = useMemo(() => feedScoreSeries(integrityRuns.data?.items), [integrityRuns.data]);
+    const ruxTrend = useMemo(() => ruxHealthSeries(experienceRuns.data), [experienceRuns.data]);
+    const spendTrend = useMemo(() => spendDailySeries(spendRollups.data?.rollups), [spendRollups.data]);
+
+    const servicesDetail = deriveServicesDetail(systemHealth.data?.services);
+    const feedResults = Object.values(feedIntegrity.data?.latest_run?.feed_results ?? {}).sort((a, b) =>
+        a.feed === 'foryou' ? -1 : b.feed === 'foryou' ? 1 : a.feed.localeCompare(b.feed),
     );
-
-    // Services verdict
-    const unhealthyServices = (systemHealth.data?.services ?? []).filter((s) => s.status !== 'healthy');
-
-    // Feed integrity verdicts per feed (worst consumer verdict shown as badge)
-    const feedResults = Object.values(feedIntegrity.data?.latest_run?.feed_results ?? {});
     const openEpisodes = feedIntegrity.data?.open_episodes?.length ?? 0;
-
-    // Experience: worst surface verdict
-    const ruxVerdicts = Object.values(experience.data?.surface_verdicts ?? {}).map((s) => s.verdict);
-    const worstRux = RUX_ORDER.find((v) => ruxVerdicts.includes(v)) ?? (experience.data ? 'insufficient_data' : undefined);
-
-    // Spend: worst budget state + month total
+    const worstRux = deriveWorstRux(experience.data ? experience.data.surface_verdicts : undefined);
     const budgets = spend.data?.budgets ?? [];
     const spendTotal = budgets.reduce((sum, b) => sum + b.spend_usd, 0);
-    const spendState = budgets.some((b) => b.paused_until && new Date(b.paused_until) > new Date())
-        ? 'paused'
-        : budgets.some((b) => b.cap_usd && b.spend_usd >= b.cap_usd * (b.hard_pct / 100))
-            ? 'over_budget'
-            : budgets.some((b) => b.cap_usd && b.spend_usd >= b.cap_usd * (b.warn_pct / 100))
-                ? 'warning'
-                : budgets.length
-                    ? 'within'
-                    : undefined;
+    const spendState = deriveSpendState(spend.data?.budgets);
+    const fleetSummary = deriveFleetState(ops.data?.fleet);
 
-    // Fleet: lane states from ops
-    const fleet = ops.data?.fleet ?? [];
-    const stalled = fleet.filter((f) => f.state === 'stalled' || f.state === 'errored').length;
-    const pausedLanes = fleet.filter((f) => f.state === 'paused').length;
-    const fleetState = fleet.length ? (stalled ? 'stalled' : pausedLanes ? 'paused' : 'all_clear') : undefined;
-
-    const counts = statusCounts.data;
-    const proof = storage.data?.proof;
+    const byType = contentStats.data?.by_type;
+    const contentStatsLoading = contentStats.isLoading || sources.isLoading;
+    const contentScale = [
+        { label: 'Content Items', value: contentStats.data?.total, icon: FileText, href: '/platform/content', color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
+        { label: 'Sources', value: sources.data?.total, icon: Database, href: '/platform/sources', color: 'text-blue-500', bg: 'bg-blue-500/10' },
+        { label: 'News', value: byType?.NEWS, icon: Newspaper, href: '/platform/news', color: 'text-news', bg: 'bg-news/10' },
+        { label: 'Video', value: byType?.VIDEO, icon: Video, href: '/platform/media', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+        { label: 'Podcast', value: byType?.PODCAST, icon: Radio, href: '/platform/media', color: 'text-gold', bg: 'bg-gold/10' },
+    ];
 
     return (
         <div className="space-y-8">
-            {/* What is happening */}
-            <div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="text-3xl font-bold tracking-tight">Platform Overview</h1>
-                    {ops.data ? <Badge variant={tone(ops.data.headline)}>{label(ops.data.headline)}</Badge> : null}
-                </div>
-                <p className="mt-1 text-muted-foreground">
-                    {ops.data?.summary ?? 'Health, attention, and content flow across the platform.'}
-                </p>
-                {ops.data ? (
-                    <p className="mt-1 text-xs text-muted-foreground">Snapshot {new Date(ops.data.as_of).toLocaleString()}</p>
-                ) : null}
-            </div>
+            <OverviewHeader status={ops.data} isLoading={ops.isLoading} />
 
-            {/* Is it healthy — one tile per governance surface */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <ContentStatStrip stats={contentScale} loading={contentStatsLoading} />
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 <VerdictTile
                     href="/platform/system-health"
                     title="Services"
                     loading={systemHealth.isLoading}
+                    isError={systemHealth.isError}
                     verdict={systemHealth.data?.overall}
-                    detail={
-                        systemHealth.data
-                            ? unhealthyServices.length
-                                ? `${unhealthyServices.map((s) => s.displayName).join(', ')} not healthy`
-                                : `${systemHealth.data.services.length} services healthy`
-                            : undefined
-                    }
+                    detail={servicesDetail}
                 />
                 <VerdictTile
                     href="/platform/feed-integrity"
                     title="Feed Integrity"
                     loading={feedIntegrity.isLoading}
+                    isError={feedIntegrity.isError}
                     verdict={feedIntegrity.data?.latest_run?.headline}
                     detail={
                         feedIntegrity.data
                             ? feedResults.length
-                                ? `${feedResults.map((f) => `${f.feed} ${label(f.consumer_verdict)}`).join(' · ')}${openEpisodes ? ` · ${openEpisodes} open episodes` : ''}`
+                                ? (
+                                    <span className="flex flex-wrap gap-x-2">
+                                        {feedResults.map((f) => (
+                                            <span
+                                                key={f.feed}
+                                                className={`font-medium ${f.feed === 'foryou' ? 'text-gold' : f.feed === 'news' ? 'text-news' : ''}`}
+                                            >
+                                                {f.feed} {label(f.consumer_verdict)}
+                                            </span>
+                                        ))}
+                                        {openEpisodes ? <span>{openEpisodes} open episodes</span> : null}
+                                    </span>
+                                )
                                 : 'No runs yet'
                             : undefined
                     }
+                    trend={integrityTrend}
                 />
                 <VerdictTile
                     href="/platform/real-experience"
                     title="Real Experience"
                     loading={experience.isLoading}
+                    isError={experience.isError}
                     verdict={worstRux}
                     detail={
                         experience.data
                             ? `${experience.data.open_incidents} open incidents${experience.data.telemetry_fresh ? '' : ' · telemetry stale'}`
                             : undefined
                     }
+                    trend={ruxTrend}
                 />
                 <VerdictTile
                     href="/platform/economics"
                     title="AI Spend"
                     loading={spend.isLoading}
+                    isError={spend.isError}
                     verdict={spendState}
                     detail={spend.data ? `$${spendTotal.toFixed(2)} across ${budgets.length} budgets` : undefined}
+                    trend={spendTrend}
                 />
                 <VerdictTile
                     href="/platform/operations"
                     title="Autopilot Fleet"
                     loading={ops.isLoading}
-                    verdict={fleetState}
+                    isError={ops.isError}
+                    verdict={fleetSummary.state}
                     detail={
                         ops.data
-                            ? `${fleet.length} lanes · ${stalled} stalled · ${pausedLanes} paused`
+                            ? `${fleetSummary.lanes} lanes · ${fleetSummary.stalled} stalled · ${fleetSummary.paused} paused`
                             : undefined
                     }
                 />
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-                {/* What needs me */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5 text-amber-500" />
-                            Needs attention
-                        </CardTitle>
-                        <CardDescription>Top open items across the fleet. Act on them from Operations.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        {attention.isLoading ? (
-                            <Skeleton className="h-24" />
-                        ) : attentionItems.length ? (
-                            <>
-                                {attentionItems.map((item) => (
-                                    <div key={item.key} className="rounded-md border p-3">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <Badge variant={tone(item.severity)}>{item.severity}</Badge>
-                                            <Badge variant="outline">{item.system}</Badge>
-                                            <span className="ml-auto text-xs text-muted-foreground">{relative(item.first_seen)}</span>
-                                        </div>
-                                        <Link href={item.href} className="mt-2 block font-medium hover:underline">
-                                            {item.title}
-                                        </Link>
-                                        {item.detail ? <p className="text-sm text-muted-foreground">{item.detail}</p> : null}
-                                    </div>
-                                ))}
-                                <Link
-                                    href="/platform/operations"
-                                    className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                                >
-                                    Open Operations
-                                    <ArrowRight className="h-3.5 w-3.5" />
-                                </Link>
-                            </>
-                        ) : (
-                            <p className="py-6 text-center text-sm text-muted-foreground">
-                                <CheckCircle2 className="mx-auto mb-2 h-5 w-5 text-success" />
-                                Nothing needs attention right now.
-                            </p>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* Is content flowing */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Content flow</CardTitle>
-                        <CardDescription>Pipeline, supply, and storage at a glance.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-1">
-                        <FlowRow href="/platform/pipeline" label="Pending" value={counts?.PENDING} loading={statusCounts.isLoading} toneOverride={counts && counts.PENDING > 0 ? 'warning' : undefined} />
-                        <FlowRow href="/platform/pipeline" label="Processing" value={counts?.PROCESSING} loading={statusCounts.isLoading} />
-                        <FlowRow href="/platform/content" label="Ready" value={counts?.READY} loading={statusCounts.isLoading} toneOverride="success" />
-                        <FlowRow href="/platform/pipeline" label="Failed" value={counts?.FAILED} loading={statusCounts.isLoading} toneOverride={counts && counts.FAILED > 0 ? 'destructive' : undefined} />
-                        <FlowRow href="/platform/content" label="Archived" value={counts?.ARCHIVED} loading={statusCounts.isLoading} />
-                        <div className="my-3 border-t" />
-                        <FlowRow href="/platform/sources" label="Sources" value={sources.data?.total} loading={sources.isLoading} />
-                        <div className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm">
-                            <Link href="/platform/storage" className="text-muted-foreground hover:text-foreground hover:underline">
-                                Storage
-                            </Link>
-                            {storage.isLoading ? (
-                                <Skeleton className="h-4 w-16" />
-                            ) : proof ? (
-                                <span className="flex items-center gap-2">
-                                    <Badge variant={tone(storage.data?.state)}>{label(storage.data?.state)}</Badge>
-                                    <span className="font-medium tabular-nums">{proof.utilization_pct.toFixed(0)}%</span>
-                                </span>
-                            ) : (
-                                <span className="text-muted-foreground">—</span>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
+                <AttentionPreview
+                    items={attentionItems}
+                    isLoading={attention.isLoading}
+                    isError={attention.isError}
+                    onRetry={() => attention.refetch()}
+                />
+                <ContentFlowPanel
+                    counts={statusCounts.data}
+                    countsLoading={statusCounts.isLoading}
+                    sourcesTotal={sources.data?.total}
+                    sourcesLoading={sources.isLoading}
+                    storage={storage.data}
+                    storageLoading={storage.isLoading}
+                    daily={contentStats.data?.daily}
+                />
             </div>
-        </div>
-    );
-}
 
-function VerdictTile({
-    href,
-    title,
-    verdict,
-    detail,
-    loading,
-}: {
-    href: string;
-    title: string;
-    verdict?: string | null;
-    detail?: string;
-    loading?: boolean;
-}) {
-    return (
-        <Link href={href}>
-            <Card className="h-full transition-colors hover:border-primary/30">
-                <CardContent className="p-4">
-                    <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium">{title}</p>
-                        {loading ? (
-                            <Skeleton className="h-5 w-16" />
-                        ) : (
-                            <Badge variant={tone(verdict)}>{label(verdict ?? 'unavailable')}</Badge>
-                        )}
-                    </div>
-                    <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">
-                        {loading ? '' : detail ?? 'Could not load status.'}
-                    </p>
-                </CardContent>
-            </Card>
-        </Link>
-    );
-}
-
-function FlowRow({
-    href,
-    label: rowLabel,
-    value,
-    loading,
-    toneOverride,
-}: {
-    href: string;
-    label: string;
-    value?: number;
-    loading?: boolean;
-    toneOverride?: BadgeTone;
-}) {
-    return (
-        <div className="flex items-center justify-between rounded-md px-2 py-1.5 text-sm">
-            <Link href={href} className="text-muted-foreground hover:text-foreground hover:underline">
-                {rowLabel}
-            </Link>
-            {loading ? (
-                <Skeleton className="h-4 w-12" />
-            ) : (
-                <span
-                    className={
-                        toneOverride === 'destructive'
-                            ? 'font-medium tabular-nums text-destructive'
-                            : toneOverride === 'warning'
-                                ? 'font-medium tabular-nums text-amber-600 dark:text-amber-500'
-                                : toneOverride === 'success'
-                                    ? 'font-medium tabular-nums text-emerald-600 dark:text-emerald-500'
-                                    : 'font-medium tabular-nums'
-                    }
-                >
-                    {value?.toLocaleString() ?? '—'}
-                </span>
-            )}
+            {isAggregationConfigured() ? <AggregationHealthPanel /> : null}
         </div>
     );
 }
