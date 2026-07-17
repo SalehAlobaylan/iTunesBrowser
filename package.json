@@ -7,7 +7,11 @@
     "build": "node scripts/log-service-connections.js && next build",
     "start": "node scripts/log-service-connections.js && next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:e2e": "playwright test",
+    "test:e2e:list": "playwright test --list"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

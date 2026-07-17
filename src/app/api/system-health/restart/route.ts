@@ -6,6 +6,7 @@ export const revalidate = 0;
 
 const ACCESS_COOKIE = 'console_access_token';
 const PROBE_TIMEOUT_MS = 10_000;
+const IAM_AUTH_TIMEOUT_MS = 5_000;
 
 type RestartTarget = 'cms' | 'iam' | 'aggregation' | 'enrichment';
 
@@ -18,6 +19,51 @@ interface TargetConfig {
     envKey: string;
     path: string;
     auth: 'cookie-jwt' | 'service-token';
+}
+
+interface IAMAccess {
+    user_id?: string;
+    email?: string;
+    roles?: string[];
+    is_admin?: boolean;
+}
+
+async function requireAdmin(request: NextRequest): Promise<
+    | { access: IAMAccess }
+    | { response: NextResponse }
+> {
+    const token = request.cookies.get(ACCESS_COOKIE)?.value;
+    if (!token) {
+        return { response: NextResponse.json({ message: 'Not authenticated' }, { status: 401 }) };
+    }
+    const iamBaseUrl = process.env.IAM_BASE_URL;
+    if (!iamBaseUrl) {
+        return { response: NextResponse.json({ message: 'IAM_BASE_URL is not configured' }, { status: 500 }) };
+    }
+    let upstream: Response;
+    try {
+        upstream = await fetch(`${iamBaseUrl.replace(/\/$/, '')}/api/v1/roles/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+            signal: AbortSignal.timeout(IAM_AUTH_TIMEOUT_MS),
+        });
+    } catch {
+        return { response: NextResponse.json({ message: 'Authorization service unavailable' }, { status: 503 }) };
+    }
+    if (upstream.status === 401 || upstream.status === 403) {
+        return { response: NextResponse.json({ message: 'Not authenticated' }, { status: 401 }) };
+    }
+    if (!upstream.ok) {
+        return { response: NextResponse.json({ message: 'Authorization service unavailable' }, { status: 503 }) };
+    }
+    const access = (await upstream.json()) as IAMAccess;
+    const hasAdminRole = Boolean(access.is_admin) || (access.roles ?? []).some(
+        (role) => role.toLowerCase() === 'admin'
+    );
+    if (!hasAdminRole) {
+        return { response: NextResponse.json({ message: 'Admin role required' }, { status: 403 }) };
+    }
+    return { access };
 }
 
 const TARGETS: Record<RestartTarget, TargetConfig> = {
@@ -43,6 +89,9 @@ const TARGETS: Record<RestartTarget, TargetConfig> = {
 };
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+	const authorization = await requireAdmin(request);
+	if ('response' in authorization) return authorization.response;
+
     let body: RestartBody;
     try {
         body = (await request.json()) as RestartBody;
@@ -80,14 +129,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
         headers.set('Authorization', `Bearer ${token}`);
     } else {
-        const serviceToken = process.env.ENRICHMENT_SERVICE_TOKEN;
+        const serviceToken = process.env.ENRICHMENT_RESTART_TOKEN;
         if (!serviceToken) {
             return NextResponse.json(
-                { message: 'ENRICHMENT_SERVICE_TOKEN is not configured' },
+                { message: 'ENRICHMENT_RESTART_TOKEN is not configured' },
                 { status: 500 }
             );
         }
         headers.set('Authorization', `Bearer ${serviceToken}`);
+		headers.set('X-Operator-Email', authorization.access.email ?? authorization.access.user_id ?? 'admin');
+		headers.set('X-Request-ID', request.headers.get('X-Request-ID') ?? crypto.randomUUID());
     }
 
     const url = `${baseUrl.replace(/\/$/, '')}${target.path}`;

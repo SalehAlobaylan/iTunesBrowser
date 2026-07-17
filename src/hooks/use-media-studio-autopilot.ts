@@ -3,6 +3,7 @@ import {
     getStudioAutopilotInsights,
     getStudioAutopilotRun,
     listStudioAutopilotProposals,
+    resolveStudioAutopilotProposal,
     getStudioAutopilotStatus,
     listStudioAutopilotRuns,
     pauseStudioAutopilot,
@@ -57,6 +58,22 @@ export function useStudioAutopilotProposals() {
         queryKey: studioAutopilotKeys.proposals(),
         queryFn: listStudioAutopilotProposals,
         refetchInterval: 30_000,
+    });
+}
+
+export function useResolveStudioAutopilotProposal() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: resolveStudioAutopilotProposal,
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: studioAutopilotKeys.all });
+            qc.invalidateQueries({ queryKey: ['media-atomization'] });
+            toast({ title: 'Proposal decision recorded' });
+        },
+        onError: (err: unknown) => {
+            const message = (err as { message?: string })?.message ?? 'Proposal decision failed';
+            toast({ title: 'Proposal decision failed', description: message, variant: 'destructive' });
+        },
     });
 }
 

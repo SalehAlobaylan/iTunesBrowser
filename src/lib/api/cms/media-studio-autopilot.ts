@@ -62,6 +62,17 @@ export async function listStudioAutopilotProposals(): Promise<MediaStudioProposa
     return res.data.items;
 }
 
+export async function resolveStudioAutopilotProposal(input: {
+    chapterId: string;
+    actionId: string;
+    approve: boolean;
+}): Promise<void> {
+    const verb = input.approve ? 'approve' : 'reject';
+    await cmsClient.post(`/admin/media-atomization/chapters/${input.chapterId}/${verb}`, {
+        proposal_action_id: input.actionId,
+    });
+}
+
 /** POST /admin/media/studio/autopilot/pause */
 export async function pauseStudioAutopilot(minutes: number): Promise<{ paused_until: string }> {
     const res = await cmsClient.post<{ data: { paused_until: string } }>(`${BASE}/pause`, {

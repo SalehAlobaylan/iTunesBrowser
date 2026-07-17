@@ -99,7 +99,7 @@ export const getSystemIncidentEpisode = (id: string) =>
     )
   );
 
-export const closeSystemIncidentEpisode = (id: string, reason?: string) =>
+export const closeSystemIncidentEpisode = (id: string, reason: string) =>
   unwrap(
     cmsClient.post<CmsEnvelope<SystemIncidentEpisode>>(
       `${BASE}/episodes/${id}/close`,

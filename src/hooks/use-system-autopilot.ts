@@ -73,8 +73,9 @@ export function useUpdateSystemAutopilotPolicy() {
   return useMutation({
     mutationFn: (patch: Partial<SystemAutopilotPolicy>) =>
       updateSystemAutopilotPolicy(patch),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: systemAutopilotKeys.status() });
+	onSuccess: () => {
+		qc.invalidateQueries({ queryKey: systemAutopilotKeys.all });
+		qc.invalidateQueries({ queryKey: systemHealthKeys.all });
       toast({ title: 'System Health Autopilot saved', variant: 'success' });
     },
     onError: (error: Error) =>
@@ -128,7 +129,7 @@ export function usePauseSystemAutopilotContainment() {
 export function useCloseSystemIncidentEpisode() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+	mutationFn: ({ id, reason }: { id: string; reason: string }) =>
       closeSystemIncidentEpisode(id, reason),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: systemAutopilotKeys.all });

@@ -51,8 +51,15 @@ export interface SystemContainmentLedgerEntry {
 }
 
 export interface SystemContainmentLedger {
-  version: 2;
-  siblings: Record<string, Record<string, SystemContainmentLedgerEntry>>;
+	version: 2;
+	siblings: Record<string, Record<string, SystemContainmentLedgerEntry>>;
+}
+
+export interface SystemRecommendedAction {
+	label: string;
+	kind: string;
+	target: string;
+	href: string;
 }
 
 export interface SystemIncidentTimelineEntry {
@@ -123,6 +130,7 @@ export interface SystemAutopilotRunDetail {
 }
 
 export interface SystemIncidentEpisodeDetail {
-  episode: SystemIncidentEpisode;
-  actions: SystemAutopilotAction[];
+	episode: SystemIncidentEpisode;
+	actions: SystemAutopilotAction[];
+	recommended_action: SystemRecommendedAction;
 }

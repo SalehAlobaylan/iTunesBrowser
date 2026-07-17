@@ -3,9 +3,12 @@
 import { useState } from 'react';
 import {
   Bot,
+  History,
+  ListTree,
   Pause,
   Play,
   RefreshCw,
+  Settings2,
   ShieldAlert,
   XCircle,
 } from 'lucide-react';
@@ -33,6 +36,9 @@ import type {
   SystemIncidentEpisode,
 } from '@/types/platform/system-autopilot';
 import { SystemIncidentCloseDialog } from './system-incident-close-dialog';
+import { SystemIncidentHistorySheet } from './system-incident-history-sheet';
+import { SystemAutopilotRunsSheet } from './system-autopilot-runs-sheet';
+import { SystemAutopilotPolicySheet } from './system-autopilot-policy-sheet';
 
 function formatDate(value?: string | null): string {
   if (!value) return 'Never';
@@ -121,6 +127,9 @@ export function SystemAutopilotPanel() {
   const closeEpisode = useCloseSystemIncidentEpisode();
   const [episodeToClose, setEpisodeToClose] =
     useState<SystemIncidentEpisode | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [runsOpen, setRunsOpen] = useState(false);
+  const [policyOpen, setPolicyOpen] = useState(false);
 
   const policy = data?.policy;
   const containmentPaused =
@@ -282,6 +291,31 @@ export function SystemAutopilotPanel() {
             <Pause className="mr-2 h-4 w-4" />
             {containmentPaused ? 'Resume containment' : 'Pause containment'}
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setHistoryOpen(true)}
+          >
+            <History className="mr-2 h-4 w-4" />
+            Incident history
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setRunsOpen(true)}
+          >
+            <ListTree className="mr-2 h-4 w-4" />
+            Run ledger
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!policy}
+            onClick={() => setPolicyOpen(true)}
+          >
+            <Settings2 className="mr-2 h-4 w-4" />
+            Policy
+          </Button>
         </div>
 
         <div className="grid gap-3 md:grid-cols-4">
@@ -405,6 +439,19 @@ export function SystemAutopilotPanel() {
           )
         }
       />
+      <SystemIncidentHistorySheet
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
+      <SystemAutopilotRunsSheet open={runsOpen} onOpenChange={setRunsOpen} />
+      {policy ? (
+        <SystemAutopilotPolicySheet
+          policy={policy}
+          registered={data?.registered_autopilots ?? []}
+          open={policyOpen}
+          onOpenChange={setPolicyOpen}
+        />
+      ) : null}
     </Card>
   );
 }

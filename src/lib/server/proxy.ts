@@ -70,6 +70,17 @@ export function createProxyHandlers(envVarName: string): ProxyHandlers {
                 responseHeaders.delete(h);
             }
 
+            // Fetch exposes a zero-length ArrayBuffer even when an upstream
+            // correctly returns 204. Passing that buffer to NextResponse still
+            // counts as a response body, which is invalid for 204/205/304 and
+            // turns successful DELETEs into a proxy 502.
+            if ([204, 205, 304].includes(upstream.status)) {
+                return new NextResponse(null, {
+                    status: upstream.status,
+                    headers: responseHeaders,
+                });
+            }
+
             const responseBody = await upstream.arrayBuffer();
 
             return new NextResponse(responseBody, {

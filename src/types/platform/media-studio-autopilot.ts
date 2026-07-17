@@ -49,6 +49,7 @@ export interface MediaStudioProposalInboxItem {
     action_id: string;
     chapter_id: string;
     content_item_id?: string | null;
+    parent_id?: string | null;
     title: string;
     summary?: string | null;
     review_code?: string | null;

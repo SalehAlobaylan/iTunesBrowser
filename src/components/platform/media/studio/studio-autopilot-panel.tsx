@@ -27,6 +27,7 @@ import { StudioClearanceFlow } from './studio-clearance-flow';
 import { StudioQueueComposition } from './studio-queue-composition';
 import { StudioRunTimeline } from './studio-run-timeline';
 import { StudioTrustProgress } from './studio-trust-progress';
+import { StudioProposalInbox } from './studio-proposal-inbox';
 
 const HEADLINE_TONE: Record<string, string> = {
     clear: 'bg-emerald-500/15 text-emerald-300',
@@ -102,6 +103,8 @@ export function StudioAutopilotPanel() {
                 <StudioQueueComposition byCode={health.by_code} total={health.review_queue_depth} aged={health.aged_count} />
                 <StudioTrustProgress trust={trust} policy={policy} />
             </div>
+
+            <StudioProposalInbox />
 
             {/* Run activity over time */}
             <StudioRunTimeline runs={insights?.run_history ?? []} />

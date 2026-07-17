@@ -79,7 +79,7 @@ All backend URLs are server-side (the BFF reads them; they're never exposed to t
 | `AGGREGATION_BASE_URL` | yes | http://localhost:5002 | Source discovery / preview / run |
 | `ENRICHMENT_BASE_URL` | for AI metrics | http://localhost:5050 | Enrichment `/metrics` scrape |
 | `MEDIA_BASE_URL` | for AI metrics | http://localhost:5051 | Media `/metrics` scrape |
-| `ENRICHMENT_SERVICE_TOKEN` | for AI metrics | — | Bearer token for scraping |
+| `ENRICHMENT_RESTART_TOKEN` | for Enrichment restart | — | Dedicated control-plane capability; never reuse the normal service token |
 | `PLATFORM_BASE_URL` | no | http://localhost:3000 | Wahb-Platform origin (cross-links) |
 | `NEXT_PUBLIC_GRAFANA_URL` | no | — | Optional Grafana embed on system-health |
 
