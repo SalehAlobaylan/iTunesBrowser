@@ -5,6 +5,8 @@ export type ModerationReport = {
   id: string;
   target_type: ModerationTargetType;
   target_id: string;
+  author_id?: string;
+  author_suspended: boolean;
   reason: string;
   detail?: string;
   status: ModerationStatus;

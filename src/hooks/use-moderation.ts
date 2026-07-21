@@ -6,6 +6,7 @@ import {
   removeModerationComment,
   resolveModerationReport,
 } from '@/lib/api/cms/moderation';
+import { updateIAMUserSuspension } from '@/lib/api/iam/admin-users';
 import type { ModerationStatus } from '@/types/platform/moderation';
 
 export const moderationKeys = {
@@ -56,6 +57,29 @@ export function useRemoveModerationComment() {
     onError: (error: Error) =>
       toast({
         title: 'Could not remove comment',
+        description: error.message,
+        variant: 'destructive',
+      }),
+  });
+}
+
+export function useSuspendModerationAuthor() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      authorID,
+      suspended,
+    }: {
+      authorID: string;
+      suspended: boolean;
+    }) => updateIAMUserSuspension(authorID, suspended),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: moderationKeys.all });
+      toast({ title: 'Account suspension updated', variant: 'success' });
+    },
+    onError: (error: Error) =>
+      toast({
+        title: 'Could not update account suspension',
         description: error.message,
         variant: 'destructive',
       }),

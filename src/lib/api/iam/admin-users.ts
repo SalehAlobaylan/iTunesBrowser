@@ -26,7 +26,10 @@ function mapIAMUser(user: IAMUser): AdminUser {
   };
 }
 
-function applyUserFilters(users: IAMUser[], params: ListAdminUsersParams): IAMUser[] {
+function applyUserFilters(
+  users: IAMUser[],
+  params: ListAdminUsersParams
+): IAMUser[] {
   let filtered = [...users];
 
   if (params.search) {
@@ -46,22 +49,31 @@ function applyUserFilters(users: IAMUser[], params: ListAdminUsersParams): IAMUs
 }
 
 export async function listIAMRoles(): Promise<IAMRole[]> {
-  const response = await iamClient.get<ListResponse<IAMRole>>('/api/v1/iam/roles');
+  const response =
+    await iamClient.get<ListResponse<IAMRole>>('/api/v1/iam/roles');
   return response.data;
 }
 
 export async function listIAMPermissions(): Promise<IAMPermission[]> {
-  const response = await iamClient.get<ListResponse<IAMPermission>>('/api/v1/iam/permissions');
+  const response = await iamClient.get<ListResponse<IAMPermission>>(
+    '/api/v1/iam/permissions'
+  );
   return response.data;
 }
 
-export async function listAdminUsers(params: ListAdminUsersParams = {}): Promise<ListAdminUsersResponse> {
-  const response = await iamClient.get<ListResponse<IAMUser>>('/api/v1/iam/users');
+export async function listAdminUsers(
+  params: ListAdminUsersParams = {}
+): Promise<ListAdminUsersResponse> {
+  const response =
+    await iamClient.get<ListResponse<IAMUser>>('/api/v1/iam/users');
   const filtered = applyUserFilters(response.data, params);
 
   const hasPagination = Boolean(params.page || params.limit);
   const page = params.page && params.page > 0 ? params.page : 1;
-  const limit = params.limit && params.limit > 0 ? params.limit : Math.max(filtered.length, 1);
+  const limit =
+    params.limit && params.limit > 0
+      ? params.limit
+      : Math.max(filtered.length, 1);
   const start = (page - 1) * limit;
   const paged = hasPagination ? filtered.slice(start, start + limit) : filtered;
   const data = paged.map(mapIAMUser);
@@ -71,7 +83,9 @@ export async function listAdminUsers(params: ListAdminUsersParams = {}): Promise
     total: filtered.length,
     page: hasPagination ? page : 1,
     limit,
-    total_pages: hasPagination ? Math.max(1, Math.ceil(filtered.length / limit)) : 1,
+    total_pages: hasPagination
+      ? Math.max(1, Math.ceil(filtered.length / limit))
+      : 1,
   };
 }
 
@@ -84,7 +98,9 @@ export async function getAdminUser(id: string): Promise<AdminUser> {
   return user;
 }
 
-export async function createAdminUser(data: CreateAdminUserRequest): Promise<AdminUser> {
+export async function createAdminUser(
+  data: CreateAdminUserRequest
+): Promise<AdminUser> {
   const username = data.email.split('@')[0] || data.email;
   const created = await register({
     username,
@@ -104,7 +120,10 @@ export async function createAdminUser(data: CreateAdminUserRequest): Promise<Adm
   return getAdminUser(created.id);
 }
 
-export async function updateAdminUser(id: string, data: UpdateAdminUserRequest): Promise<AdminUser> {
+export async function updateAdminUser(
+  id: string,
+  data: UpdateAdminUserRequest
+): Promise<AdminUser> {
   if (data.role) {
     await iamClient.put('/api/v1/iam/users/' + id + '/roles', {
       roles: [data.role],
@@ -127,6 +146,16 @@ export async function deleteAdminUser(id: string): Promise<void> {
   await iamClient.delete('/api/v1/users/' + id);
 }
 
-export async function resetAdminUserPassword(_id: string, _data: ResetAdminUserPasswordRequest): Promise<void> {
+export async function resetAdminUserPassword(
+  _id: string,
+  _data: ResetAdminUserPasswordRequest
+): Promise<void> {
   throw new Error('Password reset is not available in IAM Phase 1 APIs.');
+}
+
+export async function updateIAMUserSuspension(
+  id: string,
+  suspended: boolean
+): Promise<void> {
+  await iamClient.put('/api/v1/iam/users/' + id + '/suspension', { suspended });
 }

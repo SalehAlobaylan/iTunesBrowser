@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { ExternalLink, Flag, Loader2, ShieldAlert, Trash2 } from 'lucide-react';
+import {
+  ExternalLink,
+  Flag,
+  Loader2,
+  ShieldAlert,
+  Trash2,
+  UserX,
+} from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +31,7 @@ import {
   useModerationQueue,
   useRemoveModerationComment,
   useResolveModerationReport,
+  useSuspendModerationAuthor,
 } from '@/hooks/use-moderation';
 import type { ModerationStatus } from '@/types/platform/moderation';
 
@@ -39,6 +47,7 @@ export default function ModerationPage() {
   const queue = useModerationQueue(status);
   const resolve = useResolveModerationReport();
   const removeComment = useRemoveModerationComment();
+  const suspendAuthor = useSuspendModerationAuthor();
   const reports = queue.data?.data ?? [];
   const openCount = status === 'open' ? (queue.data?.total ?? 0) : undefined;
 
@@ -91,9 +100,9 @@ export default function ModerationPage() {
             Reports
           </CardTitle>
           <CardDescription>
-            Reports do not reveal reporter identities. A ban control is
-            intentionally absent until IAM provides a real suspension and
-            token-revocation lifecycle.
+            Reports do not reveal reporter identities. Suspending an author
+            revokes their refresh sessions and immediately invalidates their
+            existing CMS access tokens.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -188,18 +197,56 @@ export default function ModerationPage() {
                           </>
                         ) : null}
                         {report.target_type === 'comment' ? (
-                          <Button
-                            size="icon"
-                            variant="destructive"
-                            className="rounded-none"
-                            disabled={removeComment.isPending}
-                            onClick={() =>
-                              removeComment.mutate(report.target_id)
-                            }
-                            aria-label="Remove comment"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <>
+                            {report.author_id ? (
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="rounded-none border-red-600 text-red-700 hover:bg-red-50 hover:text-red-800"
+                                disabled={suspendAuthor.isPending}
+                                onClick={() => {
+                                  const nextSuspended =
+                                    !report.author_suspended;
+                                  if (
+                                    window.confirm(
+                                      nextSuspended
+                                        ? 'Suspend this account? Their refresh sessions will be revoked and active CMS access will stop immediately.'
+                                        : 'Restore this account? They will be able to sign in again, but revoked sessions will remain signed out.'
+                                    )
+                                  ) {
+                                    suspendAuthor.mutate({
+                                      authorID: report.author_id!,
+                                      suspended: nextSuspended,
+                                    });
+                                  }
+                                }}
+                                aria-label={
+                                  report.author_suspended
+                                    ? 'Restore comment author'
+                                    : 'Suspend comment author'
+                                }
+                                title={
+                                  report.author_suspended
+                                    ? 'Restore account'
+                                    : 'Suspend account'
+                                }
+                              >
+                                <UserX className="h-4 w-4" />
+                              </Button>
+                            ) : null}
+                            <Button
+                              size="icon"
+                              variant="destructive"
+                              className="rounded-none"
+                              disabled={removeComment.isPending}
+                              onClick={() =>
+                                removeComment.mutate(report.target_id)
+                              }
+                              aria-label="Remove comment"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
                         ) : null}
                       </div>
                     </TableCell>
