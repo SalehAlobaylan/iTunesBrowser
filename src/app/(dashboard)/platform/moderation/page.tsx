@@ -29,7 +29,9 @@ import {
 } from '@/components/ui/table';
 import {
   useModerationQueue,
+  useCommentPolicyReviews,
   useRemoveModerationComment,
+  useResolveCommentPolicyReview,
   useResolveModerationReport,
   useSuspendModerationAuthor,
 } from '@/hooks/use-moderation';
@@ -45,7 +47,9 @@ const statuses: Array<ModerationStatus | 'all'> = [
 export default function ModerationPage() {
   const [status, setStatus] = useState<ModerationStatus | 'all'>('open');
   const queue = useModerationQueue(status);
+  const policyReviews = useCommentPolicyReviews();
   const resolve = useResolveModerationReport();
+  const resolvePolicyReview = useResolveCommentPolicyReview();
   const removeComment = useRemoveModerationComment();
   const suspendAuthor = useSuspendModerationAuthor();
   const reports = queue.data?.data ?? [];
@@ -248,6 +252,85 @@ export default function ModerationPage() {
                             </Button>
                           </>
                         ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+      <Card className="rounded-none border-2">
+        <CardHeader>
+          <CardTitle>Comment policy review</CardTitle>
+          <CardDescription>
+            Deterministic safety rules held these comments for a human decision.
+            Reporter identity is never shown.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {policyReviews.isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : (policyReviews.data?.data.length ?? 0) === 0 ? (
+            <div className="border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No comments require policy review.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Submitted</TableHead>
+                  <TableHead>Reason</TableHead>
+                  <TableHead>Comment</TableHead>
+                  <TableHead className="text-right">Decision</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {policyReviews.data?.data.map((comment) => (
+                  <TableRow key={comment.id}>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                      {new Date(comment.created_at).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="rounded-none">
+                        {comment.reason.replaceAll('_', ' ')}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-xl whitespace-pre-wrap text-sm">
+                      {comment.text}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          className="rounded-none"
+                          disabled={resolvePolicyReview.isPending}
+                          onClick={() =>
+                            resolvePolicyReview.mutate({
+                              id: comment.id,
+                              status: 'allow',
+                            })
+                          }
+                        >
+                          Allow
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="rounded-none"
+                          disabled={resolvePolicyReview.isPending}
+                          onClick={() =>
+                            resolvePolicyReview.mutate({
+                              id: comment.id,
+                              status: 'removed',
+                            })
+                          }
+                        >
+                          Remove
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>

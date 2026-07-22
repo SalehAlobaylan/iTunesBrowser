@@ -3,16 +3,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/components/ui/toast';
 import {
   listModerationReports,
+  listCommentPolicyReviews,
   removeModerationComment,
+  resolveCommentPolicyReview,
   resolveModerationReport,
 } from '@/lib/api/cms/moderation';
 import { updateIAMUserSuspension } from '@/lib/api/iam/admin-users';
 import type { ModerationStatus } from '@/types/platform/moderation';
 
+const moderationRootKey = ['moderation'] as const;
+
 export const moderationKeys = {
-  all: ['moderation'] as const,
+  all: moderationRootKey,
   queue: (status: ModerationStatus | 'all') =>
-    [...moderationKeys.all, 'queue', status] as const,
+    [...moderationRootKey, 'queue', status] as const,
+  policyReviews: [...moderationRootKey, 'policy-reviews'] as const,
 };
 
 export function useModerationQueue(status: ModerationStatus | 'all') {
@@ -20,6 +25,32 @@ export function useModerationQueue(status: ModerationStatus | 'all') {
     queryKey: moderationKeys.queue(status),
     queryFn: () => listModerationReports(status),
     refetchInterval: 30_000,
+  });
+}
+
+export function useCommentPolicyReviews() {
+  return useQuery({
+    queryKey: moderationKeys.policyReviews,
+    queryFn: listCommentPolicyReviews,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useResolveCommentPolicyReview() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'allow' | 'removed' }) =>
+      resolveCommentPolicyReview(id, status),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: moderationKeys.all });
+      toast({ title: 'Comment review resolved', variant: 'success' });
+    },
+    onError: (error: Error) =>
+      toast({
+        title: 'Could not resolve comment review',
+        description: error.message,
+        variant: 'destructive',
+      }),
   });
 }
 

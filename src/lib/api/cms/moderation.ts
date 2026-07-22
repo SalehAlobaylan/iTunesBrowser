@@ -3,6 +3,7 @@ import type {
   ModerationReport,
   ModerationReportPage,
   ModerationStatus,
+  CommentPolicyReviewPage,
 } from '@/types/platform/moderation';
 
 export function listModerationReports(
@@ -11,6 +12,22 @@ export function listModerationReports(
   return cmsClient.get<ModerationReportPage>(
     '/admin/moderation/reports',
     status === 'all' ? undefined : { status }
+  );
+}
+
+export function listCommentPolicyReviews(): Promise<CommentPolicyReviewPage> {
+  return cmsClient.get<CommentPolicyReviewPage>(
+    '/admin/moderation/comments/review'
+  );
+}
+
+export function resolveCommentPolicyReview(
+  id: string,
+  status: 'allow' | 'removed'
+): Promise<{ message: string }> {
+  return cmsClient.post<{ message: string }>(
+    `/admin/moderation/comments/${id}/review`,
+    { status }
   );
 }
 

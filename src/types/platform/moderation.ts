@@ -20,3 +20,17 @@ export type ModerationReportPage = {
   limit: number;
   total_pages: number;
 };
+
+export type CommentPolicyReview = {
+  id: string;
+  content_id: string;
+  text: string;
+  reason: string;
+  author_id?: string;
+  created_at: string;
+};
+
+export type CommentPolicyReviewPage = {
+  data: CommentPolicyReview[];
+  total: number;
+};
