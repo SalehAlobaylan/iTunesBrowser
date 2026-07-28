@@ -115,9 +115,9 @@ export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'merged' | 'a
 
 export interface PreferenceSettings {
     tenant_id: string;
-    foryou_enabled: boolean;
+    pods_enabled: boolean;
     news_enabled: boolean;
-    w_foryou: number;
+    w_pods: number;
     w_news: number;
     weight_complete: number;
     weight_bookmark: number;

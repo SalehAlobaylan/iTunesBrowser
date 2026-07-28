@@ -435,7 +435,7 @@ export function MediaList({ type }: { type: ContentType }) {
     };
 
     /**
-     * Gallery card — thumbnail-led, the way the For You product presents media:
+     * Gallery card — thumbnail-led, the way the Pods product presents media:
      * duration timecode in monospace, caption/quality chips, gold selection ring.
      */
     const renderCard = (item: ContentItem) => {

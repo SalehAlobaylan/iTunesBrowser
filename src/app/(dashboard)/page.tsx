@@ -52,7 +52,7 @@ export default function DashboardPage() {
 
     const servicesDetail = deriveServicesDetail(systemHealth.data?.services);
     const feedResults = Object.values(feedIntegrity.data?.latest_run?.feed_results ?? {}).sort((a, b) =>
-        a.feed === 'foryou' ? -1 : b.feed === 'foryou' ? 1 : a.feed.localeCompare(b.feed),
+        a.feed === 'pods' ? -1 : b.feed === 'pods' ? 1 : a.feed.localeCompare(b.feed),
     );
     const openEpisodes = feedIntegrity.data?.open_episodes?.length ?? 0;
     const worstRux = deriveWorstRux(experience.data ? experience.data.surface_verdicts : undefined);
@@ -100,7 +100,7 @@ export default function DashboardPage() {
                                         {feedResults.map((f) => (
                                             <span
                                                 key={f.feed}
-                                                className={`font-medium ${f.feed === 'foryou' ? 'text-gold' : f.feed === 'news' ? 'text-news' : ''}`}
+                                                className={`font-medium ${f.feed === 'pods' ? 'text-gold' : f.feed === 'news' ? 'text-news' : ''}`}
                                             >
                                                 {f.feed} {label(f.consumer_verdict)}
                                             </span>

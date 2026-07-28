@@ -42,7 +42,7 @@ export function StudioClearanceFlow({ flow, mode }: Props) {
     const source = { x: 130, y: 150, n: queueIn, color: C.queue, label: 'Review queue' };
     const outcomes = [
         { key: 'cleared', x: 760, y: 60, n: cleared, color: C.cleared, label: observe ? 'Would clear' : 'Auto-cleared', sub: subCleared(flow) },
-        { key: 'held', x: 820, y: 150, n: held, color: C.held, label: 'Held for you', sub: subHeld(flow) },
+        { key: 'held', x: 820, y: 150, n: held, color: C.held, label: 'Held pods', sub: subHeld(flow) },
         { key: 'skipped', x: 760, y: 235, n: skipped, color: C.skip, label: 'Skipped', sub: 'stale / no-op' },
         { key: 'errored', x: 620, y: 262, n: errored, color: C.error, label: 'Errors', sub: '' },
     ].filter((o) => o.n > 0 || o.key === 'cleared' || o.key === 'held');

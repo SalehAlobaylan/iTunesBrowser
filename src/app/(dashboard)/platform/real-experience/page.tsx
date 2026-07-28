@@ -29,7 +29,7 @@ function verdictTone(v?: string) {
     return 'secondary' as const;
 }
 
-const SURFACE_LABELS: Record<string, string> = { foryou: 'For You', news: 'News' };
+const SURFACE_LABELS: Record<string, string> = { pods: 'Pods', news: 'News' };
 
 function pct(value: number) {
     return `${(value * 100).toFixed(2)}%`;
@@ -79,7 +79,7 @@ function headline(surfaces: Record<string, SurfaceVerdict> | undefined, telemetr
     if (verdicts.includes('degraded')) return { text: 'A supported cohort has confirmed experience damage.', tone: 'degraded' };
     if (verdicts.includes('watching')) return { text: 'An early regression is being watched.', tone: 'watching' };
     if (verdicts.every((v) => v === 'insufficient_data')) return { text: 'Not enough real sessions yet to judge health.', tone: 'insufficient_data' };
-    return { text: 'Real For You and News sessions are healthy.', tone: 'healthy' };
+    return { text: 'Real Pods and News sessions are healthy.', tone: 'healthy' };
 }
 
 export default function RealExperiencePage() {
@@ -128,7 +128,7 @@ export default function RealExperiencePage() {
 
             {/* ── Is it healthy ─────────────────────────────────── */}
             <div className="grid gap-4 md:grid-cols-2">
-                <SurfaceCard surface="foryou" data={surfaces?.foryou} />
+                <SurfaceCard surface="pods" data={surfaces?.pods} />
                 <SurfaceCard surface="news" data={surfaces?.news} />
             </div>
 

@@ -32,7 +32,7 @@ export function ProfileDialog({
     open: boolean;
     onClose: () => void;
     profile?: DiscoveryProfile | null;
-    // When set (e.g. 'media' for the For You hub), new interests are scoped to
+    // When set (e.g. 'media' for the Pods hub), new interests are scoped to
     // that discovery category. Defaults to news.
     category?: 'news' | 'media';
 }) {
@@ -88,7 +88,7 @@ export function ProfileDialog({
             languages: languages.length ? languages : ['ar'],
             max_suggestions_per_run: Number(maxPerRun) || 15,
             // Preserve the existing profile's category on edit; otherwise apply the
-            // hub default (media for For You, news otherwise).
+            // hub default (media for Pods, news otherwise).
             ...(profile?.category || category ? { category: profile?.category ?? category } : {}),
         };
         if (!payload.name) return;

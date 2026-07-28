@@ -28,7 +28,7 @@ const MODE_LABELS: Record<string, string> = {
 };
 
 /**
- * Feed ordering — the legacy Content Intelligence controls (how a For You/News
+ * Feed ordering — the legacy Content Intelligence controls (how a Pods/News
  * page is ORDERED right now), demoted to a secondary section beneath the
  * media-value control room. Distinct from the durable value engine above: this
  * tunes read-time ordering, that tunes the durable cache currency.

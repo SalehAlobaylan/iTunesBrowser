@@ -6,7 +6,7 @@ import {
     getEmbeddingClusters, getSimilarContent, getEmbeddingStats,
     getScoreDistribution, getVelocityLeaderboard, getTrendingItems,
     getSourcePerformance, getSignalHealth,
-    previewForYouFeed, previewNewsFeed,
+    previewPodsFeed, previewNewsFeed,
     getMediaValueConfig, updateMediaValueConfig, triggerMediaValueRefresh,
     getMediaIntelligenceObservatory,
 } from '@/lib/api/cms/intelligence';
@@ -35,7 +35,7 @@ export const intelligenceKeys = {
     trending: () => [...intelligenceKeys.all, 'trending'] as const,
     sourcePerf: () => [...intelligenceKeys.all, 'source-perf'] as const,
     signalHealth: () => [...intelligenceKeys.all, 'signal-health'] as const,
-    previewForYou: (overrides?: object) => [...intelligenceKeys.all, 'preview-foryou', overrides] as const,
+    previewPods: (overrides?: object) => [...intelligenceKeys.all, 'preview-pods', overrides] as const,
     previewNews: (overrides?: object) => [...intelligenceKeys.all, 'preview-news', overrides] as const,
     mediaValueConfig: () => [...intelligenceKeys.all, 'media-value-config'] as const,
     observatory: () => [...intelligenceKeys.all, 'observatory'] as const,
@@ -186,10 +186,10 @@ export function useSignalHealth() {
 }
 
 // ---- Feed Preview ----
-export function usePreviewForYou(overrides?: Record<string, number>) {
+export function usePreviewPods(overrides?: Record<string, number>) {
     return useQuery({
-        queryKey: intelligenceKeys.previewForYou(overrides),
-        queryFn: () => previewForYouFeed(overrides),
+        queryKey: intelligenceKeys.previewPods(overrides),
+        queryFn: () => previewPodsFeed(overrides),
         staleTime: 0, // always re-fetch previews
     });
 }

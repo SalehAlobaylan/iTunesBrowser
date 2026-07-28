@@ -83,7 +83,7 @@ export default function FeedIntegrityPage() {
                 </CardContent>
             </Card>
 
-            <div className="grid gap-4 md:grid-cols-2"><FeedCard title="For You" result={results?.foryou} /><FeedCard title="News" result={results?.news} /></div>
+            <div className="grid gap-4 md:grid-cols-2"><FeedCard title="Pods" result={results?.pods} /><FeedCard title="News" result={results?.news} /></div>
 
             <FeedIntegrityAutopilotPanel />
 

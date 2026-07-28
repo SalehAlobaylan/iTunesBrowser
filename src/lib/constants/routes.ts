@@ -21,6 +21,7 @@ import {
   CircleDollarSign,
   ShieldAlert,
   Flag,
+  ArchiveRestore,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -50,6 +51,11 @@ export const navigation: NavigationSection[] = [
         name: 'Feed Integrity',
         href: '/platform/feed-integrity',
         icon: ScanSearch,
+      },
+      {
+        name: 'Retention',
+        href: '/platform/retention',
+        icon: ArchiveRestore,
       },
       {
         name: 'Real Experience',
@@ -125,6 +131,7 @@ export const ROUTES = {
     SYSTEM_HEALTH: '/platform/system-health',
     OPERATIONS: '/platform/operations',
     FEED_INTEGRITY: '/platform/feed-integrity',
+    RETENTION: '/platform/retention',
     REAL_EXPERIENCE: '/platform/real-experience',
     ECONOMICS: '/platform/economics',
   },

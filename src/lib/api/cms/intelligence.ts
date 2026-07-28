@@ -86,8 +86,8 @@ export const getSignalHealth = () =>
     cmsClient.get<SignalHealth[]>('/admin/intelligence/analytics/signal-health');
 
 // ---- Feed Preview ----
-export const previewForYouFeed = (overrides?: Record<string, number>) =>
-    cmsClient.get<PreviewFeedResponse>('/admin/intelligence/preview/foryou', overrides);
+export const previewPodsFeed = (overrides?: Record<string, number>) =>
+    cmsClient.get<PreviewFeedResponse>('/admin/intelligence/preview/pods', overrides);
 
 export const previewNewsFeed = (overrides?: Record<string, number>) =>
     cmsClient.get<PreviewFeedResponse>('/admin/intelligence/preview/news', overrides);

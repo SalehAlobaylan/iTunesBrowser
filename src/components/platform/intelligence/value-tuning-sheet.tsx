@@ -29,7 +29,7 @@ const KNOBS: Array<{
     suffix?: string;
     format?: (v: number) => string;
 }> = [
-    { key: 'exploration_slice_every', label: 'Exploration slice', hint: 'Reserve 1 in every N For You slots for a still-exploring item', min: 4, max: 50, step: 1, format: (v) => `1 in ${v}` },
+    { key: 'exploration_slice_every', label: 'Exploration slice', hint: 'Reserve 1 in every N Pods slots for a still-exploring item', min: 4, max: 50, step: 1, format: (v) => `1 in ${v}` },
     { key: 'explore_impression_target', label: 'Impression target', hint: 'Impressions before an item graduates from exploring to established', min: 10, max: 1000, step: 5, suffix: 'impr.' },
     { key: 'legacy_exposure_view_floor', label: 'Legacy view floor', hint: 'Pre-telemetry view count that already counts as "had a chance"', min: 0, max: 10000, step: 5, suffix: 'views' },
     { key: 'demotion_default_factor', label: 'Demotion strength', hint: 'Score multiplier applied on rank-down (lower = harsher)', min: 0.05, max: 0.95, step: 0.05, format: (v) => `×${v.toFixed(2)}` },

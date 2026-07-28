@@ -131,10 +131,10 @@ export default function MediaSourcesPage() {
         <div className="space-y-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="max-w-3xl">
-                    <span className="brand-overline text-gold">For You supply</span>
+                    <span className="brand-overline text-gold">Pods supply</span>
                     <h1 className="text-3xl font-bold tracking-tight">Media Sources</h1>
                     <p className="text-sm text-muted-foreground">
-                        Discover audio-first channels, approve candidates, and manage the live source roster feeding For You.
+                        Discover audio-first channels, approve candidates, and manage the live source roster feeding Pods.
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -316,7 +316,7 @@ function SourceSupplyMap({ context }: { context?: MediaSourcesContext }) {
         <Card>
             <CardHeader>
                 <CardTitle className="text-base">Signal map</CardTitle>
-                <p className="text-xs text-muted-foreground">The route from discovery intent to live For You supply.</p>
+                <p className="text-xs text-muted-foreground">The route from discovery intent to live Pods supply.</p>
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {facts.map(({ label, value, icon: Icon }) => (

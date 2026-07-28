@@ -77,9 +77,9 @@ export function AdvancedSettingsDialog({
       setTrendingMultiplier(config.trending_threshold_multiplier);
       setRecircEnabled(config.recirculation_enabled);
       setRecircMaxAge(config.recirculation_max_age_days);
-      setCompletedRepeatDays(config.foryou_completed_repeat_days ?? 90);
-      setMeaningfulRepeatDays(config.foryou_meaningful_repeat_days ?? 30);
-      setSampleRepeatDays(config.foryou_sample_repeat_days ?? 7);
+      setCompletedRepeatDays(config.pods_completed_repeat_days ?? 90);
+      setMeaningfulRepeatDays(config.pods_meaningful_repeat_days ?? 30);
+      setSampleRepeatDays(config.pods_sample_repeat_days ?? 7);
       setEngNorm(config.engagement_normalization);
       setIsActive(config.is_active);
     }
@@ -94,9 +94,9 @@ export function AdvancedSettingsDialog({
       recirculation_enabled: recircEnabled,
       recirculation_max_age_days: recircMaxAge,
       show_watched_when_unseen_exhausted: false,
-      foryou_completed_repeat_days: completedRepeatDays,
-      foryou_meaningful_repeat_days: meaningfulRepeatDays,
-      foryou_sample_repeat_days: sampleRepeatDays,
+      pods_completed_repeat_days: completedRepeatDays,
+      pods_meaningful_repeat_days: meaningfulRepeatDays,
+      pods_sample_repeat_days: sampleRepeatDays,
       engagement_normalization: engNorm,
       mode: 'custom',
       is_active: isActive,
@@ -274,7 +274,7 @@ export function AdvancedSettingsDialog({
             <Card>
               <CardContent className="space-y-3 pt-6">
                 <div>
-                  <p className="font-medium">For You repetition windows</p>
+                  <p className="font-medium">Pods repetition windows</p>
                   <p className="text-sm text-muted-foreground">
                     Caught-up is shown instead of recycling watched items.
                   </p>

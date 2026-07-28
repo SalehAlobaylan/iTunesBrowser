@@ -84,7 +84,7 @@ export function AutopilotHealth({ snapshot }: { snapshot?: PreferenceSnapshot | 
             </Card>
         );
     }
-    const foryou = snapshot.flip_gates?.foryou_enabled;
+    const pods = snapshot.flip_gates?.pods_enabled;
     const news = snapshot.flip_gates?.news_enabled;
     const boostOk = snapshot.boost_sanity === 'ok';
     return (
@@ -94,7 +94,7 @@ export function AutopilotHealth({ snapshot }: { snapshot?: PreferenceSnapshot | 
             </CardHeader>
             <CardContent className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <CoverageBar label="For You mapping" gate={foryou} />
+                    <CoverageBar label="Pods mapping" gate={pods} />
                     <CoverageBar label="News mapping" gate={news} />
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">

@@ -36,7 +36,7 @@ export interface SuggestionHealth {
     items_count?: number;
     last_item_at?: string | null;
     parse_ok?: boolean;
-    // Media (For You) channel signals stashed by the YouTube/podcast contributors.
+    // Media (Pods) channel signals stashed by the YouTube/podcast contributors.
     bio?: string; // channel/show title (friendly display name)
     subscribers?: number;
     image?: string;
@@ -64,7 +64,7 @@ export interface SuggestionEvidence {
     subscribers?: number;
     // Deterministic source classification: official | news | person | other.
     source_class?: string;
-    // Media (For You) signals.
+    // Media (Pods) signals.
     caption_state?: 'youtube_human' | 'youtube_auto' | 'none';
     needs_chaptering?: boolean;
     median_duration_sec?: number;

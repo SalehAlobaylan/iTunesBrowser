@@ -320,7 +320,7 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                             <div className="space-y-2 md:col-span-2">
                                 <Label>Content Types to Fetch</Label>
                                 <p className="text-xs text-muted-foreground">
-                                    Audio / Voice / Video → <strong>For You</strong> feed &nbsp;·&nbsp; Text Posts / Photos → <strong>News</strong> feed
+                                    Audio / Voice / Video → <strong>Pods</strong> feed &nbsp;·&nbsp; Text Posts / Photos → <strong>News</strong> feed
                                 </p>
                                 <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
                                     <label className="flex items-center gap-2 text-sm">

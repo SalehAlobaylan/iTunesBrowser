@@ -11,7 +11,7 @@ const OUTCOME = {
     rejected: { key: 'rejected', color: '#34d399', label: 'Rejected' },
     published: { key: 'published', color: '#22c55e', label: 'Published' },
     stt: { key: 'stt', color: '#38bdf8', label: 'STT re-run' },
-    held_approval: { key: 'held_approval', color: '#e0a92e', label: 'Held for you' },
+    held_approval: { key: 'held_approval', color: '#e0a92e', label: 'Held pods' },
     skipped: { key: 'skipped', color: '#64748b', label: 'Skipped' },
     errored: { key: 'errored', color: '#fb7185', label: 'Errors' },
 } as const;

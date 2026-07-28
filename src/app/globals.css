@@ -33,7 +33,7 @@
     --info: 217 91% 60%;
     --info-foreground: 224 71% 4%;
 
-    /* Wahb brand — For You surface (Warm Gold #DAA428 on near-black) */
+    /* Wahb brand — Pods surface (Warm Gold #DAA428 on near-black) */
     --gold: 41 71% 51%;
     --gold-dim: 39 72% 42%;
     --gold-foreground: 0 0% 7%;
@@ -99,7 +99,7 @@
   .font-editorial {
     font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
   }
-  /* Tracked-uppercase overline used as surface identity chrome (FOR YOU, NEWS CENTER). */
+  /* Tracked-uppercase overline used as surface identity chrome (PODS, NEWS CENTER). */
   .brand-overline {
     font-size: 0.6875rem;
     font-weight: 600;

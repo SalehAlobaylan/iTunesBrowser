@@ -123,7 +123,7 @@ Per-item editorial overrides (`content_flags` table): **Boost** (×multiplier), 
 Source performance (avg likes/views/shares), velocity leaderboard (top items by interaction rate), trending items (recent vs. average rate), topic clusters (bubble scatter), an embedding-coverage panel, and a **Similar Content** lookup (pgvector cosine neighbors by content ID).
 
 ### Feed Preview — `/platform/intelligence/preview`
-Test ranking without touching production: toggle For You / News, override signal weights inline (temporary), see the ranked list with per-item score breakdown + a **Score Waterfall**, position-change arrows vs. chronological, and an **Apply to Production** button that saves overrides to the active `RankingConfig`.
+Test ranking without touching production: toggle Pods / News, override signal weights inline (temporary), see the ranked list with per-item score breakdown + a **Score Waterfall**, position-change arrows vs. chronological, and an **Apply to Production** button that saves overrides to the active `RankingConfig`.
 
 ## Data Flow
 

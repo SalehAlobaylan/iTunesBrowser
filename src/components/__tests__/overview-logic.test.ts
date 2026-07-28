@@ -131,9 +131,9 @@ describe('deriveWorstRux', () => {
     });
 
     it('picks the worst verdict across surfaces', () => {
-        expect(deriveWorstRux({ foryou: surface('healthy'), news: surface('degraded') })).toBe('degraded');
-        expect(deriveWorstRux({ foryou: surface('watching'), news: surface('critical') })).toBe('critical');
-        expect(deriveWorstRux({ foryou: surface('healthy') })).toBe('healthy');
+        expect(deriveWorstRux({ pods: surface('healthy'), news: surface('degraded') })).toBe('degraded');
+        expect(deriveWorstRux({ pods: surface('watching'), news: surface('critical') })).toBe('critical');
+        expect(deriveWorstRux({ pods: surface('healthy') })).toBe('healthy');
     });
 });
 
@@ -213,13 +213,13 @@ describe('feedScoreSeries', () => {
     it('returns empty for undefined or runs without results', () => {
         expect(feedScoreSeries(undefined)).toEqual([]);
         expect(feedScoreSeries([integrityRun({ feed_results: undefined })])).toEqual([]);
-        expect(feedScoreSeries([integrityRun({ status: 'failed', feed_results: { foryou: feedResult('foryou', 90) } })])).toEqual([]);
+        expect(feedScoreSeries([integrityRun({ status: 'failed', feed_results: { pods: feedResult('pods', 90) } })])).toEqual([]);
     });
 
     it('uses the worst feed score and sorts oldest first', () => {
         const runs = [
-            integrityRun({ id: 'b', started_at: '2026-07-13T02:00:00Z', feed_results: { foryou: feedResult('foryou', 95), news: feedResult('news', 70) } }),
-            integrityRun({ id: 'a', started_at: '2026-07-13T01:00:00Z', feed_results: { foryou: feedResult('foryou', 88) } }),
+            integrityRun({ id: 'b', started_at: '2026-07-13T02:00:00Z', feed_results: { pods: feedResult('pods', 95), news: feedResult('news', 70) } }),
+            integrityRun({ id: 'a', started_at: '2026-07-13T01:00:00Z', feed_results: { pods: feedResult('pods', 88) } }),
         ];
         const series = feedScoreSeries(runs);
         expect(series.map((p) => p.count)).toEqual([88, 70]);
@@ -227,7 +227,7 @@ describe('feedScoreSeries', () => {
 
     it('caps the series length', () => {
         const runs = Array.from({ length: 20 }, (_, i) =>
-            integrityRun({ id: `${i}`, started_at: `2026-07-13T${String(i).padStart(2, '0')}:00:00Z`, feed_results: { foryou: feedResult('foryou', i) } }),
+            integrityRun({ id: `${i}`, started_at: `2026-07-13T${String(i).padStart(2, '0')}:00:00Z`, feed_results: { pods: feedResult('pods', i) } }),
         );
         expect(feedScoreSeries(runs, 12)).toHaveLength(12);
     });
@@ -258,7 +258,7 @@ describe('ruxHealthSeries', () => {
     it('computes percent healthy per run', () => {
         const run = experienceRun({
             surface_verdicts: {
-                foryou: { verdict: 'healthy', slis: [] },
+                pods: { verdict: 'healthy', slis: [] },
                 news: { verdict: 'degraded', slis: [] },
             },
         });

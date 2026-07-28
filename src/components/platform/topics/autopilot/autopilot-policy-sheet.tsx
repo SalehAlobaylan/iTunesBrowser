@@ -32,7 +32,7 @@ const CAP_FIELDS: { key: NumKey; label: string; hint: string }[] = [
 ];
 
 const FLOOR_FIELDS: { key: NumKey; label: string }[] = [
-    { key: 'coverage_floor_foryou_pct', label: 'For You floor %' },
+    { key: 'coverage_floor_pods_pct', label: 'Pods floor %' },
     { key: 'coverage_floor_news_pct', label: 'News floor %' },
     { key: 'coverage_floor_story_pct', label: 'Story floor %' },
     { key: 'failure_breaker_pct', label: 'Failure breaker %' },

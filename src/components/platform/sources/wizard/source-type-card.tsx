@@ -8,7 +8,7 @@ export interface SourceTypeCardProps {
     icon: LucideIcon;
     label: string;
     description: string;
-    feedHint?: 'For You' | 'News' | 'Both';
+    feedHint?: 'Pods' | 'News' | 'Both';
     selected: boolean;
     disabled?: boolean;
     onSelect: () => void;

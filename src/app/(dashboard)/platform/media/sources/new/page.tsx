@@ -42,10 +42,10 @@ export default function NewMediaSourcePage() {
                     </Link>
                 </Button>
                 <div>
-                    <span className="brand-overline text-gold">For You</span>
+                    <span className="brand-overline text-gold">Pods</span>
                     <h1 className="text-3xl font-bold tracking-tight">Add Media Source</h1>
                     <p className="text-muted-foreground">
-                        Add a YouTube channel, podcast, or Telegram channel to the For You pipeline.
+                        Add a YouTube channel, podcast, or Telegram channel to the Pods pipeline.
                     </p>
                 </div>
             </div>

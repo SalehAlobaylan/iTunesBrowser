@@ -11,9 +11,9 @@ export interface FeedIntegrityPolicy {
     probe_url_budget: number;
     probe_concurrency: number;
     probe_timeout_ms: number;
-    foryou_latency_budget_ms: number;
+    pods_latency_budget_ms: number;
     news_latency_budget_ms: number;
-    expected_min_foryou_units: number;
+    expected_min_pods_units: number;
     expected_min_news_slides: number;
     paused_until?: string | null;
     last_light_run_at?: string | null;
@@ -53,7 +53,7 @@ export interface FeedIntegrityRun {
 }
 
 export interface FeedIntegrityFeedResult {
-    feed: 'foryou' | 'news' | string;
+    feed: 'pods' | 'news' | string;
     variant: string;
     consumer_verdict: string;
     readiness_verdict: string;

@@ -26,7 +26,7 @@ export function TopicDemandTable({ diagnostics: d }: { diagnostics: Intelligence
             </div>
             {d.topic_demand.length === 0 ? (
                 <p className="p-8 text-center text-sm text-muted-foreground">
-                    No topic telemetry yet — it accumulates as the For You feed serves tagged media.
+                    No topic telemetry yet — it accumulates as the Pods feed serves tagged media.
                 </p>
             ) : (
                 <div className="overflow-x-auto">

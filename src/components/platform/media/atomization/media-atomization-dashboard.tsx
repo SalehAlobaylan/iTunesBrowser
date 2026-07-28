@@ -498,20 +498,20 @@ function PublicationMap({
         <section className="overflow-hidden rounded-md border bg-[#171717] text-[#F7F8F6] shadow-sm">
             <div className="grid gap-4 border-b border-white/10 p-4 lg:grid-cols-[1fr_220px] lg:items-end">
                 <div>
-                    <span className="brand-overline text-[#D7A83E]">For You output</span>
+                    <span className="brand-overline text-[#D7A83E]">Pods output</span>
                     <div className="mt-2 flex flex-wrap items-end gap-3">
                         <h2 className="text-xl font-semibold">Publication map</h2>
                         <span className="font-mono text-3xl font-semibold tabular-nums text-[#2CBAC6]">{compactNumber(publishedTotal)}</span>
                         <span className="pb-1 text-sm text-white/60">published feed units</span>
                     </div>
                     <p className="mt-2 max-w-3xl text-sm text-white/65">
-                        Three published media paths flow into For You. Long media without transcript is blocked here until it can be atomized.
+                        Three published media paths flow into Pods. Long media without transcript is blocked here until it can be atomized.
                     </p>
                 </div>
                 <div className="rounded border border-white/10 bg-white/5 p-3">
                     <div className="flex items-center gap-2 text-sm font-medium">
                         <Radio className="h-4 w-4 text-[#2CBAC6]" />
-                        For You endpoint
+                        Pods endpoint
                     </div>
                     <p className="mt-1 text-xs text-white/55">Only visible units from 4:30 to 40:00 can enter playback.</p>
                 </div>
@@ -1248,10 +1248,10 @@ export function MediaAtomizationDashboard() {
         <div className="space-y-5 text-foreground">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                    <span className="brand-overline text-[#D7A83E]">For You Media</span>
+                    <span className="brand-overline text-[#D7A83E]">Pods Media</span>
                     <h1 className="text-2xl font-semibold">Media Studio</h1>
                     <p className="max-w-3xl text-sm text-muted-foreground">
-                        Command center for atomization, transcript readiness, chapter cuts, For You publication, and duration policy violations.
+                        Command center for atomization, transcript readiness, chapter cuts, Pods publication, and duration policy violations.
                     </p>
                 </div>
                 <div className="flex flex-col items-start gap-2 md:items-end">
@@ -1312,7 +1312,7 @@ export function MediaAtomizationDashboard() {
                     <>
                         {publishLoading && !feedUnitMap.data && <TabLoading label="Loading publication paths" />}
                         <SummaryStrip>
-                            <KpiCard label="Published in For You" value={
+                            <KpiCard label="Published in Pods" value={
                                 publicationPathCount(overviewData, 'atomized')
                                 + publicationPathCount(overviewData, 'direct_transcript')
                                 + publicationPathCount(overviewData, 'direct_no_transcript')
@@ -1398,7 +1398,7 @@ export function MediaAtomizationDashboard() {
                         <SummaryStrip>
                             <KpiCard label="Review pressure" value={overviewData?.review_needed_count ?? 0} sub="chapters" tone="warn" />
                             <KpiCard label="Waiting transcript" value={statusCount(overviewData, ['waiting_transcript'])} sub="parents" />
-                            <KpiCard label="Published in For You" value={
+                            <KpiCard label="Published in Pods" value={
                                 publicationPathCount(overviewData, 'atomized')
                                 + publicationPathCount(overviewData, 'direct_transcript')
                                 + publicationPathCount(overviewData, 'direct_no_transcript')

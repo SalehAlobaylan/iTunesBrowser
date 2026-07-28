@@ -52,7 +52,7 @@ export function MediaSourceGallery({
                 <Radio className="h-8 w-8 text-muted-foreground" />
                 <p className="text-sm font-medium">No media sources match your filters.</p>
                 <p className="text-xs text-muted-foreground">
-                    Add a YouTube, podcast, or Telegram source to feed the For You pipeline.
+                    Add a YouTube, podcast, or Telegram source to feed the Pods pipeline.
                 </p>
             </Card>
         );

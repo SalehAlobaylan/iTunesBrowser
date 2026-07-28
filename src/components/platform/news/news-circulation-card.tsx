@@ -1564,7 +1564,7 @@ function AutomationPanel({
                     </CardTitle>
                     <p className="mt-1 max-w-prose text-sm text-muted-foreground">
                         Let the news pipeline tune itself: the engine recomputes source cadence on a schedule instead of
-                        waiting for you to press “Recompute”. Turn it off any time to take back full manual control.
+                        waiting pods to press “Recompute”. Turn it off any time to take back full manual control.
                     </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

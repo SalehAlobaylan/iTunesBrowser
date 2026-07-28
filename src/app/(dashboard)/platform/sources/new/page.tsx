@@ -56,7 +56,7 @@ export default function NewSourcePage() {
                     </h1>
                     <p className="text-muted-foreground">
                         {isMedia
-                            ? 'Add a video, podcast, or Telegram source to the For You pipeline'
+                            ? 'Add a video, podcast, or Telegram source to the Pods pipeline'
                             : 'Add a new content ingestion source'}
                     </p>
                 </div>

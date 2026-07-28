@@ -16,10 +16,10 @@ import type { PrefCoveragePoint } from '@/types/platform/preference-autopilot';
 // Coverage trend — the flip-gate story over time. Three mapping-coverage lines
 // against their policy floors (dashed reference lines), built from persisted run
 // snapshots. This is the chart that tells an admin WHEN the catalog earned a
-// foryou_enabled / news_enabled flip.
+// pods_enabled / news_enabled flip.
 
 const SERIES = [
-    { key: 'foryou_pct', label: 'For You', color: 'hsl(var(--primary))', dash: undefined },
+    { key: 'pods_pct', label: 'Pods', color: 'hsl(var(--primary))', dash: undefined },
     { key: 'news_pct', label: 'News', color: 'hsl(var(--foreground))', dash: '7 4' },
     { key: 'story_pct', label: 'Stories', color: 'hsl(var(--muted-foreground))', dash: '2 4' },
 ] as const;
@@ -34,7 +34,7 @@ export function AutopilotCoverageTrend({
     floors,
 }: {
     series: PrefCoveragePoint[];
-    floors: { foryou: number; news: number; story: number };
+    floors: { pods: number; news: number; story: number };
 }) {
     if (series.length < 2) {
         return (
@@ -82,7 +82,7 @@ export function AutopilotCoverageTrend({
                                 SERIES.find((s) => s.key === name)?.label ?? name,
                             ]}
                         />
-                        <ReferenceLine y={floors.foryou} stroke={SERIES[0].color} strokeDasharray="6 4" strokeOpacity={0.5} />
+                        <ReferenceLine y={floors.pods} stroke={SERIES[0].color} strokeDasharray="6 4" strokeOpacity={0.5} />
                         <ReferenceLine y={floors.news} stroke={SERIES[1].color} strokeDasharray="6 4" strokeOpacity={0.5} />
                         <ReferenceLine y={floors.story} stroke={SERIES[2].color} strokeDasharray="6 4" strokeOpacity={0.5} />
                         {SERIES.map((s) => (

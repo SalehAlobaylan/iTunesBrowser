@@ -22,7 +22,7 @@ import type {
     SortField,
 } from '@/components/platform/sources/list/use-list-query-state';
 
-// Types that feed the For You pipeline (Telegram is dual; shown when set to media).
+// Types that feed the Pods pipeline (Telegram is dual; shown when set to media).
 const MEDIA_TYPES: SourceType[] = ['YOUTUBE', 'PODCAST', 'TELEGRAM', 'RSS', 'MANUAL'];
 
 const SORTS: { value: string; label: string; field: SortField; dir: SortDir }[] = [

@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import type { ContentType } from '@/types/platform/content';
 
 /**
- * Media Library — manages the For You audio/video corpus: caption-first transcripts,
+ * Media Library — manages the Pods audio/video corpus: caption-first transcripts,
  * caption-state badges, and on-demand STT upgrades.
  */
 export default function MediaPage() {
@@ -30,7 +30,7 @@ export default function MediaPage() {
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
                 <div>
-                    <span className="brand-overline text-gold">For You</span>
+                    <span className="brand-overline text-gold">Pods</span>
                     <h1 className="text-2xl font-semibold">Media Library</h1>
                     <p className="text-sm text-muted-foreground">
                         Browse, filter, and manage video and podcast items. Keep captions first, then
@@ -47,7 +47,7 @@ export default function MediaPage() {
             {/* STT settings */}
             <SttSettingsCard />
 
-            {/* Type toggle — gold active state, the For You accent */}
+            {/* Type toggle — gold active state, the Pods accent */}
             <div className="flex items-center gap-2">
                 <Button
                     size="sm"

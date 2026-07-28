@@ -108,7 +108,7 @@ export function AutopilotFlow({ flow }: { flow: PrefLatestFlow | null | undefine
     const source: FlowNode = { id: 'in', label: dashed ? 'Run (dry-run)' : 'Run', count: totalLane, color: C.source, x: 110, y: 155 };
     const outcomes: FlowNode[] = [
         { id: 'auto', label: dashed ? 'Would auto-approve' : 'Auto-approved', count: b.auto_approve, color: C.auto, x: 720, y: 60 },
-        { id: 'held', label: 'Held for you', count: b.merge_suggest, color: C.held, x: 720, y: 125 },
+        { id: 'held', label: 'Held pods', count: b.merge_suggest, color: C.held, x: 720, y: 125 },
         { id: 'skip', label: 'Skipped', count: b.skipped, color: C.skip, x: 720, y: 195 },
         { id: 'err', label: 'Errored', count: b.errored, color: C.error, x: 720, y: 260 },
     ];

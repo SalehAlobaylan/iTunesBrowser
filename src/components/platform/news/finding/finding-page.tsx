@@ -203,7 +203,7 @@ export function FindingPage() {
                             <h3 className="text-lg font-semibold">Start discovering sources</h3>
                             <p className="mx-auto max-w-md text-sm text-muted-foreground">
                                 Create an interest (e.g. “Saudi economy”) with a few keywords. Wahb hunts the web for
-                                matching Arabic news feeds and ranks them for you to approve.
+                                matching Arabic news feeds and ranks them pods to approve.
                             </p>
                         </div>
                         <div className="flex gap-2">

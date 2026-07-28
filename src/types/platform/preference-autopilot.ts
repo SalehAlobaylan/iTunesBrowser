@@ -38,7 +38,7 @@ export interface PreferenceSnapshot {
     pending_proposals: number;
     oldest_pending_age_hours: number;
     high_confidence_pending: number;
-    foryou_coverage_pct: number;
+    pods_coverage_pct: number;
     news_coverage_pct: number;
     story_coverage_pct: number;
     unmapped_backlog: number;
@@ -68,7 +68,7 @@ export interface PreferenceAutopilotPolicy {
     max_mined_proposals: number;
     max_centroid_refresh: number;
     max_pending_proposals: number;
-    coverage_floor_foryou_pct: number;
+    coverage_floor_pods_pct: number;
     coverage_floor_news_pct: number;
     coverage_floor_story_pct: number;
     high_confidence: number;
@@ -200,7 +200,7 @@ export interface PrefRunHistoryEntry {
 
 export interface PrefCoveragePoint {
     started_at: string;
-    foryou_pct: number;
+    pods_pct: number;
     news_pct: number;
     story_pct: number;
     unmapped_backlog: number;
@@ -239,7 +239,7 @@ export interface PrefLatestFlow {
 export interface PreferenceAutopilotInsights {
     run_history: PrefRunHistoryEntry[];
     coverage_series: PrefCoveragePoint[];
-    coverage_floors: { foryou: number; news: number; story: number };
+    coverage_floors: { pods: number; news: number; story: number };
     guardrail_totals: Record<string, number>;
     outcome_totals: Record<string, number>;
     latest_flow: PrefLatestFlow | null;

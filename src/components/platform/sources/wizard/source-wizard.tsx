@@ -113,7 +113,7 @@ export function SourceWizard({
                         allowedTypes={allowedTypes}
                         onSelect={(type) => {
                             dispatch({ kind: 'set_type', type });
-                            // Media flow: default Telegram to the For-You media kinds.
+                            // Media flow: default Telegram to the Pods media kinds.
                             if (mediaDefaults && type === 'TELEGRAM') {
                                 dispatch({ kind: 'toggle_telegram_media', media: 'video', on: true });
                             }

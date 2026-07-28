@@ -22,7 +22,7 @@ import type { PreferenceSettings } from '@/types/platform/topics';
 
 type NumKey = Exclude<
   keyof PreferenceSettings,
-  'tenant_id' | 'foryou_enabled' | 'news_enabled'
+  'tenant_id' | 'pods_enabled' | 'news_enabled'
 >;
 
 function NumberField({
@@ -131,15 +131,15 @@ export function SettingsTab() {
           <div className="flex items-center justify-between rounded-lg border border-gold/40 bg-gold/5 p-3">
             <div>
               <div className="text-sm font-semibold text-gold">
-                For You personalization
+                Pods personalization
               </div>
               <div className="text-xs text-muted-foreground">
                 Bounded per-item boost on the audio feed
               </div>
             </div>
             <Switch
-              checked={cfg.foryou_enabled}
-              onCheckedChange={(v) => patch({ foryou_enabled: v })}
+              checked={cfg.pods_enabled}
+              onCheckedChange={(v) => patch({ pods_enabled: v })}
             />
           </div>
           <div className="flex items-center justify-between rounded-lg border border-news/40 bg-news/5 p-3">
@@ -172,13 +172,13 @@ export function SettingsTab() {
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
           <NumberField
-            label="For You (W)"
+            label="Pods (W)"
             accent="gold"
             hint="0–1 · default 0.30"
             min={0}
             max={1}
-            value={cfg.w_foryou}
-            onSave={setNum('w_foryou')}
+            value={cfg.w_pods}
+            onSave={setNum('w_pods')}
           />
           <NumberField
             label="News (W)"

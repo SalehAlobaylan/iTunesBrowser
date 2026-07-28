@@ -532,7 +532,7 @@ export function MediaFindingPage({ embedded = false, relationships, intelligence
             {!embedded && (
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <span className="brand-overline text-gold">For You</span>
+                    <span className="brand-overline text-gold">Pods</span>
                     <h1 className="text-2xl font-bold">Media Finding</h1>
                     <p className="text-sm text-muted-foreground">
                         Auto-discovered podcasts &amp; YouTube channels, ranked for your roster.

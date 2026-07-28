@@ -219,7 +219,7 @@ function Vital({
 }
 
 /**
- * The library shelf — the six For You duration buckets rendered as a
+ * The library shelf — the six Pods duration buckets rendered as a
  * demand-vs-coverage skyline. In the measured regime each shelf shows two
  * bars: what listeners ask for (demand, measured serve-side) next to what the
  * shelf holds (coverage, value-weighted supply) — a demand bar towering over

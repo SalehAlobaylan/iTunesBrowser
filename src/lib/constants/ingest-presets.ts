@@ -86,7 +86,7 @@ export const INGEST_PRESETS: IngestPreset[] = [
         recommended: true,
         tagline: 'TikTok-style vertical / horizontal feeds on phones.',
         description:
-            'The right choice for the For You feed and most video ingest. Caps resolution at 720p (saturates a phone screen), uses CRF 26 for a strong size-vs-quality balance, and 96 kbps AAC audio that sounds great over phone speakers / earbuds without wasting bytes.',
+            'The right choice for the Pods feed and most video ingest. Caps resolution at 720p (saturates a phone screen), uses CRF 26 for a strong size-vs-quality balance, and 96 kbps AAC audio that sounds great over phone speakers / earbuds without wasting bytes.',
         bestFor: ['Vertical feeds', 'News slides', 'Mobile UGC'],
         estimatedReduction: '~55% smaller than default',
         estimatedQuality: 'Indistinguishable on a 6" screen',
@@ -173,7 +173,7 @@ export const INGEST_PRESETS: IngestPreset[] = [
         accentColor: 'text-purple-400',
         tagline: 'Audio-first content. Cover-art video, quality audio.',
         description:
-            'For PODCAST source types. The pipeline produces an MP4 wrapper around the audio (For You feed needs a video container), with a static cover image as the visual track. Audio side gets 128 kbps AAC. The "video" side encodes are fast and cheap because the image never changes.',
+            'For PODCAST source types. The pipeline produces an MP4 wrapper around the audio (Pods feed needs a video container), with a static cover image as the visual track. Audio side gets 128 kbps AAC. The "video" side encodes are fast and cheap because the image never changes.',
         bestFor: ['Podcasts', 'Audio-only sources', 'Telegram voice notes'],
         estimatedReduction: 'N/A (audio-dominated)',
         estimatedQuality: 'Matches source audio',

@@ -149,7 +149,7 @@ export function AutopilotTab({
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
                         <StatTile label="Pending" value={`${status.pending_proposals}`} accent={status.pending_proposals > 0 ? 'primary' : undefined} />
                         <StatTile label="High-conf" value={`${snapshot?.high_confidence_pending ?? 0}`} accent="success" />
-                        <StatTile label="For You cov." value={`${(snapshot?.foryou_coverage_pct ?? 0).toFixed(0)}%`} accent="primary" />
+                        <StatTile label="Pods cov." value={`${(snapshot?.pods_coverage_pct ?? 0).toFixed(0)}%`} accent="primary" />
                         <StatTile label="News cov." value={`${(snapshot?.news_coverage_pct ?? 0).toFixed(0)}%`} accent="primary" />
                         <StatTile label="Stories cov." value={`${(snapshot?.story_coverage_pct ?? 0).toFixed(0)}%`} />
                         <StatTile label="Queue depth" value={`${snapshot?.recompute_queue_depth ?? 0}`} />
@@ -249,7 +249,7 @@ export function AutopilotTab({
                 ) : (
                     <AutopilotCoverageTrend
                         series={insights?.coverage_series ?? []}
-                        floors={insights?.coverage_floors ?? { foryou: 70, news: 60, story: 50 }}
+                        floors={insights?.coverage_floors ?? { pods: 70, news: 60, story: 50 }}
                     />
                 )}
             </div>

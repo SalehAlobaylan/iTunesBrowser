@@ -15,9 +15,9 @@ interface ConnectTelegramProps {
 }
 
 const MEDIA_OPTIONS: Array<{ key: TelegramMediaType; label: string; hint: string }> = [
-    { key: 'audio', label: 'Audio Files', hint: 'For You' },
-    { key: 'voice', label: 'Voice Notes', hint: 'For You' },
-    { key: 'video', label: 'Videos', hint: 'For You' },
+    { key: 'audio', label: 'Audio Files', hint: 'Pods' },
+    { key: 'voice', label: 'Voice Notes', hint: 'Pods' },
+    { key: 'video', label: 'Videos', hint: 'Pods' },
     { key: 'photo', label: 'Photos', hint: 'News' },
     { key: 'text', label: 'Text Posts', hint: 'News' },
 ];
@@ -65,7 +65,7 @@ export function ConnectTelegram({
             <div className="space-y-2">
                 <Label>Content Types to Fetch</Label>
                 <p className="text-xs text-muted-foreground">
-                    Audio / Voice / Video → <strong>For You</strong> feed&nbsp;·&nbsp;
+                    Audio / Voice / Video → <strong>Pods</strong> feed&nbsp;·&nbsp;
                     Text / Photos → <strong>News</strong> feed
                 </p>
                 <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">

@@ -11,8 +11,8 @@ const item = (overrides: Partial<OpsAttentionItem>): OpsAttentionItem =>
         system: 'feed-integrity',
         kind: 'episode',
         severity: 'major',
-        title: 'For You serving duplicate items',
-        detail: 'edge_fy_dup confirmed twice',
+        title: 'Pods serving duplicate items',
+        detail: 'edge_pods_dup confirmed twice',
         count: 1,
         first_seen: new Date(Date.now() - 30 * 60_000).toISOString(),
         href: '/platform/feed-integrity',
@@ -25,7 +25,7 @@ describe('AttentionPreview', () => {
         render(<AttentionPreview items={[item({})]} isLoading={false} isError={false} onRetry={jest.fn()} />);
         expect(screen.getByText('major')).toBeInTheDocument();
         expect(screen.getByText('feed-integrity')).toBeInTheDocument();
-        expect(screen.getByRole('link', { name: 'For You serving duplicate items' })).toHaveAttribute(
+        expect(screen.getByRole('link', { name: 'Pods serving duplicate items' })).toHaveAttribute(
             'href',
             '/platform/feed-integrity',
         );

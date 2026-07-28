@@ -17,7 +17,7 @@ import {
 import {
     useRankingConfig,
     useUpdateRankingConfig,
-    usePreviewForYou,
+    usePreviewPods,
     usePreviewNews,
 } from '@/hooks/use-intelligence';
 
@@ -48,7 +48,7 @@ function PositionChange({ change }: { change: number }) {
 export default function PreviewPage() {
     const { data: config } = useRankingConfig();
     const updateConfig = useUpdateRankingConfig();
-    const [feedType, setFeedType] = useState<'foryou' | 'news'>('foryou');
+    const [feedType, setFeedType] = useState<'pods' | 'news'>('pods');
 
     // Temporary weight overrides
     const [overrides, setOverrides] = useState<Record<string, number>>({});
@@ -58,17 +58,17 @@ export default function PreviewPage() {
     const overrideParams = hasOverrides ? overrides : undefined;
 
     const {
-        data: forYouPreview,
+        data: podsPreview,
         isLoading: fyLoading,
-    } = usePreviewForYou(feedType === 'foryou' ? overrideParams : undefined);
+    } = usePreviewPods(feedType === 'pods' ? overrideParams : undefined);
 
     const {
         data: newsPreview,
         isLoading: newsLoading,
     } = usePreviewNews(feedType === 'news' ? overrideParams : undefined);
 
-    const preview = feedType === 'foryou' ? forYouPreview : newsPreview;
-    const previewLoading = feedType === 'foryou' ? fyLoading : newsLoading;
+    const preview = feedType === 'pods' ? podsPreview : newsPreview;
+    const previewLoading = feedType === 'pods' ? fyLoading : newsLoading;
 
     // Initialize overrides from config
     const currentWeights: Record<string, number> = {};
@@ -136,9 +136,9 @@ export default function PreviewPage() {
             </div>
 
             {/* Feed Type Toggle */}
-            <Tabs value={feedType} onValueChange={(v) => setFeedType(v as 'foryou' | 'news')}>
+            <Tabs value={feedType} onValueChange={(v) => setFeedType(v as 'pods' | 'news')}>
                 <TabsList>
-                    <TabsTrigger value="foryou">For You Feed</TabsTrigger>
+                    <TabsTrigger value="pods">Pods Feed</TabsTrigger>
                     <TabsTrigger value="news">News Feed</TabsTrigger>
                 </TabsList>
             </Tabs>
@@ -174,7 +174,7 @@ export default function PreviewPage() {
                             )}
                         </CardTitle>
                         <CardDescription>
-                            {feedType === 'foryou'
+                            {feedType === 'pods'
                                 ? 'Full-screen audio/video feed order'
                                 : 'Magazine-style editorial slide order'}
                         </CardDescription>

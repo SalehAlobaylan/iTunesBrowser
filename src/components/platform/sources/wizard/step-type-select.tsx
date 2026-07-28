@@ -25,7 +25,7 @@ interface StepTypeSelectProps {
 interface TypeMeta {
     icon: LucideIcon;
     description: string;
-    feedHint?: 'For You' | 'News' | 'Both';
+    feedHint?: 'Pods' | 'News' | 'Both';
     priority: 1 | 2;
 }
 
@@ -33,7 +33,7 @@ const TYPE_META: Record<SourceType, TypeMeta> = {
     YOUTUBE: {
         icon: Youtube,
         description: 'Channel videos via YouTube Data API. Filterable by duration & age.',
-        feedHint: 'For You',
+        feedHint: 'Pods',
         priority: 1,
     },
     TELEGRAM: {
@@ -51,7 +51,7 @@ const TYPE_META: Record<SourceType, TypeMeta> = {
     PODCAST: {
         icon: Mic,
         description: 'Podcast RSS feed (audio episodes).',
-        feedHint: 'For You',
+        feedHint: 'Pods',
         priority: 2,
     },
     TWITTER: {

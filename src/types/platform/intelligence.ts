@@ -27,9 +27,9 @@ export interface RankingConfig {
   recirculation_enabled: boolean;
   recirculation_max_age_days: number;
   show_watched_when_unseen_exhausted: boolean;
-  foryou_completed_repeat_days: number;
-  foryou_meaningful_repeat_days: number;
-  foryou_sample_repeat_days: number;
+  pods_completed_repeat_days: number;
+  pods_meaningful_repeat_days: number;
+  pods_sample_repeat_days: number;
   engagement_normalization: 'log' | 'linear';
   mode: RankingMode;
   is_active: boolean;
