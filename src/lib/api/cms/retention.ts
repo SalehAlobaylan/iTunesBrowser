@@ -1,6 +1,7 @@
 import { cmsClient } from '@/lib/api/client';
 import type {
     RetentionAction,
+    RetentionCompactionManifest,
     RetentionHold,
     RetentionPolicy,
     RetentionRun,
@@ -19,6 +20,12 @@ export const updateRetentionPolicy = (patch: Partial<RetentionPolicy>) =>
     unwrap(cmsClient.put<Envelope<RetentionPolicy>>(`${BASE}/policy`, patch));
 export const runRetention = () =>
     unwrap(cmsClient.post<Envelope<RetentionRun>>(`${BASE}/run`, {}));
+export const prepareRetentionCompaction = () =>
+    unwrap(cmsClient.post<Envelope<RetentionCompactionManifest>>(`${BASE}/compaction/prepare`, {}));
+export const approveRetentionAction = (id: string) =>
+    unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/actions/${id}/approve`, {}));
+export const executeRetentionAction = (id: string) =>
+    unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/actions/${id}/execute`, {}));
 export const pauseRetention = (minutes: number) =>
     unwrap(cmsClient.post<Envelope<{ paused_until: string }>>(`${BASE}/pause`, { minutes }));
 export const listRetentionRuns = () =>
@@ -27,4 +34,3 @@ export const listRetentionRunActions = (runId: string) =>
     unwrap(cmsClient.get<Envelope<{ items: RetentionAction[] }>>(`${BASE}/runs/${runId}/actions`));
 export const listRetentionHolds = () =>
     unwrap(cmsClient.get<Envelope<{ items: RetentionHold[] }>>(`${BASE}/holds`));
-

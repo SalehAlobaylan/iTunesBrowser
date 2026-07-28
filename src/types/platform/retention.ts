@@ -97,6 +97,9 @@ export interface RetentionAction {
     protected_count: number;
     estimated_bytes: number;
     guardrail?: string;
+    manifest_hash?: string | null;
+    approved_at?: string | null;
+    verification?: Record<string, unknown>;
     created_at: string;
 }
 
@@ -109,6 +112,18 @@ export interface RetentionHold {
     created_by: string;
     expires_at?: string | null;
     created_at: string;
+}
+
+export interface RetentionCompactionManifest {
+    id: string;
+    manifest_hash: string;
+    state: 'prepared' | 'approved' | 'expired' | 'executed' | 'blocked';
+    story_count: number;
+    anchor_count: number;
+    protected_count: number;
+    retire_count: number;
+    estimated_bytes: number;
+    expires_at: string;
 }
 
 export interface RetentionStatus {

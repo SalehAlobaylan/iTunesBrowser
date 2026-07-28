@@ -16,7 +16,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import {
+    useApproveRetentionAction,
+    useExecuteRetentionAction,
     usePauseRetention,
+    usePrepareRetentionCompaction,
     useRetentionHolds,
     useRetentionRunActions,
     useRetentionRuns,
@@ -83,6 +86,9 @@ export default function RetentionPage() {
     const holds = useRetentionHolds();
     const run = useRunRetention();
     const pause = usePauseRetention();
+    const prepareCompaction = usePrepareRetentionCompaction();
+    const approveAction = useApproveRetentionAction();
+    const executeAction = useExecuteRetentionAction();
     const savePolicy = useUpdateRetentionPolicy();
     const policy = status.data?.policy;
     const latestRunId = status.data?.latest_run?.id;
@@ -108,7 +114,9 @@ export default function RetentionPage() {
                 <div className="max-w-2xl">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                         <Badge variant="outline">Database custody</Badge>
-                        <Badge variant="secondary">Observe-only harness</Badge>
+                        <Badge variant={policy?.mode === 'assist' && policy.enabled ? 'warning' : 'secondary'}>
+                            {policy?.mode === 'assist' && policy.enabled ? 'Assist execution armed' : 'Observe-only until Assist is enabled'}
+                        </Badge>
                     </div>
                     <h1 className="text-3xl font-bold tracking-tight">Retention Autopilot</h1>
                     <p className="mt-2 text-muted-foreground">
@@ -179,13 +187,24 @@ export default function RetentionPage() {
                         <div className="mt-5 flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
                             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
                             <div>
-                                <p className="text-sm font-medium">No canonical rows can be deleted</p>
+                                <p className="text-sm font-medium">Execution is human-approved and bounded</p>
                                 <p className="mt-1 text-sm text-muted-foreground">
-                                    This slice only writes samples, runs, and “would execute” actions. Compaction still
-                                    requires dependency scans, a recovery manifest, cache invalidation, and human approval.
+                                    A prepared manifest freezes its exact rows. Execution is available only in enabled Assist mode,
+                                    revalidates protection and dependencies, invalidates every News snapshot, and requires readback.
                                 </p>
                             </div>
                         </div>
+                        <Button
+                            className="mt-4"
+                            variant="outline"
+                            disabled={prepareCompaction.isPending || (status.data?.preview.candidate_rows ?? 0) === 0}
+                            onClick={() => prepareCompaction.mutate()}
+                        >
+                            <ArchiveRestore className="mr-2 h-4 w-4" />Prepare approval manifest
+                        </Button>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                            This freezes the candidate evidence for review. It does not compact or delete anything.
+                        </p>
                     </CardContent>
                 </Card>
 
@@ -262,6 +281,26 @@ export default function RetentionPage() {
                                 <p className="mt-1 text-xs text-muted-foreground">
                                     {action.target_count} rows · {formatBytes(action.estimated_bytes)} · {action.guardrail}
                                 </p>
+                                {action.outcome === 'approval_required' ? (
+                                    <Button className="mt-3" size="sm" variant="outline" disabled={approveAction.isPending} onClick={() => approveAction.mutate(action.id)}>
+                                        Approve frozen manifest
+                                    </Button>
+                                ) : null}
+                                {['approved', 'tool_succeeded', 'verification_failed'].includes(action.outcome) ? (
+                                    <Button
+                                        className="mt-3"
+                                        size="sm"
+                                        variant={action.outcome === 'approved' ? 'destructive' : 'outline'}
+                                        disabled={executeAction.isPending || (action.outcome === 'approved' && !(policy?.enabled && policy.mode === 'assist'))}
+                                        onClick={() => {
+                                            if (action.outcome !== 'approved' || window.confirm('Execute the approved, immutable compaction manifest? This permanently retires only its selected redundant News rows after revalidation.')) {
+                                                executeAction.mutate(action.id);
+                                            }
+                                        }}
+                                    >
+                                        {action.outcome === 'approved' ? 'Execute approved manifest' : 'Retry verification'}
+                                    </Button>
+                                ) : null}
                             </div>
                         ))}
                         {!actions.data?.items?.length ? <p className="text-sm text-muted-foreground">No action proposals in the latest run.</p> : null}

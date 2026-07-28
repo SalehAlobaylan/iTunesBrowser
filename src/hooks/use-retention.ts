@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/components/ui/toast';
 import {
+    approveRetentionAction,
+    executeRetentionAction,
     getRetentionStatus,
     listRetentionHolds,
     listRetentionRunActions,
     listRetentionRuns,
     pauseRetention,
+    prepareRetentionCompaction,
     runRetention,
     updateRetentionPolicy,
 } from '@/lib/api/cms/retention';
@@ -75,6 +78,49 @@ export function useRunRetention() {
     });
 }
 
+export function usePrepareRetentionCompaction() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: prepareRetentionCompaction,
+        onSuccess: (manifest) => {
+            invalidateRetention(queryClient);
+            toast({
+                title: 'Compaction manifest prepared',
+                description: `${manifest.retire_count} rows await a later approved executor.`,
+                variant: 'success',
+            });
+        },
+        onError: (error: Error) =>
+            toast({ title: 'Manifest was not prepared', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function useApproveRetentionAction() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: approveRetentionAction,
+        onSuccess: () => {
+            invalidateRetention(queryClient);
+            toast({ title: 'Compaction approved', description: 'A separate execution step is still required.', variant: 'success' });
+        },
+        onError: (error: Error) =>
+            toast({ title: 'Approval failed', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function useExecuteRetentionAction() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: executeRetentionAction,
+        onSuccess: (action) => {
+            invalidateRetention(queryClient);
+            toast({ title: 'Compaction verified', description: `${action.target_count} selected rows were compacted.`, variant: 'success' });
+        },
+        onError: (error: Error) =>
+            toast({ title: 'Compaction needs attention', description: error.message, variant: 'destructive' }),
+    });
+}
+
 export function usePauseRetention() {
     const queryClient = useQueryClient();
     return useMutation({
@@ -85,4 +131,3 @@ export function usePauseRetention() {
         },
     });
 }
-
