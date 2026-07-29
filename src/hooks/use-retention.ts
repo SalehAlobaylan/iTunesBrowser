@@ -11,6 +11,11 @@ import {
     prepareRetentionCompaction,
     runRetention,
     updateRetentionPolicy,
+    getMonthlyReviewPolicy,
+    listMonthlyReviewArchives,
+    buildMonthlyReview,
+    updateMonthlyReviewPolicy,
+    verifyMonthlyReview,
 } from '@/lib/api/cms/retention';
 import type { RetentionPolicy } from '@/types/platform/retention';
 
@@ -20,6 +25,8 @@ export const retentionKeys = {
     runs: () => [...retentionKeys.all, 'runs'] as const,
     actions: (runId?: string) => [...retentionKeys.all, 'actions', runId] as const,
     holds: () => [...retentionKeys.all, 'holds'] as const,
+    monthlyPolicy: () => [...retentionKeys.all, 'monthly-policy'] as const,
+    monthlyArchives: () => [...retentionKeys.all, 'monthly-archives'] as const,
 };
 
 export function useRetentionStatus() {
@@ -46,6 +53,21 @@ export function useRetentionRunActions(runId?: string) {
 
 export function useRetentionHolds() {
     return useQuery({ queryKey: retentionKeys.holds(), queryFn: listRetentionHolds, staleTime: 15_000 });
+}
+
+export function useMonthlyReviewPolicy() { return useQuery({ queryKey: retentionKeys.monthlyPolicy(), queryFn: getMonthlyReviewPolicy, staleTime: 30_000 }); }
+export function useMonthlyReviewArchives() { return useQuery({ queryKey: retentionKeys.monthlyArchives(), queryFn: listMonthlyReviewArchives, staleTime: 30_000 }); }
+export function useBuildMonthlyReview() {
+    const queryClient = useQueryClient();
+    return useMutation({ mutationFn: buildMonthlyReview, onSuccess: (archive) => { invalidateRetention(queryClient); toast({ title: 'Month in Review verified', description: `${archive.selected_count} stories published in revision ${archive.revision}.`, variant: 'success' }); }, onError: (error: Error) => toast({ title: 'Month in Review was not built', description: error.message, variant: 'destructive' }) });
+}
+export function useVerifyMonthlyReview() {
+    const queryClient = useQueryClient();
+    return useMutation({ mutationFn: verifyMonthlyReview, onSuccess: (archive) => { invalidateRetention(queryClient); toast({ title: 'Month in Review published', description: `Revision ${archive.revision} passed archive readback.`, variant: 'success' }); }, onError: (error: Error) => toast({ title: 'Archive verification failed', description: error.message, variant: 'destructive' }) });
+}
+export function useUpdateMonthlyReviewPolicy() {
+    const queryClient = useQueryClient();
+    return useMutation({ mutationFn: ({ config, reason }: { config: Parameters<typeof updateMonthlyReviewPolicy>[0]; reason: string }) => updateMonthlyReviewPolicy(config, reason), onSuccess: () => { invalidateRetention(queryClient); toast({ title: 'New monthly-review policy revision activated', variant: 'success' }); }, onError: (error: Error) => toast({ title: 'Policy revision was not created', description: error.message, variant: 'destructive' }) });
 }
 
 function invalidateRetention(queryClient: ReturnType<typeof useQueryClient>) {

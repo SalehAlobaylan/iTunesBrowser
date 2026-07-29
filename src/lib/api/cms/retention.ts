@@ -6,6 +6,8 @@ import type {
     RetentionPolicy,
     RetentionRun,
     RetentionStatus,
+    MonthlyReviewArchive,
+    MonthlyReviewPolicyVersion,
 } from '@/types/platform/retention';
 
 type Envelope<T> = { data: T };
@@ -34,3 +36,13 @@ export const listRetentionRunActions = (runId: string) =>
     unwrap(cmsClient.get<Envelope<{ items: RetentionAction[] }>>(`${BASE}/runs/${runId}/actions`));
 export const listRetentionHolds = () =>
     unwrap(cmsClient.get<Envelope<{ items: RetentionHold[] }>>(`${BASE}/holds`));
+export const getMonthlyReviewPolicy = () =>
+    unwrap(cmsClient.get<Envelope<MonthlyReviewPolicyVersion>>(`${BASE}/monthly-review/policy`));
+export const updateMonthlyReviewPolicy = (config: MonthlyReviewPolicyVersion['config'], reason: string) =>
+    unwrap(cmsClient.post<Envelope<MonthlyReviewPolicyVersion>>(`${BASE}/monthly-review/policy`, { config, reason }));
+export const listMonthlyReviewArchives = () =>
+    unwrap(cmsClient.get<Envelope<{ items: MonthlyReviewArchive[] }>>(`${BASE}/monthly-review/archives`));
+export const buildMonthlyReview = (month: string) =>
+    unwrap(cmsClient.post<Envelope<MonthlyReviewArchive>>(`${BASE}/monthly-review/archives/${month}/build`, {}));
+export const verifyMonthlyReview = (month: string) =>
+    unwrap(cmsClient.post<Envelope<MonthlyReviewArchive>>(`${BASE}/monthly-review/archives/${month}/verify`, {}));

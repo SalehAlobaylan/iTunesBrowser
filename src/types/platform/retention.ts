@@ -143,3 +143,36 @@ export interface RetentionStatus {
         physical_rewrites: string;
     };
 }
+
+export interface MonthlyReviewPolicyConfig {
+    formula_version: 'v1';
+    importance_weight: number;
+    engagement_weight: number;
+    category_cap: number;
+    lead_source_cap: number;
+    target_min: 20;
+    target_max: 30;
+}
+
+export interface MonthlyReviewPolicyVersion {
+    id: string;
+    tenant_id: string;
+    version: number;
+    state: string;
+    config: MonthlyReviewPolicyConfig;
+    reason?: string;
+    created_by?: string;
+    effective_at: string;
+}
+
+export interface MonthlyReviewArchive {
+    id: string;
+    month_start: string;
+    revision: number;
+    state: string;
+    limited_coverage: boolean;
+    headline: string;
+    selected_count: number;
+    qualified_count: number;
+    finalized_at?: string | null;
+}

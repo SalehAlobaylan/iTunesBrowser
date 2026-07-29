@@ -26,6 +26,11 @@ import {
     useRetentionStatus,
     useRunRetention,
     useUpdateRetentionPolicy,
+    useMonthlyReviewPolicy,
+    useMonthlyReviewArchives,
+    useBuildMonthlyReview,
+    useUpdateMonthlyReviewPolicy,
+    useVerifyMonthlyReview,
 } from '@/hooks/use-retention';
 import type { RetentionMode, RetentionVerdict } from '@/types/platform/retention';
 
@@ -96,6 +101,17 @@ export default function RetentionPage() {
     const [mode, setMode] = useState<RetentionMode | undefined>();
     const selectedMode = mode ?? policy?.mode ?? 'observe';
     const sample = status.data?.latest_sample;
+    const monthlyPolicy = useMonthlyReviewPolicy();
+    const monthlyArchives = useMonthlyReviewArchives();
+    const buildMonthlyReview = useBuildMonthlyReview();
+    const verifyMonthlyReview = useVerifyMonthlyReview();
+    const reviseMonthlyPolicy = useUpdateMonthlyReviewPolicy();
+    const [monthlyPolicyReason, setMonthlyPolicyReason] = useState('');
+    const lastCompletedMonth = useMemo(() => {
+        const value = new Date();
+        value.setMonth(value.getMonth() - 1);
+        return value.toISOString().slice(0, 7);
+    }, []);
 
     const runwayCopy = useMemo(() => {
         const days = status.data?.forecast.runway_to_critical_days;
@@ -245,6 +261,10 @@ export default function RetentionPage() {
                             <PolicyFact label="Sources" value="Always preserved" />
                             <PolicyFact label="Physical rewrites" value="Operator only" />
                         </div>
+                        <div className="flex gap-2">
+                            <input className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" value={monthlyPolicyReason} onChange={(event) => setMonthlyPolicyReason(event.target.value)} placeholder="Reason for a new immutable policy revision" />
+                            <Button size="sm" variant="outline" disabled={!monthlyPolicy.data || !monthlyPolicyReason.trim() || reviseMonthlyPolicy.isPending} onClick={() => reviseMonthlyPolicy.mutate({ config: monthlyPolicy.data!.config, reason: monthlyPolicyReason.trim() })}>Create revision</Button>
+                        </div>
                         <p className="text-xs text-muted-foreground">
                             Time boundaries follow {policy?.news_timezone ?? 'Asia/Riyadh'}. These product guarantees
                             cannot be weakened from this dashboard.
@@ -254,6 +274,37 @@ export default function RetentionPage() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
+                <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ArchiveRestore className="h-4 w-4 text-gold" />Month in Review</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            A verified, immutable archive is required before any future closed-month cleanup. It never changes the live month feed.
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                            <PolicyFact label="Active version" value={`v${monthlyPolicy.data?.version ?? '—'}`} />
+                            <PolicyFact label="Selection formula" value="60% importance · 40% engagement" />
+                            <PolicyFact label="Diversity caps" value="30% category · 20% source" />
+                            <PolicyFact label="Archive size" value="20–30, honest sparse months" />
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" onClick={() => buildMonthlyReview.mutate(lastCompletedMonth)} disabled={buildMonthlyReview.isPending}>
+                                <ArchiveRestore className="mr-2 h-4 w-4" />Build {lastCompletedMonth} revision
+                            </Button>
+                            <Button variant="outline" onClick={() => verifyMonthlyReview.mutate(lastCompletedMonth)} disabled={verifyMonthlyReview.isPending}>
+                                Verify & publish
+                            </Button>
+                        </div>
+                        <div className="space-y-2 border-t pt-3">
+                            {(monthlyArchives.data?.items ?? []).slice(0, 4).map((archive) => (
+                                <div key={archive.id} className="flex items-center justify-between text-sm">
+                                    <span>{new Date(archive.month_start).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+                                    <span className="text-muted-foreground">r{archive.revision} · {archive.selected_count} stories{archive.limited_coverage ? ' · limited coverage' : ''}</span>
+                                </div>
+                            ))}
+                            {monthlyArchives.data?.items?.length === 0 && <p className="text-sm text-muted-foreground">No verified monthly archive yet.</p>}
+                        </div>
+                    </CardContent>
+                </Card>
                 <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Clock3 className="h-4 w-4" />Recent observations</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
