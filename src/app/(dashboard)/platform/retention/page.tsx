@@ -34,6 +34,9 @@ import {
     usePrepareHistoricalRetention,
     useExecuteHistoricalRetention,
     useRetentionMaintenanceReport,
+    useRetentionOwnerRequests,
+    usePrepareRetentionOwnerRequest,
+    useExecuteRetentionOwnerRequest,
 } from '@/hooks/use-retention';
 import type { RetentionMode, RetentionVerdict } from '@/types/platform/retention';
 
@@ -112,6 +115,9 @@ export default function RetentionPage() {
     const prepareHistorical = usePrepareHistoricalRetention();
     const executeHistorical = useExecuteHistoricalRetention();
     const maintenanceReport = useRetentionMaintenanceReport();
+    const ownerRequests = useRetentionOwnerRequests();
+    const prepareOwner = usePrepareRetentionOwnerRequest();
+    const executeOwner = useExecuteRetentionOwnerRequest();
     const [monthlyPolicyReason, setMonthlyPolicyReason] = useState('');
     const lastCompletedMonth = useMemo(() => {
         const value = new Date();
@@ -308,6 +314,26 @@ export default function RetentionPage() {
                                 </div>
                             ))}
                             {monthlyArchives.data?.items?.length === 0 && <p className="text-sm text-muted-foreground">No verified monthly archive yet.</p>}
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ArchiveRestore className="h-4 w-4 text-gold" />Media owner coordination</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-sm text-muted-foreground">Retention can request one bounded owner run when capacity pressure needs media relief. Storage and Media Circulation still select, revalidate, execute, and audit their own work; Retention never selects media IDs or deletes objects.</p>
+                        <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" disabled={prepareOwner.isPending} onClick={() => prepareOwner.mutate('storage')}>Request Storage preview</Button>
+                            <Button variant="outline" disabled={prepareOwner.isPending} onClick={() => prepareOwner.mutate('media_circulation')}>Request Media Circulation run</Button>
+                        </div>
+                        <div className="space-y-2 border-t pt-3">
+                            {(ownerRequests.data?.items ?? []).slice(0, 4).map((request) => (
+                                <div key={request.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm">
+                                    <div><p className="font-medium">{request.owner_system === 'storage' ? 'Storage' : 'Media Circulation'} · {request.status}</p><p className="text-xs text-muted-foreground">{new Date(request.created_at).toLocaleString()}</p></div>
+                                    {request.status === 'approval_required' && request.action_id ? <Button size="sm" variant="outline" disabled={approveAction.isPending} onClick={() => approveAction.mutate(request.action_id!)}>Approve</Button> : null}
+                                    {request.status === 'approved' ? <Button size="sm" variant="outline" disabled={executeOwner.isPending || !(policy?.enabled && policy.mode === 'assist')} onClick={() => executeOwner.mutate(request.id)}>Execute owner run</Button> : null}
+                                </div>
+                            ))}
+                            {!ownerRequests.data?.items.length ? <p className="text-sm text-muted-foreground">No media-owner coordination requests yet.</p> : null}
                         </div>
                     </CardContent>
                 </Card>

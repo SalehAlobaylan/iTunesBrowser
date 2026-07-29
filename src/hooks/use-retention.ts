@@ -6,6 +6,9 @@ import {
     executeHistoricalRetention,
     prepareHistoricalRetention,
     createRetentionMaintenanceReport,
+    prepareRetentionOwnerRequest,
+    executeRetentionOwnerRequest,
+    listRetentionOwnerRequests,
     getRetentionStatus,
     listRetentionHolds,
     listRetentionRunActions,
@@ -30,6 +33,7 @@ export const retentionKeys = {
     holds: () => [...retentionKeys.all, 'holds'] as const,
     monthlyPolicy: () => [...retentionKeys.all, 'monthly-policy'] as const,
     monthlyArchives: () => [...retentionKeys.all, 'monthly-archives'] as const,
+    ownerRequests: () => [...retentionKeys.all, 'owner-requests'] as const,
 };
 
 export function useRetentionStatus() {
@@ -57,6 +61,7 @@ export function useRetentionRunActions(runId?: string) {
 export function useRetentionHolds() {
     return useQuery({ queryKey: retentionKeys.holds(), queryFn: listRetentionHolds, staleTime: 15_000 });
 }
+export function useRetentionOwnerRequests() { return useQuery({ queryKey: retentionKeys.ownerRequests(), queryFn: listRetentionOwnerRequests, staleTime: 15_000 }); }
 
 export function useMonthlyReviewPolicy() { return useQuery({ queryKey: retentionKeys.monthlyPolicy(), queryFn: getMonthlyReviewPolicy, staleTime: 30_000 }); }
 export function useMonthlyReviewArchives() { return useQuery({ queryKey: retentionKeys.monthlyArchives(), queryFn: listMonthlyReviewArchives, staleTime: 30_000 }); }
@@ -144,6 +149,23 @@ export function useRetentionMaintenanceReport() {
         mutationFn: createRetentionMaintenanceReport,
         onSuccess: (report) => { invalidateRetention(queryClient); toast({ title: report.state === 'free_downgrade_ready' ? 'Free downgrade readiness confirmed' : 'Maintenance readiness measured', description: `${Math.round(report.database_bytes / (1024 * 1024))} MiB measured.`, variant: report.state === 'free_downgrade_ready' ? 'success' : 'default' }); },
         onError: (error: Error) => toast({ title: 'Maintenance report failed', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function usePrepareRetentionOwnerRequest() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: prepareRetentionOwnerRequest,
+        onSuccess: (data) => { invalidateRetention(queryClient); toast({ title: `${data.request.owner_system === 'storage' ? 'Storage' : 'Media Circulation'} request prepared`, description: 'The owner will reselect and revalidate its own bounded work after approval.', variant: 'success' }); },
+        onError: (error: Error) => toast({ title: 'Owner request was not prepared', description: error.message, variant: 'destructive' }),
+    });
+}
+export function useExecuteRetentionOwnerRequest() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: executeRetentionOwnerRequest,
+        onSuccess: () => { invalidateRetention(queryClient); toast({ title: 'Owner run completed', description: 'The authoritative owner ledger contains the media-side result.', variant: 'success' }); },
+        onError: (error: Error) => toast({ title: 'Owner run needs attention', description: error.message, variant: 'destructive' }),
     });
 }
 

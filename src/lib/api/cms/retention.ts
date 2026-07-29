@@ -4,6 +4,7 @@ import type {
     RetentionCompactionManifest,
     RetentionHistoricalManifest,
     RetentionMaintenanceReport,
+    RetentionOwnerRequest,
     RetentionHold,
     RetentionPolicy,
     RetentionRun,
@@ -36,6 +37,12 @@ export const executeHistoricalRetention = (id: string) =>
     unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/historical/actions/${id}/execute`, {}));
 export const createRetentionMaintenanceReport = () =>
     unwrap(cmsClient.post<Envelope<RetentionMaintenanceReport>>(`${BASE}/maintenance/report`, {}));
+export const prepareRetentionOwnerRequest = (owner: 'storage' | 'media_circulation') =>
+    unwrap(cmsClient.post<Envelope<{ request: RetentionOwnerRequest }>>(`${BASE}/owners/${owner}/prepare`, {}));
+export const executeRetentionOwnerRequest = (id: string) =>
+    unwrap(cmsClient.post<Envelope<{ request_id: string; result: Record<string, unknown> }>>(`${BASE}/owner-requests/${id}/execute`, {}));
+export const listRetentionOwnerRequests = () =>
+    unwrap(cmsClient.get<Envelope<{ items: RetentionOwnerRequest[] }>>(`${BASE}/owner-requests`));
 export const pauseRetention = (minutes: number) =>
     unwrap(cmsClient.post<Envelope<{ paused_until: string }>>(`${BASE}/pause`, { minutes }));
 export const listRetentionRuns = () =>

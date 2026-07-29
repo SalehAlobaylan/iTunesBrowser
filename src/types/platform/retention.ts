@@ -146,6 +146,15 @@ export interface RetentionMaintenanceReport {
     created_at: string;
 }
 
+export interface RetentionOwnerRequest {
+    id: string;
+    action_id?: string;
+    owner_system: 'storage' | 'media_circulation';
+    status: string;
+    result?: Record<string, unknown>;
+    created_at: string;
+}
+
 export interface RetentionStatus {
     policy: RetentionPolicy;
     latest_sample?: RetentionDBSample | null;
