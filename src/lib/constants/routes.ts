@@ -58,6 +58,11 @@ export const navigation: NavigationSection[] = [
         icon: ArchiveRestore,
       },
       {
+        name: 'Feed Recovery',
+        href: '/platform/feed-recovery',
+        icon: Recycle,
+      },
+      {
         name: 'Real Experience',
         href: '/platform/real-experience',
         icon: Gauge,
@@ -132,6 +137,7 @@ export const ROUTES = {
     OPERATIONS: '/platform/operations',
     FEED_INTEGRITY: '/platform/feed-integrity',
     RETENTION: '/platform/retention',
+    FEED_RECOVERY: '/platform/feed-recovery',
     REAL_EXPERIENCE: '/platform/real-experience',
     ECONOMICS: '/platform/economics',
   },
