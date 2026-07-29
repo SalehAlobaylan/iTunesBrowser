@@ -2,6 +2,8 @@ import { cmsClient } from '@/lib/api/client';
 import type {
     RetentionAction,
     RetentionCompactionManifest,
+    RetentionHistoricalManifest,
+    RetentionMaintenanceReport,
     RetentionHold,
     RetentionPolicy,
     RetentionRun,
@@ -28,6 +30,12 @@ export const approveRetentionAction = (id: string) =>
     unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/actions/${id}/approve`, {}));
 export const executeRetentionAction = (id: string) =>
     unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/actions/${id}/execute`, {}));
+export const prepareHistoricalRetention = () =>
+    unwrap(cmsClient.post<Envelope<RetentionHistoricalManifest>>(`${BASE}/historical/prepare`, {}));
+export const executeHistoricalRetention = (id: string) =>
+    unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/historical/actions/${id}/execute`, {}));
+export const createRetentionMaintenanceReport = () =>
+    unwrap(cmsClient.post<Envelope<RetentionMaintenanceReport>>(`${BASE}/maintenance/report`, {}));
 export const pauseRetention = (minutes: number) =>
     unwrap(cmsClient.post<Envelope<{ paused_until: string }>>(`${BASE}/pause`, { minutes }));
 export const listRetentionRuns = () =>

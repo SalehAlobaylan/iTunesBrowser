@@ -31,6 +31,9 @@ import {
     useBuildMonthlyReview,
     useUpdateMonthlyReviewPolicy,
     useVerifyMonthlyReview,
+    usePrepareHistoricalRetention,
+    useExecuteHistoricalRetention,
+    useRetentionMaintenanceReport,
 } from '@/hooks/use-retention';
 import type { RetentionMode, RetentionVerdict } from '@/types/platform/retention';
 
@@ -106,6 +109,9 @@ export default function RetentionPage() {
     const buildMonthlyReview = useBuildMonthlyReview();
     const verifyMonthlyReview = useVerifyMonthlyReview();
     const reviseMonthlyPolicy = useUpdateMonthlyReviewPolicy();
+    const prepareHistorical = usePrepareHistoricalRetention();
+    const executeHistorical = useExecuteHistoricalRetention();
+    const maintenanceReport = useRetentionMaintenanceReport();
     const [monthlyPolicyReason, setMonthlyPolicyReason] = useState('');
     const lastCompletedMonth = useMemo(() => {
         const value = new Date();
@@ -306,6 +312,35 @@ export default function RetentionPage() {
                     </CardContent>
                 </Card>
                 <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Database className="h-4 w-4 text-gold" />Historical retirement &amp; downgrade proof</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            Retires only old finalized-archive News content. Sources, archive leads, likes, bookmarks, comments, active holds and recent telemetry are excluded.
+                            Every execution creates a verified short-lived recovery artifact, reconciles redundancy ownership, rebuilds News snapshots, and runs deep feed and health checks.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" onClick={() => prepareHistorical.mutate()} disabled={prepareHistorical.isPending}>
+                                <ArchiveRestore className="mr-2 h-4 w-4" />Prepare historical manifest
+                            </Button>
+                            <Button variant="outline" onClick={() => maintenanceReport.mutate()} disabled={maintenanceReport.isPending}>
+                                <Gauge className="mr-2 h-4 w-4" />Measure downgrade readiness
+                            </Button>
+                        </div>
+                        {maintenanceReport.data ? (
+                            <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="font-medium">Latest readiness proof</span>
+                                    <Badge variant={maintenanceReport.data.state === 'free_downgrade_ready' ? 'success' : 'warning'}>{maintenanceReport.data.state.replaceAll('_', ' ')}</Badge>
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    {formatBytes(maintenanceReport.data.database_bytes)} measured against {formatBytes(maintenanceReport.data.target_bytes)} · sparse values {maintenanceReport.data.sparse_use_count}
+                                </p>
+                            </div>
+                        ) : null}
+                        <p className="text-xs text-muted-foreground">Physical HNSW/TOAST reclaim remains an operator action; this report records the measured database size and confirms sparse-vector zero use before a Free downgrade.</p>
+                    </CardContent>
+                </Card>
+                <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Clock3 className="h-4 w-4" />Recent observations</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
                         {(runs.data?.items ?? []).slice(0, 8).map((item) => (
@@ -342,10 +377,11 @@ export default function RetentionPage() {
                                         className="mt-3"
                                         size="sm"
                                         variant={action.outcome === 'approved' ? 'destructive' : 'outline'}
-                                        disabled={executeAction.isPending || (action.outcome === 'approved' && !(policy?.enabled && policy.mode === 'assist'))}
+                                        disabled={(action.action_class.includes('historical') ? executeHistorical.isPending : executeAction.isPending) || (action.outcome === 'approved' && !(policy?.enabled && policy.mode === 'assist'))}
                                         onClick={() => {
                                             if (action.outcome !== 'approved' || window.confirm('Execute the approved, immutable compaction manifest? This permanently retires only its selected redundant News rows after revalidation.')) {
-                                                executeAction.mutate(action.id);
+                                                if (action.action_class.includes('historical')) executeHistorical.mutate(action.id);
+                                                else executeAction.mutate(action.id);
                                             }
                                         }}
                                     >

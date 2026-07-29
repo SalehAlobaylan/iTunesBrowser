@@ -126,6 +126,26 @@ export interface RetentionCompactionManifest {
     expires_at: string;
 }
 
+export interface RetentionHistoricalManifest {
+    id: string;
+    manifest_hash: string;
+    state: 'prepared' | 'approved' | 'expired' | 'executed' | 'blocked';
+    content_count: number;
+    story_count: number;
+    estimated_bytes: number;
+    expires_at: string;
+}
+
+export interface RetentionMaintenanceReport {
+    id: string;
+    database_bytes: number;
+    target_bytes: number;
+    sparse_use_count: number;
+    state: 'not_ready' | 'free_downgrade_ready';
+    evidence?: Record<string, unknown>;
+    created_at: string;
+}
+
 export interface RetentionStatus {
     policy: RetentionPolicy;
     latest_sample?: RetentionDBSample | null;

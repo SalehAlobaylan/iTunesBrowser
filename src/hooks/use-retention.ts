@@ -3,6 +3,9 @@ import { toast } from '@/components/ui/toast';
 import {
     approveRetentionAction,
     executeRetentionAction,
+    executeHistoricalRetention,
+    prepareHistoricalRetention,
+    createRetentionMaintenanceReport,
     getRetentionStatus,
     listRetentionHolds,
     listRetentionRunActions,
@@ -114,6 +117,33 @@ export function usePrepareRetentionCompaction() {
         },
         onError: (error: Error) =>
             toast({ title: 'Manifest was not prepared', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function usePrepareHistoricalRetention() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: prepareHistoricalRetention,
+        onSuccess: (manifest) => { invalidateRetention(queryClient); toast({ title: 'Historical manifest prepared', description: `${manifest.content_count} old News rows await approval.`, variant: 'success' }); },
+        onError: (error: Error) => toast({ title: 'Historical manifest was not prepared', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function useExecuteHistoricalRetention() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: executeHistoricalRetention,
+        onSuccess: (action) => { invalidateRetention(queryClient); toast({ title: 'Historical retirement verified', description: `${action.target_count} exact rows were retired after recovery and feed checks.`, variant: 'success' }); },
+        onError: (error: Error) => toast({ title: 'Historical retirement needs attention', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function useRetentionMaintenanceReport() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: createRetentionMaintenanceReport,
+        onSuccess: (report) => { invalidateRetention(queryClient); toast({ title: report.state === 'free_downgrade_ready' ? 'Free downgrade readiness confirmed' : 'Maintenance readiness measured', description: `${Math.round(report.database_bytes / (1024 * 1024))} MiB measured.`, variant: report.state === 'free_downgrade_ready' ? 'success' : 'default' }); },
+        onError: (error: Error) => toast({ title: 'Maintenance report failed', description: error.message, variant: 'destructive' }),
     });
 }
 
