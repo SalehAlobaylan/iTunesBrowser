@@ -9,6 +9,7 @@ import type {
     RetentionPolicy,
     RetentionRun,
     RetentionStatus,
+    RetentionExecutionControl,
     MonthlyReviewArchive,
     MonthlyReviewPolicyVersion,
 } from '@/types/platform/retention';
@@ -21,24 +22,32 @@ export const getRetentionStatus = () =>
     unwrap(cmsClient.get<Envelope<RetentionStatus>>(`${BASE}/status`));
 export const getRetentionPolicy = () =>
     unwrap(cmsClient.get<Envelope<RetentionPolicy>>(`${BASE}/policy`));
+export const getRetentionExecutionControl = () =>
+    unwrap(cmsClient.get<Envelope<RetentionExecutionControl>>(`${BASE}/execution-controls`));
+export const updateRetentionExecutionControl = (payload: Partial<RetentionExecutionControl> & { reason: string }) =>
+    unwrap(cmsClient.put<Envelope<RetentionExecutionControl>>(`${BASE}/execution-controls`, payload));
 export const updateRetentionPolicy = (patch: Partial<RetentionPolicy>) =>
     unwrap(cmsClient.put<Envelope<RetentionPolicy>>(`${BASE}/policy`, patch));
 export const runRetention = () =>
     unwrap(cmsClient.post<Envelope<RetentionRun>>(`${BASE}/run`, {}));
-export const prepareRetentionCompaction = () =>
-    unwrap(cmsClient.post<Envelope<RetentionCompactionManifest>>(`${BASE}/compaction/prepare`, {}));
+export const prepareRetentionCompaction = (cursor?: string) =>
+    unwrap(cmsClient.post<Envelope<RetentionCompactionManifest>>(`${BASE}/compaction/prepare`, cursor ? { cursor } : {}));
 export const approveRetentionAction = (id: string) =>
     unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/actions/${id}/approve`, {}));
 export const executeRetentionAction = (id: string) =>
     unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/actions/${id}/execute`, {}));
 export const resetRetentionBreaker = (actionClass: string) =>
     unwrap(cmsClient.post<Envelope<Record<string, unknown>>>(`${BASE}/autopilot/breakers/${encodeURIComponent(actionClass)}/reset`, {}));
-export const prepareHistoricalRetention = () =>
-    unwrap(cmsClient.post<Envelope<RetentionHistoricalManifest>>(`${BASE}/historical/prepare`, {}));
+export const prepareHistoricalRetention = (cursor?: string) =>
+    unwrap(cmsClient.post<Envelope<RetentionHistoricalManifest>>(`${BASE}/historical/prepare`, cursor ? { cursor } : {}));
 export const executeHistoricalRetention = (id: string) =>
     unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/historical/actions/${id}/execute`, {}));
-export const createRetentionMaintenanceReport = () =>
-    unwrap(cmsClient.post<Envelope<RetentionMaintenanceReport>>(`${BASE}/maintenance/report`, {}));
+export const createRetentionMaintenanceReport = (payload?: {
+    provider_bytes?: number;
+    provider_source?: string;
+    provider_measured_at?: string;
+    physical_reclaim_confirmed?: boolean;
+}) => unwrap(cmsClient.post<Envelope<RetentionMaintenanceReport>>(`${BASE}/maintenance/report`, payload ?? {}));
 export const prepareRetentionOwnerRequest = (owner: 'storage' | 'media_circulation') =>
     unwrap(cmsClient.post<Envelope<{ request: RetentionOwnerRequest }>>(`${BASE}/owners/${owner}/prepare`, {}));
 export const executeRetentionOwnerRequest = (id: string) =>

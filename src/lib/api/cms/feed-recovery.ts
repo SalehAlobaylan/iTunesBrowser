@@ -1,5 +1,5 @@
 import { cmsClient, iamClient } from '@/lib/api/client';
-import type { FeedRecoveryPlan, FeedRecoveryRun, FeedRecoveryLane, FeedRecoveryLevel } from '@/types/platform/feed-recovery';
+import type { FeedRecoveryPlan, FeedRecoveryRun, FeedRecoveryAction, FeedRecoveryLane, FeedRecoveryLevel } from '@/types/platform/feed-recovery';
 type E<T>={data:T}; const unwrap=async<T>(p:Promise<E<T>>)=>(await p).data; const BASE='/admin/feed-recovery';
 export const createFeedRecoveryPlan=(data:{lane:FeedRecoveryLane;level:FeedRecoveryLevel;capacity_mode:'safe_cutover'|'low_space_reset';no_full_rollback?:boolean})=>cmsClient.post<FeedRecoveryPlan>(`${BASE}/plans`,data);
 export const getFeedRecoveryPlan=(id:string)=>cmsClient.get<FeedRecoveryPlan>(`${BASE}/plans/${id}`);
@@ -7,6 +7,7 @@ export const refreshFeedRecoveryPlan=(id:string)=>cmsClient.post<FeedRecoveryPla
 export const issueFeedRecoveryReauth=(password:string,plan:FeedRecoveryPlan)=>iamClient.post<{proof:string}>('/auth/reauth',{password,purpose:'feed_recovery',plan_id:plan.id,manifest_hash:plan.manifest_hash});
 export const approveFeedRecoveryPlan=(id:string,phrase:string,reauth_proof:string)=>cmsClient.post<{plan:string;run:FeedRecoveryRun}>(`${BASE}/plans/${id}/approve`,{phrase,reauth_proof});
 export const listFeedRecoveryRuns=()=>unwrap(cmsClient.get<E<{data:FeedRecoveryRun[]}>>(`${BASE}/runs`));
+export const listFeedRecoveryActions=(id:string)=>unwrap(cmsClient.get<E<FeedRecoveryAction[]>>(`${BASE}/runs/${id}/actions`));
 export const executeFeedRecoveryRun=(id:string)=>cmsClient.post<{data:Record<string,unknown>}>(`${BASE}/runs/${id}/execute`,{});
 export const cancelFeedRecoveryRun=(id:string)=>cmsClient.post<{data:string}>(`${BASE}/runs/${id}/cancel`,{});
 export const rollbackFeedRecoveryRun=(id:string)=>cmsClient.post<{data:Record<string,unknown>}>(`${BASE}/runs/${id}/rollback`,{});

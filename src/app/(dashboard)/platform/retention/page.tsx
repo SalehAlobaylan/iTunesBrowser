@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import {
     useApproveRetentionAction,
     useExecuteRetentionAction,
@@ -50,8 +51,8 @@ function formatBytes(value?: number | null) {
 
 function verdictTone(verdict?: RetentionVerdict | string) {
     if (verdict === 'healthy' || verdict === 'completed') return 'success' as const;
-    if (verdict === 'critical' || verdict === 'failed') return 'destructive' as const;
-    if (verdict === 'warning' || verdict === 'action_required' || verdict === 'maintenance_required') return 'warning' as const;
+    if (verdict === 'critical' || verdict === 'failed' || verdict === 'blocked' || verdict === 'recovery_required') return 'destructive' as const;
+    if (verdict === 'warning' || verdict === 'action_required' || verdict === 'maintenance_required' || verdict === 'compaction_due' || verdict === 'archive_blocked' || verdict === 'cleanup_due' || verdict === 'recovery_in_progress') return 'warning' as const;
     return 'secondary' as const;
 }
 
@@ -125,6 +126,10 @@ export default function RetentionPage() {
     const prepareOwner = usePrepareRetentionOwnerRequest();
     const executeOwner = useExecuteRetentionOwnerRequest();
     const [monthlyPolicyReason, setMonthlyPolicyReason] = useState('');
+    const [providerBytesMiB, setProviderBytesMiB] = useState('');
+    const [physicalReclaimConfirmed, setPhysicalReclaimConfirmed] = useState(false);
+    const [compactionCursor, setCompactionCursor] = useState<string>();
+    const [historicalCursor, setHistoricalCursor] = useState<string>();
     const lastCompletedMonth = useMemo(() => {
         const value = new Date();
         value.setMonth(value.getMonth() - 1);
@@ -186,6 +191,9 @@ export default function RetentionPage() {
                         <p className="mt-1 text-xs text-muted-foreground">
                             Last measured {sample?.measured_at ? new Date(sample.measured_at).toLocaleString() : 'never'}
                         </p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                            Historical signal: {String(status.data?.historical?.old_news_rows ?? 0)} old News rows · {String(status.data?.historical?.finalized_archives ?? 0)} finalized archives
+                        </p>
                     </div>
                     <div className="p-6">
                         <CapacityRail
@@ -232,12 +240,12 @@ export default function RetentionPage() {
                             className="mt-4"
                             variant="outline"
                             disabled={prepareCompaction.isPending || (status.data?.preview.candidate_rows ?? 0) === 0}
-                            onClick={() => prepareCompaction.mutate()}
+                            onClick={() => prepareCompaction.mutate(compactionCursor, { onSuccess: (manifest) => setCompactionCursor(manifest.evidence?.has_more ? manifest.evidence.next_cursor : undefined) })}
                         >
-                            <ArchiveRestore className="mr-2 h-4 w-4" />Prepare approval manifest
+                            <ArchiveRestore className="mr-2 h-4 w-4" />{compactionCursor ? 'Continue bounded scan' : 'Prepare approval manifest'}
                         </Button>
                         <p className="mt-2 text-xs text-muted-foreground">
-                            This freezes the candidate evidence for review. It does not compact or delete anything.
+                            This freezes the candidate evidence for review. It does not compact or delete anything. Blocked or oversized stories are skipped and the next bounded page can be continued here.
                         </p>
                     </CardContent>
                 </Card>
@@ -291,6 +299,26 @@ export default function RetentionPage() {
                             Time boundaries follow {policy?.news_timezone ?? 'Asia/Riyadh'}. These product guarantees
                             cannot be weakened from this dashboard.
                         </p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-4 w-4 text-gold" />Destructive rollout controls</CardTitle></CardHeader>
+                    <CardContent className="space-y-3">
+                        <p className="text-sm text-muted-foreground">High-risk execution is fail-closed until an administrator enables each persisted rollout gate after the disposable validation matrix passes. Observation and preparation remain available.</p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            {[
+                                ['canonical_compaction_enabled', 'Current-month compaction'],
+                                ['historical_enabled', 'Historical retirement'],
+                                ['owner_runs_enabled', 'Storage/Media owner runs'],
+                                ['feed_recovery_rotate_enabled', 'Feed Recovery Rotate'],
+                                ['feed_recovery_purge_enabled', 'Purge & Reseed'],
+                            ].map(([key, label]) => {
+                                const controls = status.data?.execution_controls as Record<string, boolean> | undefined;
+                                const enabled = Boolean(controls?.[key]);
+                                return <div key={key} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"><span>{label}</span><Badge variant={enabled ? 'success' : 'secondary'}>{enabled ? 'Enabled' : 'Paused'}</Badge></div>;
+                            })}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Controls are persisted in CMS and require an administrator role plus an audit reason to change.</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -361,7 +389,7 @@ export default function RetentionPage() {
                         <div className="space-y-2 border-t pt-3">
                             {(ownerRequests.data?.items ?? []).slice(0, 4).map((request) => (
                                 <div key={request.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm">
-                                    <div><p className="font-medium">{request.owner_system === 'storage' ? 'Storage' : 'Media Circulation'} · {request.status}</p><p className="text-xs text-muted-foreground">{new Date(request.created_at).toLocaleString()}</p></div>
+                                    <div><p className="font-medium">{request.owner_system === 'storage' ? 'Storage' : 'Media Circulation'} · {request.status}</p><p className="text-xs text-muted-foreground">{formatBytes(request.max_bytes)} · {request.max_items ?? '—'} items · {request.max_actions ?? '—'} actions · expires {request.expires_at ? new Date(request.expires_at).toLocaleString() : '—'}</p></div>
                                     {request.status === 'approval_required' && request.action_id ? <Button size="sm" variant="outline" disabled={approveAction.isPending} onClick={() => approveAction.mutate(request.action_id!)}>Approve</Button> : null}
                                     {request.status === 'approved' ? <Button size="sm" variant="outline" disabled={executeOwner.isPending || !(policy?.enabled && policy.mode === 'assist')} onClick={() => executeOwner.mutate(request.id)}>Execute owner run</Button> : null}
                                 </div>
@@ -378,12 +406,22 @@ export default function RetentionPage() {
                             Every execution creates a verified short-lived recovery artifact, reconciles redundancy ownership, rebuilds News snapshots, and runs deep feed and health checks.
                         </p>
                         <div className="flex flex-wrap gap-2">
-                            <Button variant="outline" onClick={() => prepareHistorical.mutate()} disabled={prepareHistorical.isPending}>
-                                <ArchiveRestore className="mr-2 h-4 w-4" />Prepare historical manifest
+                            <Button variant="outline" onClick={() => prepareHistorical.mutate(historicalCursor, { onSuccess: (manifest) => setHistoricalCursor(manifest.evidence?.has_more ? manifest.evidence.next_cursor : undefined) })} disabled={prepareHistorical.isPending}>
+                                <ArchiveRestore className="mr-2 h-4 w-4" />{historicalCursor ? 'Continue historical scan' : 'Prepare historical manifest'}
                             </Button>
-                            <Button variant="outline" onClick={() => maintenanceReport.mutate()} disabled={maintenanceReport.isPending}>
+                            <Button variant="outline" onClick={() => maintenanceReport.mutate({ provider_bytes: providerBytesMiB ? Number(providerBytesMiB) * MIB : undefined, provider_source: providerBytesMiB ? 'operator_readback' : undefined, physical_reclaim_confirmed: physicalReclaimConfirmed })} disabled={maintenanceReport.isPending}>
                                 <Gauge className="mr-2 h-4 w-4" />Measure downgrade readiness
                             </Button>
+                        </div>
+                        <div className="grid gap-3 rounded-lg border bg-background/70 p-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                            <label className="space-y-1 text-xs text-muted-foreground">
+                                <span className="block font-medium text-foreground">Authoritative provider allocation (MiB)</span>
+                                <Input inputMode="numeric" type="number" min="0" value={providerBytesMiB} onChange={(event) => setProviderBytesMiB(event.target.value)} placeholder="Required for downgrade proof" />
+                            </label>
+                            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Switch checked={physicalReclaimConfirmed} onCheckedChange={setPhysicalReclaimConfirmed} />
+                                Operator physical reclaim/readback completed
+                            </label>
                         </div>
                         {maintenanceReport.data ? (
                             <div className="rounded-lg border bg-muted/40 p-3 text-sm">
@@ -392,7 +430,7 @@ export default function RetentionPage() {
                                     <Badge variant={maintenanceReport.data.state === 'free_downgrade_ready' ? 'success' : 'warning'}>{maintenanceReport.data.state.replaceAll('_', ' ')}</Badge>
                                 </div>
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                    {formatBytes(maintenanceReport.data.database_bytes)} measured against {formatBytes(maintenanceReport.data.target_bytes)} · sparse values {maintenanceReport.data.sparse_use_count}
+                                    PostgreSQL {formatBytes(maintenanceReport.data.database_bytes)} · provider {formatBytes(maintenanceReport.data.provider_bytes)} · target {formatBytes(maintenanceReport.data.target_bytes)} · sparse values {maintenanceReport.data.sparse_use_count}
                                 </p>
                             </div>
                         ) : null}

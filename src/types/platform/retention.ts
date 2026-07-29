@@ -3,6 +3,11 @@ export type RetentionVerdict =
     | 'healthy'
     | 'warning'
     | 'action_required'
+    | 'compaction_due'
+    | 'archive_blocked'
+    | 'cleanup_due'
+    | 'recovery_required'
+    | 'blocked'
     | 'critical'
     | 'maintenance_required'
     | 'recovery_in_progress'
@@ -32,6 +37,17 @@ export interface RetentionPolicy {
     trust_min_decisions?: number;
     trust_min_agreement_pct?: number;
     updated_by?: string;
+}
+
+export interface RetentionExecutionControl {
+    tenant_id: string;
+    canonical_compaction_enabled: boolean;
+    historical_enabled: boolean;
+    owner_runs_enabled: boolean;
+    feed_recovery_rotate_enabled: boolean;
+    feed_recovery_purge_enabled: boolean;
+    updated_by?: string;
+    updated_at?: string;
 }
 
 export interface RetentionDBSample {
@@ -126,6 +142,7 @@ export interface RetentionCompactionManifest {
     retire_count: number;
     estimated_bytes: number;
     expires_at: string;
+    evidence?: { next_cursor?: string; has_more?: boolean; [key: string]: unknown };
 }
 
 export interface RetentionHistoricalManifest {
@@ -136,6 +153,7 @@ export interface RetentionHistoricalManifest {
     story_count: number;
     estimated_bytes: number;
     expires_at: string;
+    evidence?: { next_cursor?: string; has_more?: boolean; [key: string]: unknown };
 }
 
 export interface RetentionMaintenanceReport {
@@ -143,6 +161,13 @@ export interface RetentionMaintenanceReport {
     database_bytes: number;
     target_bytes: number;
     sparse_use_count: number;
+    provider_bytes?: number | null;
+    provider_source?: string;
+    provider_measured_at?: string | null;
+    provider_fresh?: boolean;
+    postgres_ready?: boolean;
+    provider_ready?: boolean;
+    blocking_reasons?: string[];
     state: 'not_ready' | 'free_downgrade_ready';
     evidence?: Record<string, unknown>;
     created_at: string;
@@ -152,6 +177,13 @@ export interface RetentionOwnerRequest {
     id: string;
     action_id?: string;
     owner_system: 'storage' | 'media_circulation';
+    allowed_action_classes?: string[];
+    max_bytes?: number;
+    max_items?: number;
+    max_actions?: number;
+    correlation_id?: string;
+    expires_at?: string;
+    request_hash?: string;
     status: string;
     result?: Record<string, unknown>;
     created_at: string;
@@ -164,6 +196,9 @@ export interface RetentionStatus {
     forecast: RetentionForecast;
     verdict: RetentionVerdict;
     preview: RetentionPreview;
+    historical?: Record<string, unknown>;
+    latest_maintenance?: RetentionMaintenanceReport | null;
+    execution_controls: RetentionExecutionControl;
     paused: boolean;
     observe_only: boolean;
     promotion: RetentionPromotionStatus;

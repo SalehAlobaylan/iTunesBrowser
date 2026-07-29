@@ -18,6 +18,7 @@ import {
     prepareRetentionCompaction,
     runRetention,
     updateRetentionPolicy,
+    updateRetentionExecutionControl,
     getMonthlyReviewPolicy,
     listMonthlyReviewArchives,
     buildMonthlyReview,
@@ -93,6 +94,15 @@ export function useUpdateRetentionPolicy() {
         },
         onError: (error: Error) =>
             toast({ title: 'Policy was not saved', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function useUpdateRetentionExecutionControl() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: updateRetentionExecutionControl,
+        onSuccess: () => { invalidateRetention(queryClient); toast({ title: 'Retention execution control saved', variant: 'success' }); },
+        onError: (error: Error) => toast({ title: 'Execution control was not saved', description: error.message, variant: 'destructive' }),
     });
 }
 
