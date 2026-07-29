@@ -7,3 +7,6 @@ export const refreshFeedRecoveryPlan=(id:string)=>cmsClient.post<FeedRecoveryPla
 export const issueFeedRecoveryReauth=(password:string,plan:FeedRecoveryPlan)=>iamClient.post<{proof:string}>('/auth/reauth',{password,purpose:'feed_recovery',plan_id:plan.id,manifest_hash:plan.manifest_hash});
 export const approveFeedRecoveryPlan=(id:string,phrase:string,reauth_proof:string)=>cmsClient.post<{plan:string;run:FeedRecoveryRun}>(`${BASE}/plans/${id}/approve`,{phrase,reauth_proof});
 export const listFeedRecoveryRuns=()=>unwrap(cmsClient.get<E<{data:FeedRecoveryRun[]}>>(`${BASE}/runs`));
+export const executeFeedRecoveryRun=(id:string)=>cmsClient.post<{data:Record<string,unknown>}>(`${BASE}/runs/${id}/execute`,{});
+export const cancelFeedRecoveryRun=(id:string)=>cmsClient.post<{data:string}>(`${BASE}/runs/${id}/cancel`,{});
+export const rollbackFeedRecoveryRun=(id:string)=>cmsClient.post<{data:Record<string,unknown>}>(`${BASE}/runs/${id}/rollback`,{});
