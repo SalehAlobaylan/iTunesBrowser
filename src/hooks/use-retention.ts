@@ -3,6 +3,7 @@ import { toast } from '@/components/ui/toast';
 import {
     approveRetentionAction,
     executeRetentionAction,
+    resetRetentionBreaker,
     executeHistoricalRetention,
     prepareHistoricalRetention,
     createRetentionMaintenanceReport,
@@ -192,6 +193,18 @@ export function useExecuteRetentionAction() {
         },
         onError: (error: Error) =>
             toast({ title: 'Compaction needs attention', description: error.message, variant: 'destructive' }),
+    });
+}
+
+export function useResetRetentionBreaker() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: resetRetentionBreaker,
+        onSuccess: () => {
+            invalidateRetention(queryClient);
+            toast({ title: 'Retention action breaker reset', description: 'The class remains in probation until Assist trust is re-earned.', variant: 'success' });
+        },
+        onError: (error: Error) => toast({ title: 'Breaker reset failed', description: error.message, variant: 'destructive' }),
     });
 }
 

@@ -31,6 +31,8 @@ export const approveRetentionAction = (id: string) =>
     unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/actions/${id}/approve`, {}));
 export const executeRetentionAction = (id: string) =>
     unwrap(cmsClient.post<Envelope<RetentionAction>>(`${BASE}/actions/${id}/execute`, {}));
+export const resetRetentionBreaker = (actionClass: string) =>
+    unwrap(cmsClient.post<Envelope<Record<string, unknown>>>(`${BASE}/autopilot/breakers/${encodeURIComponent(actionClass)}/reset`, {}));
 export const prepareHistoricalRetention = () =>
     unwrap(cmsClient.post<Envelope<RetentionHistoricalManifest>>(`${BASE}/historical/prepare`, {}));
 export const executeHistoricalRetention = (id: string) =>

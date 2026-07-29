@@ -29,6 +29,8 @@ export interface RetentionPolicy {
     max_bytes_per_run: number;
     max_actions_per_run: number;
     action_modes?: Record<string, RetentionMode>;
+    trust_min_decisions?: number;
+    trust_min_agreement_pct?: number;
     updated_by?: string;
 }
 
@@ -164,6 +166,9 @@ export interface RetentionStatus {
     preview: RetentionPreview;
     paused: boolean;
     observe_only: boolean;
+    promotion: RetentionPromotionStatus;
+    trust: RetentionTrustStat[];
+    satellite_evaluation: RetentionSatelliteEvaluation;
     guarantees: {
         full_fidelity_days: number;
         history_retention_days: number;
@@ -171,6 +176,37 @@ export interface RetentionStatus {
         sources_preserved: boolean;
         physical_rewrites: string;
     };
+}
+
+export interface RetentionTrustStat {
+    action_class: string;
+    state: 'probation' | 'trusted' | 'demoted' | string;
+    shadow_runs: number;
+    assist_decisions: number;
+    agreed: number;
+    disagreed: number;
+    agreement_pct: number;
+    failures: number;
+    breaker_open: boolean;
+    auto_eligible: boolean;
+    promotion_ready: boolean;
+    failure_window_ends?: string;
+}
+
+export interface RetentionPromotionStatus {
+    mode: RetentionMode;
+    manual_flip_only: boolean;
+    safe_auto_allowed: boolean;
+    blocked_reason?: string;
+    trust: RetentionTrustStat[];
+}
+
+export interface RetentionSatelliteEvaluation {
+    state: string;
+    completed_cycles: number;
+    required_cycles: number;
+    recommendation: string;
+    reason: string;
 }
 
 export interface MonthlyReviewPolicyConfig {

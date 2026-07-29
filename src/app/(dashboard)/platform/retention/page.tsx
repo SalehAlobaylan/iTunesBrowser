@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import {
     useApproveRetentionAction,
     useExecuteRetentionAction,
+    useResetRetentionBreaker,
     usePauseRetention,
     usePrepareRetentionCompaction,
     useRetentionHolds,
@@ -101,11 +102,16 @@ export default function RetentionPage() {
     const approveAction = useApproveRetentionAction();
     const executeAction = useExecuteRetentionAction();
     const savePolicy = useUpdateRetentionPolicy();
+    const resetBreaker = useResetRetentionBreaker();
     const policy = status.data?.policy;
     const latestRunId = status.data?.latest_run?.id;
     const actions = useRetentionRunActions(latestRunId);
     const [mode, setMode] = useState<RetentionMode | undefined>();
+    const [trustMinDecisions, setTrustMinDecisions] = useState<number | undefined>();
+    const [trustMinAgreementPct, setTrustMinAgreementPct] = useState<number | undefined>();
     const selectedMode = mode ?? policy?.mode ?? 'observe';
+    const selectedTrustMinDecisions = trustMinDecisions ?? policy?.trust_min_decisions ?? 20;
+    const selectedTrustMinAgreementPct = trustMinAgreementPct ?? policy?.trust_min_agreement_pct ?? 95;
     const sample = status.data?.latest_sample;
     const monthlyPolicy = useMonthlyReviewPolicy();
     const monthlyArchives = useMonthlyReviewArchives();
@@ -259,13 +265,17 @@ export default function RetentionPage() {
                                 <option value="safe_auto">Safe Auto</option>
                             </select>
                         </label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <label className="block text-sm"><span className="mb-2 block font-medium">Trust decisions</span><input type="number" min={1} max={10000} className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={selectedTrustMinDecisions} onChange={(event) => setTrustMinDecisions(Number(event.target.value))} /></label>
+                            <label className="block text-sm"><span className="mb-2 block font-medium">Agreement %</span><input type="number" min={50} max={100} className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={selectedTrustMinAgreementPct} onChange={(event) => setTrustMinAgreementPct(Number(event.target.value))} /></label>
+                        </div>
                         <Button
                             className="w-full"
                             variant="outline"
-                            disabled={!policy || selectedMode === policy.mode || savePolicy.isPending}
-                            onClick={() => savePolicy.mutate({ mode: selectedMode })}
+                            disabled={!policy || (selectedMode === policy.mode && selectedTrustMinDecisions === policy.trust_min_decisions && selectedTrustMinAgreementPct === policy.trust_min_agreement_pct) || savePolicy.isPending}
+                            onClick={() => savePolicy.mutate({ mode: selectedMode, trust_min_decisions: selectedTrustMinDecisions, trust_min_agreement_pct: selectedTrustMinAgreementPct })}
                         >
-                            Save mode
+                            Save policy
                         </Button>
                         <div className="grid grid-cols-2 gap-3 text-xs">
                             <PolicyFact label="Full-fidelity News" value={`${status.data?.guarantees.full_fidelity_days ?? 7} days`} />
@@ -281,6 +291,29 @@ export default function RetentionPage() {
                             Time boundaries follow {policy?.news_timezone ?? 'Asia/Riyadh'}. These product guarantees
                             cannot be weakened from this dashboard.
                         </p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="h-4 w-4 text-gold" />Trust promotion</CardTitle></CardHeader>
+                    <CardContent className="space-y-3">
+                        <p className="text-sm text-muted-foreground">Safe Auto is a manual flip and only applies to the derived News snapshot refresh. Canonical row deletion, Storage, Media, physical rewrites, and Purge &amp; Reseed stay human/operator-owned.</p>
+                        {(status.data?.trust ?? []).map((trust) => (
+                            <div key={trust.action_class} className="rounded-md border p-3 text-sm">
+                                <div className="flex items-center justify-between gap-2"><span className="font-medium">{trust.action_class}</span><Badge variant={trust.promotion_ready ? 'success' : trust.breaker_open ? 'destructive' : 'warning'}>{trust.breaker_open ? 'breaker open' : trust.state}</Badge></div>
+                                <p className="mt-1 text-xs text-muted-foreground">Shadow {trust.shadow_runs} · Assist decisions {trust.assist_decisions} · agreement {trust.agreement_pct.toFixed(1)}% · failures {trust.failures}</p>
+                                {trust.breaker_open ? <Button size="sm" variant="outline" className="mt-2" disabled={resetBreaker.isPending} onClick={() => resetBreaker.mutate(trust.action_class)}>Reset breaker</Button> : null}
+                            </div>
+                        ))}
+                        <p className="text-xs text-muted-foreground">{status.data?.promotion?.safe_auto_allowed ? 'Promotion evidence is earned.' : status.data?.promotion?.blocked_reason ?? 'Assist agreement mileage is required before promotion.'}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="text-base">Heavy-News satellite evaluation</CardTitle></CardHeader>
+                    <CardContent className="space-y-2">
+                        <p className="text-sm text-muted-foreground">This is an operator recommendation only. Retention never creates partitions or rewrites tables.</p>
+                        <div className="flex items-center justify-between gap-2 text-sm"><span>Monthly cycles</span><Badge variant={status.data?.satellite_evaluation?.state === 'evaluated' ? 'success' : 'warning'}>{status.data?.satellite_evaluation?.completed_cycles ?? 0} / {status.data?.satellite_evaluation?.required_cycles ?? 2}</Badge></div>
+                        <p className="text-sm font-medium">{status.data?.satellite_evaluation?.recommendation?.replaceAll('_', ' ') ?? 'waiting for measurements'}</p>
+                        <p className="text-xs text-muted-foreground">{status.data?.satellite_evaluation?.reason ?? 'The evaluation will appear after the retention status refreshes.'}</p>
                     </CardContent>
                 </Card>
             </div>
@@ -384,7 +417,7 @@ export default function RetentionPage() {
                 <Card>
                     <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Database className="h-4 w-4" />Latest action ledger</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
-                        {(actions.data?.items ?? []).map((action) => (
+                            {(actions.data?.items ?? []).map((action) => (
                             <div key={action.id} className="rounded-md border p-3 text-sm">
                                 <div className="flex items-center justify-between gap-3">
                                     <p className="font-medium">{action.action_class}</p>
@@ -398,20 +431,21 @@ export default function RetentionPage() {
                                         Approve frozen manifest
                                     </Button>
                                 ) : null}
-                                {['approved', 'tool_succeeded', 'verification_failed'].includes(action.outcome) ? (
+                                {['approved', 'ready', 'tool_succeeded', 'verification_failed'].includes(action.outcome) ? (
                                     <Button
                                         className="mt-3"
                                         size="sm"
-                                        variant={action.outcome === 'approved' ? 'destructive' : 'outline'}
+                                        variant={action.outcome === 'approved' && !action.action_class.includes('refresh_snapshots') ? 'destructive' : 'outline'}
                                         disabled={(action.action_class.includes('historical') ? executeHistorical.isPending : executeAction.isPending) || (action.outcome === 'approved' && !(policy?.enabled && policy.mode === 'assist'))}
                                         onClick={() => {
-                                            if (action.outcome !== 'approved' || window.confirm('Execute the approved, immutable compaction manifest? This permanently retires only its selected redundant News rows after revalidation.')) {
+                                            const snapshotRefresh = action.action_class.includes('refresh_snapshots');
+                                            if (action.outcome !== 'approved' || window.confirm(snapshotRefresh ? 'Refresh the bounded derived News snapshots? No canonical rows will be deleted.' : 'Execute the approved, immutable compaction manifest? This permanently retires only its selected redundant News rows after revalidation.')) {
                                                 if (action.action_class.includes('historical')) executeHistorical.mutate(action.id);
                                                 else executeAction.mutate(action.id);
                                             }
                                         }}
                                     >
-                                        {action.outcome === 'approved' ? 'Execute approved manifest' : 'Retry verification'}
+                                        {action.action_class.includes('refresh_snapshots') ? (action.outcome === 'ready' ? 'Run trusted refresh' : 'Execute snapshot refresh') : action.outcome === 'approved' ? 'Execute approved manifest' : 'Retry verification'}
                                     </Button>
                                 ) : null}
                             </div>
