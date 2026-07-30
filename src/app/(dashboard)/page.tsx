@@ -51,9 +51,10 @@ export default function DashboardPage() {
     const spendTrend = useMemo(() => spendDailySeries(spendRollups.data?.rollups), [spendRollups.data]);
 
     const servicesDetail = deriveServicesDetail(systemHealth.data?.services);
-    const feedResults = Object.values(feedIntegrity.data?.latest_run?.feed_results ?? {}).sort((a, b) =>
-        a.feed === 'pods' ? -1 : b.feed === 'pods' ? 1 : a.feed.localeCompare(b.feed),
-    );
+    const feedResults = Object.entries(feedIntegrity.data?.latest_run?.feed_results ?? {})
+        .filter(([key]) => !key.includes(':'))
+        .map(([, result]) => result)
+        .sort((a, b) => (a.feed === 'pods' ? -1 : b.feed === 'pods' ? 1 : a.feed.localeCompare(b.feed)));
     const openEpisodes = feedIntegrity.data?.open_episodes?.length ?? 0;
     const worstRux = deriveWorstRux(experience.data ? experience.data.surface_verdicts : undefined);
     const budgets = spend.data?.budgets ?? [];
@@ -99,7 +100,7 @@ export default function DashboardPage() {
                                     <span className="flex flex-wrap gap-x-2">
                                         {feedResults.map((f) => (
                                             <span
-                                                key={f.feed}
+                                                key={`${f.feed}:${f.variant}`}
                                                 className={`font-medium ${f.feed === 'pods' ? 'text-gold' : f.feed === 'news' ? 'text-news' : ''}`}
                                             >
                                                 {f.feed} {label(f.consumer_verdict)}
