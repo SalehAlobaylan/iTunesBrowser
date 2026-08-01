@@ -1,6 +1,7 @@
 'use client';
 
 import { Activity, AlertTriangle, Clock3, Pause, Play, RefreshCw, ShieldCheck } from 'lucide-react';
+import { useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +18,8 @@ import {
 } from '@/hooks/use-feed-integrity';
 import type { FeedIntegrityFeedResult } from '@/types/platform/feed-integrity';
 import { FeedIntegrityAutopilotPanel } from '@/components/platform/feed-integrity/feed-integrity-autopilot-panel';
+import { OperatorLaunchLink } from '@/components/operator/operator-launch-link';
+import { createRouteVisibleContext } from '@/lib/operator/route-manifest';
 
 function tone(value?: string) {
     if (value === 'healthy' || value === 'completed') return 'success' as const;
@@ -61,6 +64,10 @@ export default function FeedIntegrityPage() {
     const results = data?.latest_run?.feed_results;
     const isPaused = !!policy?.paused_until && new Date(policy.paused_until).getTime() > Date.now();
     const episodeItems = episodes?.items ?? data?.open_episodes ?? [];
+    const operatorContext = useMemo(() => createRouteVisibleContext('/platform/feed-integrity', {
+        subjects: [{ type: 'news_window', id: 'today', label: 'Today' }],
+        selection: { mode: 'explicit', ids: ['today'], count: 1 },
+    }), []);
 
     return (
         <div className="space-y-6">
@@ -70,6 +77,7 @@ export default function FeedIntegrityPage() {
                     <p className="text-muted-foreground">CMS delivery edge</p>
                 </div>
                 <div className="flex gap-2">
+                    {operatorContext ? <OperatorLaunchLink context={operatorContext} intent="resolve" size="sm">Inspect snapshot</OperatorLaunchLink> : null}
                     <Button variant="outline" onClick={() => refetch()} disabled={isFetching}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
                     <Button variant="outline" onClick={() => run.mutate('light')} disabled={run.isPending}><Play className="mr-2 h-4 w-4" />Light run</Button>
                     <Button onClick={() => run.mutate('deep')} disabled={run.isPending}><ShieldCheck className="mr-2 h-4 w-4" />Deep run</Button>

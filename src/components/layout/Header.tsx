@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/use-auth';
 import { Breadcrumb } from './Breadcrumb';
+import { OperatorInboxButton } from '@/components/operator/operator-inbox-button';
+import { OperatorLauncher } from '@/components/operator/operator-launcher';
 
 interface HeaderProps {
   className?: string;
@@ -50,6 +52,8 @@ export function Header({ className }: HeaderProps) {
       <Breadcrumb />
 
       <div className="flex items-center gap-1">
+        <div className="lg:hidden"><OperatorLauncher compact /></div>
+        <OperatorInboxButton />
         {mounted && (
           <Button
             variant="ghost"

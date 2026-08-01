@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, PanelLeftClose, PanelLeft } from 'lucide-react';
+import { Menu, X, PanelLeftClose, PanelLeft, Bot } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { navigation, NavigationSection } from '@/lib/constants/routes';
@@ -86,6 +86,7 @@ export function Sidebar({ className }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto scrollbar-thin py-3">
+		<div className="mb-3 px-2"><Link href="/platform/operator" onClick={() => mobile && setMobileSidebarOpen(false)} className={cn('flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-[13px] font-semibold text-primary transition-colors hover:bg-primary/10', !mobile && sidebarCollapsed && 'justify-center px-2')} title={sidebarCollapsed && !mobile ? 'Wahb Operator' : undefined}><Bot className="h-4 w-4 flex-shrink-0" />{(mobile || !sidebarCollapsed) && <span>Wahb Operator</span>}</Link></div>
         {navigation.map((section: NavigationSection) => (
           <div key={section.title} className="mb-1">
             {(mobile || !sidebarCollapsed) && (

@@ -1,6 +1,8 @@
 import { cn } from '@/lib/utils';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { OperatorLauncher } from '@/components/operator/operator-launcher';
+import { OperatorContextProvider } from '@/components/operator/operator-context-provider';
 
 interface DashboardShellProps {
   children: React.ReactNode;
@@ -9,7 +11,7 @@ interface DashboardShellProps {
 
 export function DashboardShell({ children, className }: DashboardShellProps) {
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <OperatorContextProvider><div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
 
       <div className="flex flex-1 flex-col overflow-hidden lg:ml-0">
@@ -21,6 +23,7 @@ export function DashboardShell({ children, className }: DashboardShellProps) {
           </div>
         </main>
       </div>
-    </div>
+      <OperatorLauncher />
+    </div></OperatorContextProvider>
   );
 }

@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import { OperatorLaunchLink } from '@/components/operator/operator-launch-link';
+import { createRouteVisibleContext } from '@/lib/operator/route-manifest';
 import {
     useApproveRetentionAction,
     useExecuteRetentionAction,
@@ -43,6 +45,7 @@ import {
 import type { RetentionMode, RetentionVerdict } from '@/types/platform/retention';
 
 const MIB = 1024 * 1024;
+const retentionOperatorContext = (type: string, id: string, label: string) => createRouteVisibleContext('/platform/retention', { subjects: [{ type, id, label }] });
 
 function formatBytes(value?: number | null) {
     if (value == null) return 'Unavailable';
@@ -130,6 +133,9 @@ export default function RetentionPage() {
     const [physicalReclaimConfirmed, setPhysicalReclaimConfirmed] = useState(false);
     const [compactionCursor, setCompactionCursor] = useState<string>();
     const [historicalCursor, setHistoricalCursor] = useState<string>();
+    const operatorContext = useMemo(() => createRouteVisibleContext('/platform/retention', {
+        subjects: [{ type: 'retention_policy', id: policy?.id ?? 'current', label: 'Retention policy' }],
+    }), [policy?.id]);
     const lastCompletedMonth = useMemo(() => {
         const value = new Date();
         value.setMonth(value.getMonth() - 1);
@@ -164,6 +170,7 @@ export default function RetentionPage() {
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    {operatorContext ? <OperatorLaunchLink context={operatorContext} intent="investigate" variant="outline">Explain custody</OperatorLaunchLink> : null}
                     <Button variant="outline" onClick={() => status.refetch()} disabled={status.isFetching}>
                         <RefreshCw className="mr-2 h-4 w-4" />Refresh
                     </Button>
@@ -369,9 +376,9 @@ export default function RetentionPage() {
                         </div>
                         <div className="space-y-2 border-t pt-3">
                             {(monthlyArchives.data?.items ?? []).slice(0, 4).map((archive) => (
-                                <div key={archive.id} className="flex items-center justify-between text-sm">
+                                <div key={archive.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                                     <span>{new Date(archive.month_start).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
-                                    <span className="text-muted-foreground">r{archive.revision} · {archive.selected_count} stories{archive.limited_coverage ? ' · limited coverage' : ''}</span>
+                                    <span className="flex items-center gap-2 text-muted-foreground">r{archive.revision} · {archive.selected_count} stories{archive.limited_coverage ? ' · limited coverage' : ''}{retentionOperatorContext('retention_month', archive.id, 'Month in Review') && <OperatorLaunchLink context={retentionOperatorContext('retention_month', archive.id, 'Month in Review')!} intent="explain" size="sm" variant="outline">Explain</OperatorLaunchLink>}</span>
                                 </div>
                             ))}
                             {monthlyArchives.data?.items?.length === 0 && <p className="text-sm text-muted-foreground">No verified monthly archive yet.</p>}
@@ -390,6 +397,7 @@ export default function RetentionPage() {
                             {(ownerRequests.data?.items ?? []).slice(0, 4).map((request) => (
                                 <div key={request.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm">
                                     <div><p className="font-medium">{request.owner_system === 'storage' ? 'Storage' : 'Media Circulation'} · {request.status}</p><p className="text-xs text-muted-foreground">{formatBytes(request.max_bytes)} · {request.max_items ?? '—'} items · {request.max_actions ?? '—'} actions · expires {request.expires_at ? new Date(request.expires_at).toLocaleString() : '—'}</p></div>
+                                    {retentionOperatorContext('retention_owner_request', request.id, 'Owner request') && <OperatorLaunchLink context={retentionOperatorContext('retention_owner_request', request.id, 'Owner request')!} intent="explain" size="sm" variant="outline">Explain</OperatorLaunchLink>}
                                     {request.status === 'approval_required' && request.action_id ? <Button size="sm" variant="outline" disabled={approveAction.isPending} onClick={() => approveAction.mutate(request.action_id!)}>Approve</Button> : null}
                                     {request.status === 'approved' ? <Button size="sm" variant="outline" disabled={executeOwner.isPending || !(policy?.enabled && policy.mode === 'assist')} onClick={() => executeOwner.mutate(request.id)}>Execute owner run</Button> : null}
                                 </div>
@@ -441,12 +449,12 @@ export default function RetentionPage() {
                     <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Clock3 className="h-4 w-4" />Recent observations</CardTitle></CardHeader>
                     <CardContent className="space-y-2">
                         {(runs.data?.items ?? []).slice(0, 8).map((item) => (
-                            <div key={item.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+                            <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
                                 <div>
                                     <p className="font-medium">{item.trigger} · policy v{item.policy_version}</p>
                                     <p className="text-xs text-muted-foreground">{new Date(item.started_at).toLocaleString()}</p>
                                 </div>
-                                <Badge variant={verdictTone(item.verdict)}>{item.verdict}</Badge>
+                                <span className="flex items-center gap-2"><Badge variant={verdictTone(item.verdict)}>{item.verdict}</Badge>{retentionOperatorContext('retention_run', item.id, 'Retention run') && <OperatorLaunchLink context={retentionOperatorContext('retention_run', item.id, 'Retention run')!} intent="explain" size="sm" variant="outline">Explain</OperatorLaunchLink>}</span>
                             </div>
                         ))}
                         {!runs.data?.items?.length ? <p className="text-sm text-muted-foreground">Run the first observation to establish a baseline.</p> : null}
@@ -489,7 +497,7 @@ export default function RetentionPage() {
                             </div>
                         ))}
                         {!actions.data?.items?.length ? <p className="text-sm text-muted-foreground">No action proposals in the latest run.</p> : null}
-                        <p className="pt-2 text-xs text-muted-foreground">{holds.data?.items.length ?? 0} active retention holds are protecting content, stories, or months.</p>
+                        <div className="space-y-2 border-t pt-3"><p className="text-xs text-muted-foreground">{holds.data?.items.length ?? 0} active retention holds are protecting content, stories, or months.</p>{(holds.data?.items ?? []).slice(0, 4).map((hold) => <div key={hold.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-xs"><span>{hold.hold_class} · {hold.target_type}</span>{retentionOperatorContext('retention_hold', hold.id, 'Retention hold') && <OperatorLaunchLink context={retentionOperatorContext('retention_hold', hold.id, 'Retention hold')!} intent="explain" size="sm" variant="outline">Explain hold</OperatorLaunchLink>}</div>)}</div>
                     </CardContent>
                 </Card>
             </div>

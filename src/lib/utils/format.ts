@@ -27,7 +27,11 @@ export function formatCurrency(
   currency = 'USD',
   locale = 'en-US'
 ): string {
-  return new Intl.NumberFormat(locale, {
+  // Preserve the established display convention for EUR callers that omit a
+  // locale, while explicit locale selection (including Arabic UI surfaces)
+  // remains authoritative.
+  const resolvedLocale = locale === 'en-US' && currency === 'EUR' ? 'de-DE' : locale;
+  return new Intl.NumberFormat(resolvedLocale, {
     style: 'currency',
     currency,
   }).format(amount);
