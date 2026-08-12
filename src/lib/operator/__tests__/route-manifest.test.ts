@@ -1,4 +1,4 @@
-import { createOperatorLaunchHref, createRouteVisibleContext, operatorAffectedDomainQueryRoots, queryRootsForAffectedDomains, resolveOperatorRoute } from '@/lib/operator/route-manifest';
+import { createOperatorLaunchHref, createRouteVisibleContext, resolveOperatorRoute } from '@/lib/operator/route-manifest';
 
 const currentConsolePages = [
   '/', '/admin', '/admin/users', '/platform', '/platform/content', '/platform/content/example', '/platform/economics', '/platform/enrichment', '/platform/feed-integrity', '/platform/feed-recovery', '/platform/intelligence', '/platform/intelligence/analytics', '/platform/intelligence/embeddings', '/platform/intelligence/flags', '/platform/intelligence/media-value', '/platform/intelligence/preview', '/platform/intelligence/ranking', '/platform/media', '/platform/media/example', '/platform/media/atomization', '/platform/media/circulation', '/platform/media/finding', '/platform/media/redundancy', '/platform/media/sources', '/platform/media/sources/new', '/platform/media-studio', '/platform/media-studio/example', '/platform/moderation', '/platform/news', '/platform/news/circulation', '/platform/news/finding', '/platform/operations', '/platform/operator', '/platform/pipeline', '/platform/quality', '/platform/real-experience', '/platform/retention', '/platform/sources', '/platform/sources/example', '/platform/sources/new', '/platform/storage', '/platform/system-health', '/platform/topics',
@@ -34,17 +34,4 @@ describe('Operator route manifest', () => {
     expect(createOperatorLaunchHref(context!, 'resolve')).toBe('/platform/operator?domain=feed_integrity&view=cockpit&intent=resolve&subject_type=news_window&subject_id=today&selection_id=today');
   });
 
-  it('maps every admitted domain to code-owned query roots', () => {
-    const domains = [...new Set(currentConsolePages.map((path) => resolveOperatorRoute(path)!.domain))];
-    for (const domain of domains) {
-      expect(operatorAffectedDomainQueryRoots[domain]).toBeDefined();
-      expect(operatorAffectedDomainQueryRoots[domain].length).toBeGreaterThan(0);
-    }
-    expect(queryRootsForAffectedDomains(['media_library', 'atomization', 'unknown'])).toEqual(['content', 'media-atomization', 'studio']);
-  });
-
-  it('invalidates only CMS-returned affected domains', () => {
-    expect(queryRootsForAffectedDomains(['feed_integrity', 'pipeline'])).toEqual(['feed-integrity', 'pipeline']);
-    expect(queryRootsForAffectedDomains(['unknown-domain'])).toEqual([]);
-  });
 });

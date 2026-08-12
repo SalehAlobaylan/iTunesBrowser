@@ -5,6 +5,7 @@ import { Bot } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { cmsClient } from '@/lib/api/client';
 
 type InboxSummary = { unread_count?: number };
 
@@ -16,21 +17,24 @@ export function OperatorInboxButton() {
   useEffect(() => {
     let active = true;
     const load = async () => {
+		if (document.visibilityState === 'hidden') return;
 		try {
-			const response = await fetch('/api/cms/admin/operator/inbox?limit=1', { cache: 'no-store', credentials: 'same-origin' });
-        if (!response.ok) {
-		if (active) setUnread(0);
-          return;
-        }
-        const payload = await response.json() as InboxSummary;
+			// Use the shared client so an expired access cookie receives the same
+			// single-flight refresh-and-retry behavior as the workspace itself.
+			const payload = await cmsClient.get<InboxSummary>('/admin/operator/inbox', { limit: 1 });
         if (active) setUnread(typeof payload.unread_count === 'number' ? payload.unread_count : 0);
       } catch {
         if (active) setUnread(0);
       }
     };
     void load();
-    const interval = window.setInterval(() => { void load(); }, 30_000);
-    return () => { active = false; window.clearInterval(interval); };
+    // This is only a discoverability badge, not a task monitor. Keep it
+    // bounded so every dashboard tab does not create a frequent CMS query;
+    // the Operator workspace owns the durable event/poll lifecycle.
+    const interval = window.setInterval(() => { void load(); }, 60_000);
+    const onVisibilityChange = () => { if (document.visibilityState === 'visible') void load(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => { active = false; window.clearInterval(interval); document.removeEventListener('visibilitychange', onVisibilityChange); };
   }, []);
 
   return (

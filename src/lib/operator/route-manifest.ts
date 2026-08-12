@@ -16,17 +16,6 @@ export interface OperatorContextContribution {
   draft?: OperatorVisibleContext['draft'];
 }
 
-// Verified actions return affected domains, never client-authored cache keys.
-// This registry is the stable bridge from those domains to feature query roots.
-export const operatorAffectedDomainQueryRoots: Readonly<Record<string, readonly string[]>> = {
-  global_ops: ['ops'], system_health: ['system-health', 'system-autopilot'], feed_integrity: ['feed-integrity'], feed_recovery: ['feed-recovery'], retention: ['retention'], real_experience: ['real-experience'], ai_economics: ['ai-spend'],
-  sources: ['sources'], content: ['content'], news: ['news'], news_finding: ['discovery'], news_circulation: ['news-circulation'], media_sources: ['sources', 'discovery'], atomization: ['media-atomization', 'studio'], media_circulation: ['media-circulation'], redundancy: ['redundancy'], media_library: ['content', 'media-atomization', 'studio'], storage_quality: ['storage', 'quality'], pipeline: ['pipeline'], enrichment: ['enrichment'], intelligence: ['intelligence'], embeddings: ['embedding-lifecycle'], topics_preferences: ['topics', 'preference-autopilot'], moderation: ['moderation'], auth_center: ['admin-users'], operator: ['operator'],
-};
-
-export function queryRootsForAffectedDomains(domains: readonly string[]): string[] {
-  return [...new Set(domains.flatMap((domain) => operatorAffectedDomainQueryRoots[domain] ?? []))];
-}
-
 const readIntents: OperatorIntent[] = ['explain', 'investigate', 'recommend', 'compare'];
 const mutableIntents: OperatorIntent[] = [...readIntents, 'resolve'];
 

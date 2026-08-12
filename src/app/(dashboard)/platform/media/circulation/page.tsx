@@ -8,6 +8,8 @@ import {
     useGenerateMediaCirculationRecommendations,
     useMediaCirculationCockpit,
     useMediaCirculationOverrides,
+    useMediaSupplyEpisodes,
+    useMediaSupplyStatus,
     useRevertRecommendation,
     useUpdateMediaCirculationPolicy,
 } from '@/hooks/use-media-circulation';
@@ -23,6 +25,8 @@ export default function MediaCirculationPage() {
     const revert = useRevertRecommendation();
     const createOverride = useCreateMediaCirculationOverride();
     const deleteOverride = useDeleteMediaCirculationOverride();
+    const supply = useMediaSupplyStatus();
+    const supplyEpisodes = useMediaSupplyEpisodes();
 
     return (
         <MediaCirculationCockpitView
@@ -40,6 +44,11 @@ export default function MediaCirculationPage() {
             onSavePolicy={(data) => updatePolicy.mutate(data)}
             onCreateOverride={(data) => createOverride.mutate(data)}
             onDeleteOverride={(id) => deleteOverride.mutate(id)}
+            supply={supply.data}
+            supplyEpisodes={supplyEpisodes.data}
+            supplyLoading={supply.isLoading}
+            supplyError={supply.error instanceof Error ? supply.error : null}
+            supplyEpisodesError={supplyEpisodes.error instanceof Error ? supplyEpisodes.error : null}
         />
     );
 }

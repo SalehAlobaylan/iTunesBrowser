@@ -10,10 +10,20 @@ const filterValueSchema = z.union([
 ]);
 
 export function isInternalOperatorDeepLink(value: string): boolean {
-  if (!value.startsWith('/') || value.startsWith('//') || value.includes('\\') || /[\u0000-\u001f\u007f]/.test(value)) return false;
+  if (value.trim() !== value || !value.startsWith('/platform/') || value.startsWith('//') || value.includes('\\') || /[\u0000-\u001f\u007f]/.test(value)) return false;
   try {
     const parsed = new URL(value, 'https://console.invalid');
-    return parsed.origin === 'https://console.invalid' && parsed.pathname.startsWith('/');
+    const rawPath = value.split(/[?#]/, 1)[0];
+    const decodedPath = decodeURIComponent(rawPath);
+    const segments = decodedPath.split('/');
+    return parsed.origin === 'https://console.invalid'
+      && parsed.pathname === rawPath
+      && parsed.pathname.startsWith('/platform/')
+      && !decodedPath.startsWith('//')
+      && !decodedPath.includes('\\')
+      && !decodedPath.includes('//')
+      && !segments.some((segment) => segment === '.' || segment === '..')
+      && !/[\u0000-\u001f\u007f]/.test(decodedPath);
   } catch { return false; }
 }
 

@@ -10,13 +10,19 @@ import type {
     MediaCirculationOverride,
     MediaCirculationOverrideRequest,
     MediaCirculationPolicy,
+    MediaSupplyEpisodeListResponse,
+    MediaSupplyStatusResponse,
 } from '@/types/platform/media-circulation';
 import { AutopilotStrip } from './autopilot-strip';
 import { CockpitHero } from './cockpit-hero';
+import { DeliveryProof } from './delivery-proof';
 import { DecisionQueue, recommendationMatchesTab, QUEUE_TABS, type QueueTab } from './decision-queue';
 import { Inspector } from './inspector';
 import { OverrideManager } from './override-manager';
 import { SettingsForm } from './settings-form';
+import { SourceRunTraceSheet } from './source-run-trace-sheet';
+import { SourceScheduleProof } from './source-schedule-proof';
+import { SupplyContinuityPanel } from './supply-continuity-panel';
 
 interface MediaCirculationCockpitProps {
     cockpit?: MediaCirculationCockpit;
@@ -33,6 +39,11 @@ interface MediaCirculationCockpitProps {
     onSavePolicy: (data: Partial<MediaCirculationPolicy>) => void;
     onCreateOverride: (data: MediaCirculationOverrideRequest) => void;
     onDeleteOverride: (id: string) => void;
+    supply?: MediaSupplyStatusResponse;
+    supplyEpisodes?: MediaSupplyEpisodeListResponse;
+    supplyLoading: boolean;
+    supplyError?: Error | null;
+    supplyEpisodesError?: Error | null;
 }
 
 function metricString(value: unknown): string | undefined {
@@ -40,29 +51,17 @@ function metricString(value: unknown): string | undefined {
 }
 
 function metricArray(value: unknown): string[] {
-    return Array.isArray(value)
-        ? value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-        : [];
+    return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0) : [];
 }
 
 function matchesBucket(rec: MediaCirculationCockpitRecommendation, bucket: string): boolean {
     if (bucket === 'all') return true;
-    return (
-        metricArray(rec.metrics?.matched_thin_buckets).includes(bucket) ||
-        metricString(rec.metrics?.duration_bucket) === bucket
-    );
+    return metricArray(rec.metrics?.matched_thin_buckets).includes(bucket) || metricString(rec.metrics?.duration_bucket) === bucket;
 }
 
 function matchesQuery(rec: MediaCirculationCockpitRecommendation, q: string): boolean {
     if (!q) return true;
-    return [
-        rec.display_title,
-        rec.display_subtitle,
-        rec.verdict,
-        rec.status,
-        rec.priority_label,
-        ...(rec.proof_points ?? []),
-    ]
+    return [rec.display_title, rec.display_subtitle, rec.verdict, rec.status, rec.priority_label, ...(rec.proof_points ?? [])]
         .join(' ')
         .toLowerCase()
         .includes(q);
@@ -83,6 +82,11 @@ export function MediaCirculationCockpitView({
     onSavePolicy,
     onCreateOverride,
     onDeleteOverride,
+    supply,
+    supplyEpisodes,
+    supplyLoading,
+    supplyError,
+    supplyEpisodesError,
 }: MediaCirculationCockpitProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -94,18 +98,18 @@ export function MediaCirculationCockpitView({
     const selectedID = searchParams.get('selected') || '';
     const detailsOpen = searchParams.get('details') === '1';
     const policyOpen = searchParams.get('policy') === '1';
+    const traceRequestID = searchParams.get('trace');
 
     const setParams = (changes: Record<string, string | undefined>) => {
         const next = new URLSearchParams(Array.from(searchParams.entries()));
         Object.entries(changes).forEach(([key, value]) => {
-            const isDefault =
-                !value ||
-                (key === 'tab' && value === 'attention') ||
-                ((key === 'bucket' || key === 'hs') && value === 'all');
+            const isDefault = !value || (key === 'tab' && value === 'attention') || ((key === 'bucket' || key === 'hs') && value === 'all');
             if (isDefault) next.delete(key);
             else next.set(key, value);
         });
-        router.replace(`/platform/media/circulation?${next.toString()}`, { scroll: false });
+        router.replace(`/platform/media/circulation?${next.toString()}`, {
+            scroll: false,
+        });
     };
 
     const tabCounts = useMemo(() => {
@@ -141,17 +145,26 @@ export function MediaCirculationCockpitView({
 
     if (!cockpit) {
         return (
-            <div className="rounded-xl border border-dashed border-border p-12 text-center">
-                <h2 className="text-lg font-semibold">Media circulation is unavailable</h2>
-                <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                    The cockpit could not load the circulation read model. Check that the CMS is reachable, then reload.
-                </p>
+            <div className="space-y-4">
+                <SupplyContinuityPanel
+                    status={supply}
+                    episodes={supplyEpisodes}
+                    loading={supplyLoading}
+                    statusError={supplyError}
+                    episodesError={supplyEpisodesError}
+                    onInspectRequest={(requestID) => setParams({ trace: requestID })}
+                />
+                <div className="rounded-xl border border-dashed border-border p-12 text-center">
+                    <h2 className="text-lg font-semibold">Media circulation is unavailable</h2>
+                    <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                        The economics cockpit could not load. Supply evidence above remains independently CMS-owned.
+                    </p>
+                </div>
             </div>
         );
     }
 
-    const toggleEngine = (enabled: boolean) =>
-        onSavePolicy({ ...cockpit.policy, enabled });
+    const toggleEngine = (enabled: boolean) => onSavePolicy({ ...cockpit.policy, enabled });
 
     return (
         <div className="space-y-4">
@@ -167,14 +180,22 @@ export function MediaCirculationCockpitView({
                 onOpenPolicy={() => setParams({ policy: '1' })}
             />
 
+            <SupplyContinuityPanel
+                status={supply}
+                episodes={supplyEpisodes}
+                loading={supplyLoading}
+                statusError={supplyError}
+                episodesError={supplyEpisodesError}
+                onInspectRequest={(requestID) => setParams({ trace: requestID })}
+            />
+
             {cockpit.autopilot ? (
-                <AutopilotStrip
-                    autopilot={cockpit.autopilot}
-                    policy={cockpit.policy}
-                    savingPolicy={savingPolicy}
-                    onSavePolicy={onSavePolicy}
-                />
+                <AutopilotStrip autopilot={cockpit.autopilot} policy={cockpit.policy} savingPolicy={savingPolicy} onSavePolicy={onSavePolicy} />
             ) : null}
+
+            <DeliveryProof proof={cockpit.delivery} onInspect={(requestID) => setParams({ trace: requestID })} />
+
+            <SourceScheduleProof proof={cockpit.schedules} onInspect={(requestID) => setParams({ trace: requestID })} />
 
             <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <DecisionQueue
@@ -191,7 +212,12 @@ export function MediaCirculationCockpitView({
                     onQuery={(value) => setParams({ q: value })}
                     onHistoryStatus={(value) => setParams({ hs: value })}
                     onClearBucket={() => setParams({ bucket: 'all' })}
-                    onSelect={(id, openDetails) => setParams({ selected: id, details: openDetails ? '1' : undefined })}
+                    onSelect={(id, openDetails) =>
+                        setParams({
+                            selected: id,
+                            details: openDetails ? '1' : undefined,
+                        })
+                    }
                     onApply={onApply}
                     onDismiss={onDismiss}
                     onRevert={onRevert}
@@ -212,10 +238,7 @@ export function MediaCirculationCockpitView({
             </div>
 
             {/* Mobile / narrow: proof opens as a bottom sheet */}
-            <Sheet
-                open={detailsOpen && Boolean(selected)}
-                onOpenChange={(open) => setParams({ details: open ? '1' : undefined })}
-            >
+            <Sheet open={detailsOpen && Boolean(selected)} onOpenChange={(open) => setParams({ details: open ? '1' : undefined })}>
                 <SheetContent side="bottom" className="max-h-[86vh] overflow-y-auto p-4 xl:hidden">
                     <SheetHeader className="mb-3 text-left">
                         <SheetTitle>Recommendation proof</SheetTitle>
@@ -237,14 +260,18 @@ export function MediaCirculationCockpitView({
                         <SheetTitle>Circulation policy</SheetTitle>
                     </SheetHeader>
                     <SettingsForm policy={cockpit.policy} saving={savingPolicy} onSave={onSavePolicy} />
-                    <OverrideManager
-                        overrides={overrides}
-                        acting={acting}
-                        onCreate={onCreateOverride}
-                        onDelete={onDeleteOverride}
-                    />
+                    <OverrideManager overrides={overrides} acting={acting} onCreate={onCreateOverride} onDelete={onDeleteOverride} />
                 </SheetContent>
             </Sheet>
+
+            <SourceRunTraceSheet
+                requestID={traceRequestID}
+                onOpenChange={(open) =>
+                    setParams({
+                        trace: open ? (traceRequestID ?? undefined) : undefined,
+                    })
+                }
+            />
         </div>
     );
 }

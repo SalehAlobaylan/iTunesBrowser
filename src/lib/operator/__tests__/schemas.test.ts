@@ -1,4 +1,4 @@
-import { operatorDecisionPacketSchema, operatorEligibleActionsSchema, operatorEventResponseSchema, operatorPlanEventResponseSchema, operatorPlanSchema, operatorThreadListSchema, operatorToolDescriptorSchema, operatorVisibleContextSchema } from '@/lib/operator/schemas';
+import { isInternalOperatorDeepLink, operatorDecisionPacketSchema, operatorEligibleActionsSchema, operatorEventResponseSchema, operatorPlanEventResponseSchema, operatorPlanSchema, operatorThreadListSchema, operatorToolDescriptorSchema, operatorVisibleContextSchema } from '@/lib/operator/schemas';
 import { OPERATOR_CONTRACT_VERSION } from '@/types/platform/operator';
 
 const visibleContext = {
@@ -45,6 +45,13 @@ describe('Wahb Operator schemas', () => {
     expect(() => operatorPlanSchema.parse({ ...basePlan, verified_effects: { deep_links: ['https://unsafe.example'] } })).toThrow();
     expect(() => operatorPlanSchema.parse({ ...basePlan, verified_effects: { deep_links: ['//unsafe.example'] } })).toThrow();
     expect(operatorPlanSchema.parse({ ...basePlan, affected_domains: ['sources'] }).canonical_plan.tool_key).toBe('sources.run_once');
+  });
+
+  it('rejects encoded external and malformed proof paths', () => {
+    for (const value of ['/%', '/%5cunsafe', '/%2f%2funsafe.example', '/platform/../operator', '/platform/%2e%2e/operator', '/platform/%2f%2funsafe']) {
+      expect(isInternalOperatorDeepLink(value)).toBe(false);
+    }
+    expect(isInternalOperatorDeepLink('/platform/media/circulation?episode_id=one')).toBe(true);
   });
 
   it('accepts only CMS-owned eligible action descriptors', () => {

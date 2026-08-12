@@ -24,22 +24,6 @@ export interface BulkStatusResponse {
     message: string;
 }
 
-/** Request body for POST /admin/retry-pending and POST /admin/retry-failed */
-export interface RetryRequest {
-    source?: string;
-    ids?: string[];
-    limit?: number;
-}
-
-/** Response from retry-pending / retry-failed endpoints */
-export interface RetryResponse {
-    success: boolean;
-    message: string;
-    requeued: number;
-    total: number;
-    errors: string[];
-}
-
 export type PipelineAutopilotMode = 'observe' | 'safe_auto';
 export type PipelineAutopilotState = 'off' | 'observe' | 'safe_auto' | 'elevated' | 'paused';
 

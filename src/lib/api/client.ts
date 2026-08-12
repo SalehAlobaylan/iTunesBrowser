@@ -14,7 +14,7 @@ export interface ApiError {
 }
 
 export interface ApiClient {
-    get<T>(url: string, params?: object): Promise<T>;
+    get<T>(url: string, params?: object, signal?: AbortSignal): Promise<T>;
     post<T>(url: string, data?: object): Promise<T>;
     put<T>(url: string, data?: object): Promise<T>;
     patch<T>(url: string, data?: object): Promise<T>;
@@ -112,8 +112,8 @@ function createAxiosInstance(baseURL: string): AxiosInstance {
 
 function createApiClient(axiosInstance: AxiosInstance): ApiClient {
     return {
-        async get<T>(url: string, params?: object): Promise<T> {
-            const config: AxiosRequestConfig = params ? { params } : {};
+        async get<T>(url: string, params?: object, signal?: AbortSignal): Promise<T> {
+            const config: AxiosRequestConfig = { ...(params ? { params } : {}), signal };
             const response = await axiosInstance.get<T>(url, config);
             return response.data;
         },

@@ -4,8 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     MoreHorizontal,
-    Sparkles,
-    RefreshCw,
     Copy,
     Trash2,
     Loader2,
@@ -37,8 +35,9 @@ import {
     useUpdateContentStatus,
     useDeleteContentByIds,
 } from '@/hooks/use-content';
-import { triggerEnrichment } from '@/lib/api/cms/enrichment';
-import { retryFailed } from '@/lib/api/aggregation';
+import { createOperatorLaunchHref } from '@/lib/operator/route-manifest';
+import { persistOperatorLaunchContext } from '@/lib/operator/launch-context';
+import { OPERATOR_CONTRACT_VERSION, type OperatorVisibleContext } from '@/types/platform/operator';
 import { CONTENT_STATUS_LABELS } from '@/types/platform/content';
 import type { ContentItem, ContentStatus } from '@/types/platform/content';
 
@@ -59,53 +58,23 @@ export function DetailActionsMenu({ item }: DetailActionsMenuProps) {
     const updateStatus = useUpdateContentStatus();
     const deleteByIds = useDeleteContentByIds();
     const [confirmDelete, setConfirmDelete] = useState(false);
-    const [working, setWorking] = useState<null | 'enrich' | 'retry'>(null);
     const isMediaItem = item.type === 'VIDEO' || item.type === 'PODCAST';
 
     const isBusy =
-        updateStatus.isPending || deleteByIds.isPending || Boolean(working);
+        updateStatus.isPending || deleteByIds.isPending;
 
-    const reEnrich = async () => {
-        setWorking('enrich');
-        try {
-            await triggerEnrichment(item.id, ['transcript', 'embedding', 'news']);
-            toast({
-                title: 'Enrichment triggered',
-                description: item.title,
-                variant: 'success',
-            });
-        } catch (err) {
-            toast({
-                title: 'Enrichment failed',
-                description: err instanceof Error ? err.message : 'Unknown error',
-                variant: 'destructive',
-            });
-        } finally {
-            setWorking(null);
-        }
-    };
-
-    const retryProcessing = async () => {
-        setWorking('retry');
-        try {
-            const res = await retryFailed({
-                ids: [item.id],
-                limit: 1,
-            });
-            toast({
-                title: 'Requeued',
-                description: `${res.requeued}/${res.total} requeued. ${res.message}`,
-                variant: 'success',
-            });
-        } catch (err) {
-            toast({
-                title: 'Retry failed',
-                description: err instanceof Error ? err.message : 'Unknown error',
-                variant: 'destructive',
-            });
-        } finally {
-            setWorking(null);
-        }
+    const openOperatorRecovery = () => {
+        const context: OperatorVisibleContext = {
+            schema_version: OPERATOR_CONTRACT_VERSION,
+            domain: 'pipeline',
+            view: 'content_item',
+            filters: {},
+            subjects: [{ type: 'content_item', id: item.id }],
+            selection: { mode: 'explicit', ids: [item.id], count: 1 },
+            available_intents: ['explain', 'investigate', 'recommend', 'compare', 'resolve'],
+        };
+        persistOperatorLaunchContext(context);
+        router.push(createOperatorLaunchHref(context, 'resolve'));
     };
 
     const copyId = async () => {
@@ -172,14 +141,8 @@ export function DetailActionsMenu({ item }: DetailActionsMenuProps) {
                             ))}
                         </DropdownMenuSubContent>
                     </DropdownMenuSub>
-                    <DropdownMenuItem onClick={reEnrich}>
-                        <Sparkles className="mr-2 h-4 w-4" /> Re-enrich
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                        onClick={retryProcessing}
-                        disabled={item.status !== 'FAILED'}
-                    >
-                        <RefreshCw className="mr-2 h-4 w-4" /> Retry processing
+                    <DropdownMenuItem onClick={openOperatorRecovery}>
+                        Investigate recovery in Operator
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={copyId}>
@@ -227,30 +190,4 @@ export function DetailActionsMenu({ item }: DetailActionsMenuProps) {
             </Dialog>
         </>
     );
-}
-
-/**
- * Exposed retry helper so the FAILED banner can reuse the same logic.
- */
-export function useRetryFailedItem() {
-    const retry = async (item: ContentItem) => {
-        try {
-            const res = await retryFailed({
-                source: item.source_name,
-                limit: 1,
-            });
-            toast({
-                title: 'Requeued',
-                description: `${res.requeued}/${res.total} requeued. ${res.message}`,
-                variant: 'success',
-            });
-        } catch (err) {
-            toast({
-                title: 'Retry failed',
-                description: err instanceof Error ? err.message : 'Unknown error',
-                variant: 'destructive',
-            });
-        }
-    };
-    return { retry };
 }
