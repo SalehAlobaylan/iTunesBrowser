@@ -208,6 +208,9 @@ export const operatorPlanSchema = z.object({
   expires_at: operatorDateTimeSchema,
   digest: z.string().regex(/^[a-f0-9]{64}$/i),
   confirmation_phrases: z.array(z.string().min(1).max(100)).max(2).optional(),
+  investigation_id: operatorUUIDSchema.optional(),
+  localized_action_key: z.string().min(1).optional(),
+  target_type: z.string().min(1).optional(),
   canonical_plan: operatorCanonicalPlanSchema,
   affected_domains: z.array(z.string().min(1)).min(1).max(26).optional(),
   verified_effects: z.object({
@@ -230,10 +233,16 @@ export const operatorThreadSchema = z.object({
   last_activity_at: operatorDateTimeSchema,
   expires_at: operatorDateTimeSchema,
   created_at: operatorDateTimeSchema,
+  pinned_at: operatorDateTimeSchema.nullable().optional(),
+  archived_at: operatorDateTimeSchema.nullable().optional(),
+  last_domain: z.string().min(1).optional(),
+  last_state: z.string().min(1).optional(),
+  unread_count: z.number().int().nonnegative().optional(),
 }).strict();
 
 export const operatorThreadListSchema = z.object({
   items: z.array(operatorThreadSchema).max(100),
+  next_cursor: z.string(),
 }).strict();
 
 export const operatorRecommendationListSchema = z.object({
@@ -262,14 +271,51 @@ export const operatorStatusSchema = z.object({
   controls: z.object({ read_enabled: z.boolean(), llm_enabled: z.boolean(), execution_enabled: z.boolean(), schedules_enabled: z.boolean() }).strict(),
 }).passthrough();
 
+const operatorPlanActionSchema = z.object({
+    kind: z.literal('plan'),
+    key: z.string().min(1).max(160), localized_action_key: z.string().min(1), risk_tier: z.enum(['routine', 'high_impact']),
+    target_type: z.string().min(1), argument_schema: z.string().min(1), target_ids: z.array(z.string().min(1)).min(1).max(20),
+    affected_domains: z.array(z.string().min(1)).min(1).max(26), cancellation: z.string().min(1), rollback: z.string().min(1),
+    contingencies: z.array(z.string().min(1)), manual_only: z.literal(false),
+}).strict();
+
+const operatorManualActionSchema = z.object({
+    kind: z.literal('manual'), localized_action_key: z.string().min(1), reason_key: z.string().min(1),
+    affected_domain: z.string().min(1), deep_link: internalDeepLinkSchema, manual_only: z.literal(true),
+}).strict();
+
 export const operatorEligibleActionsSchema = z.object({
   packet_fingerprint: z.string().min(1).optional(),
   execution_enabled: z.boolean(),
-  items: z.array(z.object({
-    key: z.string().min(1).max(160), localized_action_key: z.string().min(1), risk_tier: z.enum(['routine', 'high_impact']),
-    target_type: z.string().min(1), argument_schema: z.string().min(1), target_ids: z.array(z.string().min(1)).min(1).max(20),
-    affected_domains: z.array(z.string().min(1)).min(1).max(26), manual_only: z.literal(false),
-  }).strict()).max(100),
+  items: z.array(z.discriminatedUnion('kind', [operatorPlanActionSchema, operatorManualActionSchema])).max(100),
 }).strict();
 
 export const operatorInvestigationStartSchema = z.object({ investigation_id: operatorUUIDSchema, state: z.literal('backgrounded') }).strict();
+
+const operatorMessageSchema = z.object({
+  id: operatorUUIDSchema, kind: z.string().min(1).max(32), actor_type: z.enum(['admin', 'operator', 'system']),
+  created_at: operatorDateTimeSchema, content: z.unknown(), investigation_id: operatorUUIDSchema.optional(), plan_id: operatorUUIDSchema.optional(),
+}).strict();
+
+export const operatorThreadDetailSchema = z.object({ thread: operatorThreadSchema, messages: z.array(operatorMessageSchema).max(200) }).strict();
+
+export const operatorBriefingSchema = z.object({
+  generated_at: operatorDateTimeSchema, context: operatorVisibleContextSchema, headline: z.string().min(1),
+  items: z.array(z.object({ id: z.string().min(1), domain: z.string().min(1), kind: z.string(), severity: z.string(), title: z.string(), summary: z.string(), deep_link: internalDeepLinkSchema.optional() }).strict()).max(20),
+  suggested_questions: z.array(z.object({ intent: z.enum(['explain', 'investigate', 'recommend', 'resolve', 'compare']), text: z.string().min(1).max(8000) }).strict()).max(8),
+}).strict();
+
+export const operatorEvidenceListSchema = z.object({ items: z.array(z.object({
+  id: operatorUUIDSchema, evidence_id: z.string().min(1), authority: z.string().min(1), domain: z.string().min(1), adapter_key: z.string().min(1), adapter_version: z.string().min(1), required_permission: z.string().min(1),
+  record_refs: z.unknown(), deep_link: internalDeepLinkSchema, observed_at: operatorDateTimeSchema, fetched_at: operatorDateTimeSchema, expires_at: operatorDateTimeSchema, availability: z.string().min(1), source_version: z.string().min(1),
+}).strict()).max(500) }).strict();
+
+export const operatorTaskSchema = z.object({
+  id: operatorUUIDSchema, kind: z.enum(['investigation', 'plan', 'schedule', 'schedule_run']), title: z.string().min(1),
+  domain: z.string().optional(), state: z.string().min(1), risk_tier: z.string().optional(), started_at: operatorDateTimeSchema,
+  updated_at: operatorDateTimeSchema, unread: z.boolean().optional(), can_cancel: z.boolean(), deep_link: internalDeepLinkSchema,
+  thread_id: operatorUUIDSchema.optional(), investigation_id: operatorUUIDSchema.optional(), plan_id: operatorUUIDSchema.optional(),
+  schedule_id: operatorUUIDSchema.optional(), schedule_run_id: operatorUUIDSchema.optional(),
+}).strict();
+
+export const operatorTaskListSchema = z.object({ items: z.array(operatorTaskSchema).max(200), next_cursor: z.string() }).strict();

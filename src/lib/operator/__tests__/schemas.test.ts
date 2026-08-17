@@ -1,4 +1,4 @@
-import { isInternalOperatorDeepLink, operatorDecisionPacketSchema, operatorEligibleActionsSchema, operatorEventResponseSchema, operatorPlanEventResponseSchema, operatorPlanSchema, operatorThreadListSchema, operatorToolDescriptorSchema, operatorVisibleContextSchema } from '@/lib/operator/schemas';
+import { isInternalOperatorDeepLink, operatorDecisionPacketSchema, operatorEligibleActionsSchema, operatorEventResponseSchema, operatorPlanEventResponseSchema, operatorPlanSchema, operatorTaskListSchema, operatorThreadDetailSchema, operatorThreadListSchema, operatorToolDescriptorSchema, operatorVisibleContextSchema } from '@/lib/operator/schemas';
 import { OPERATOR_CONTRACT_VERSION } from '@/types/platform/operator';
 
 const visibleContext = {
@@ -57,10 +57,12 @@ describe('Wahb Operator schemas', () => {
   it('accepts only CMS-owned eligible action descriptors', () => {
     const action = {
       packet_fingerprint: 'packet', execution_enabled: true,
-      items: [{ key: 'sources.run_once', localized_action_key: 'operator.action.sources.run_once', risk_tier: 'routine', target_type: 'source', argument_schema: 'sources.run_once/v1', target_ids: ['source-1'], affected_domains: ['sources', 'pipeline'], manual_only: false }],
+      items: [{ kind: 'plan', key: 'sources.run_once', localized_action_key: 'operator.action.run_source', risk_tier: 'routine', target_type: 'source', argument_schema: 'sources.run_once/v1', target_ids: ['source-1'], affected_domains: ['sources', 'pipeline'], cancellation: 'before_start_only', rollback: 'resume', contingencies: ['verify'], manual_only: false }],
     };
     expect(operatorEligibleActionsSchema.parse(action).items).toHaveLength(1);
     expect(() => operatorEligibleActionsSchema.parse({ ...action, items: [{ ...action.items[0], manual_only: true }] })).toThrow();
+    expect(operatorEligibleActionsSchema.parse({ packet_fingerprint: 'packet', execution_enabled: true, items: [{ kind: 'manual', localized_action_key: 'operator.manual.feed_recovery.repair', reason_key: 'operator.manual_reason.feed_recovery', affected_domain: 'feed_recovery', deep_link: '/platform/feed-recovery', manual_only: true }] }).items[0].kind).toBe('manual');
+    expect(() => operatorEligibleActionsSchema.parse({ packet_fingerprint: 'packet', execution_enabled: true, items: [{ kind: 'manual', key: 'hidden.tool', localized_action_key: 'operator.manual.feed_recovery.repair', reason_key: 'reason', affected_domain: 'feed_recovery', deep_link: '/platform/feed-recovery', manual_only: true }] })).toThrow();
   });
 
   it('accepts the CMS-owned durable event envelope', () => {
@@ -74,8 +76,18 @@ describe('Wahb Operator schemas', () => {
 
   it('accepts only a CMS-owned English or Arabic thread locale', () => {
     const timestamp = '2026-07-30T12:00:00.000Z';
-    expect(operatorThreadListSchema.parse({ items: [{ id: 'b572281f-601a-4a79-9ed4-e2d1bc8fd68d', title: 'Media review', locale: 'ar', created_at: timestamp, last_activity_at: timestamp, expires_at: timestamp }] }).items[0].locale).toBe('ar');
-    expect(operatorThreadListSchema.parse({ items: [{ id: '701152a5-1659-4c16-ab77-712485ea4e09', title: 'Media circulation', locale: 'en', created_at: '2026-08-01T14:08:56.459225+03:00', last_activity_at: '2026-08-01T11:08:56.294596Z', expires_at: '2026-08-31T11:08:56.294596Z' }] }).items).toHaveLength(1);
-    expect(() => operatorThreadListSchema.parse({ items: [{ id: 'b572281f-601a-4a79-9ed4-e2d1bc8fd68d', title: 'Media review', locale: 'fr', created_at: timestamp, last_activity_at: timestamp, expires_at: timestamp }] })).toThrow();
+    expect(operatorThreadListSchema.parse({ items: [{ id: 'b572281f-601a-4a79-9ed4-e2d1bc8fd68d', title: 'Media review', locale: 'ar', created_at: timestamp, last_activity_at: timestamp, expires_at: timestamp }], next_cursor: '' }).items[0].locale).toBe('ar');
+    expect(operatorThreadListSchema.parse({ items: [{ id: '701152a5-1659-4c16-ab77-712485ea4e09', title: 'Media circulation', locale: 'en', created_at: '2026-08-01T14:08:56.459225+03:00', last_activity_at: '2026-08-01T11:08:56.294596Z', expires_at: '2026-08-31T11:08:56.294596Z' }], next_cursor: '' }).items).toHaveLength(1);
+    expect(() => operatorThreadListSchema.parse({ items: [{ id: 'b572281f-601a-4a79-9ed4-e2d1bc8fd68d', title: 'Media review', locale: 'fr', created_at: timestamp, last_activity_at: timestamp, expires_at: timestamp }], next_cursor: '' })).toThrow();
+  });
+
+  it('requires public UUID links in restored messages and task rows', () => {
+    const timestamp = '2026-07-30T12:00:00.000Z';
+    const thread = { id: 'b572281f-601a-4a79-9ed4-e2d1bc8fd68d', title: 'Media review', locale: 'en', created_at: timestamp, last_activity_at: timestamp, expires_at: timestamp };
+    expect(operatorThreadDetailSchema.parse({ thread, messages: [{ id: '701152a5-1659-4c16-ab77-712485ea4e09', kind: 'response', actor_type: 'operator', created_at: timestamp, content: { blocks: [] }, investigation_id: '17a03ef7-a95c-416e-832a-80e598edfbf6' }] }).messages[0].investigation_id).toMatch(uuidPatternForTest);
+    expect(() => operatorThreadDetailSchema.parse({ thread, messages: [{ id: '701152a5-1659-4c16-ab77-712485ea4e09', kind: 'response', actor_type: 'operator', created_at: timestamp, content: {}, investigation_id: 17 }] })).toThrow();
+    expect(operatorTaskListSchema.parse({ items: [{ id: '701152a5-1659-4c16-ab77-712485ea4e09', kind: 'schedule_run', title: 'Daily run', state: 'completed', started_at: timestamp, updated_at: timestamp, can_cancel: false, deep_link: '/platform/operator?task_kind=schedule_run' }], next_cursor: '' }).items[0].kind).toBe('schedule_run');
   });
 });
+
+const uuidPatternForTest = /^[0-9a-f-]{36}$/i;

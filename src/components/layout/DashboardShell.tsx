@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { OperatorLauncher } from '@/components/operator/operator-launcher';
+import { OperatorDock } from '@/components/operator/operator-dock';
 import { OperatorContextProvider } from '@/components/operator/operator-context-provider';
 
 interface DashboardShellProps {
@@ -23,7 +23,7 @@ export function DashboardShell({ children, className }: DashboardShellProps) {
           </div>
         </main>
       </div>
-      <OperatorLauncher />
+      <OperatorDock />
     </div></OperatorContextProvider>
   );
 }
