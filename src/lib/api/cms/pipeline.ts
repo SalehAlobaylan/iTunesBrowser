@@ -7,6 +7,9 @@ import type {
     PipelineAutopilotRun,
     PipelineAutopilotRunDetail,
     PipelineAutopilotStatus,
+	ContentStageHealth,
+	ContentStageLane,
+	ContentStageControl,
 } from '@/types/platform/pipeline';
 
 interface CmsEnvelope<T> {
@@ -121,3 +124,17 @@ export const getPipelineAutopilotRun = (id: string) =>
             `/admin/pipeline/autopilot/runs/${id}`
         )
     );
+
+export const getContentStageHealth = () =>
+    cmsClient.get<ContentStageHealth>('/admin/content-stages/health');
+
+export const updateContentStageControl = (
+    lane: ContentStageLane,
+    patch: Partial<Pick<ContentStageControl, 'scheduling_enabled' | 'execution_enabled' | 'optional_metadata_enabled' | 'transcript_execution_enabled'>> & { reason: string }
+) => cmsClient.patch<ContentStageControl>(`/admin/content-stages/${lane}/control`, patch);
+
+export const getContentStageQualification = (lane: ContentStageLane) =>
+    cmsClient.get<{ lane: ContentStageLane; verification_digest: string }>(`/admin/content-stages/${lane}/qualification`);
+
+export const getContentStageTrace = (contentId: string) =>
+    cmsClient.get<Record<string, unknown>>(`/admin/content-stages/items/${encodeURIComponent(contentId)}/trace`);

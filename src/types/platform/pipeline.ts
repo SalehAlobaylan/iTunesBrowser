@@ -146,3 +146,36 @@ export interface PipelineAutopilotRunDetail {
     run: PipelineAutopilotRun;
     actions: PipelineAutopilotAction[];
 }
+
+export type ContentStageLane = 'news' | 'pods';
+export type ContentStageVerdict = 'healthy' | 'degraded' | 'paused' | 'legacy';
+
+export interface ContentStageControl {
+    tenant_id: string;
+    lane: ContentStageLane;
+    scheduling_enabled: boolean;
+    execution_enabled: boolean;
+    optional_metadata_enabled: boolean;
+    transcript_execution_enabled: boolean;
+    reason?: string;
+    updated_by?: string;
+    updated_at?: string;
+}
+
+export interface ContentStageLaneHealth {
+    lane: ContentStageLane;
+    cutover: 'legacy' | 'shadow' | 'durable_required';
+    verdict: ContentStageVerdict;
+    reasons: string[];
+    control: ContentStageControl;
+    state_counts: Record<string, number>;
+    stage_state_counts: Record<string, Record<string, number>>;
+    oldest_queued_at?: string;
+    oldest_active_at?: string;
+}
+
+export interface ContentStageHealth {
+    tenant_id: string;
+    worker_healthy: boolean;
+    lanes: ContentStageLaneHealth[];
+}

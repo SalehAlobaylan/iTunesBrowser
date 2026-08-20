@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PipelineOverview } from '@/components/platform/pipeline/pipeline-overview';
 import { QueueMonitor } from '@/components/platform/pipeline/queue-monitor';
 import { PipelineOperations } from '@/components/platform/pipeline/pipeline-operations';
+import { ContentStageLanes } from '@/components/platform/pipeline/content-stage-lanes';
 
 export default function PipelinePage() {
     const [activeTab, setActiveTab] = useState('overview');
@@ -23,6 +24,7 @@ export default function PipelinePage() {
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="queues">Queues</TabsTrigger>
                     <TabsTrigger value="operations">Operations</TabsTrigger>
+					<TabsTrigger value="delivery">Delivery</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview">
@@ -36,6 +38,10 @@ export default function PipelinePage() {
                 <TabsContent value="operations">
                     <PipelineOperations />
                 </TabsContent>
+
+				<TabsContent value="delivery">
+					<ContentStageLanes />
+				</TabsContent>
             </Tabs>
         </div>
     );
