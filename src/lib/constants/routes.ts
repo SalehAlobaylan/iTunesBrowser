@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   Flag,
   ArchiveRestore,
+  Database,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -47,6 +48,7 @@ export const navigation: NavigationSection[] = [
         href: '/platform/system-health',
         icon: HeartPulse,
       },
+      { name: 'Database Migrations', href: '/platform/database-migrations', icon: Database },
       {
         name: 'Feed Integrity',
         href: '/platform/feed-integrity',
@@ -140,6 +142,7 @@ export const ROUTES = {
     FEED_RECOVERY: '/platform/feed-recovery',
     REAL_EXPERIENCE: '/platform/real-experience',
     ECONOMICS: '/platform/economics',
+    DATABASE_MIGRATIONS: '/platform/database-migrations',
   },
   ADMIN: {
     USERS: '/admin/users',

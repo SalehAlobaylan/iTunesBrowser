@@ -3,6 +3,7 @@ import { createOperatorLaunchHref, createRouteVisibleContext, resolveOperatorRou
 const currentConsolePages = [
   '/', '/admin', '/admin/users', '/platform', '/platform/content', '/platform/content/example', '/platform/economics', '/platform/enrichment', '/platform/feed-integrity', '/platform/feed-recovery', '/platform/intelligence', '/platform/intelligence/analytics', '/platform/intelligence/embeddings', '/platform/intelligence/flags', '/platform/intelligence/media-value', '/platform/intelligence/preview', '/platform/intelligence/ranking', '/platform/media', '/platform/media/example', '/platform/media/atomization', '/platform/media/circulation', '/platform/media/finding', '/platform/media/redundancy', '/platform/media/sources', '/platform/media/sources/new', '/platform/media-studio', '/platform/media-studio/example', '/platform/moderation', '/platform/news', '/platform/news/circulation', '/platform/news/finding', '/platform/operations', '/platform/operator', '/platform/pipeline', '/platform/quality', '/platform/real-experience', '/platform/retention', '/platform/sources', '/platform/sources/example', '/platform/sources/new', '/platform/storage', '/platform/system-health', '/platform/topics',
 ];
+currentConsolePages.push('/platform/database-migrations');
 
 describe('Operator route manifest', () => {
   it.each(currentConsolePages)('maps current Console route %s', (path) => {
