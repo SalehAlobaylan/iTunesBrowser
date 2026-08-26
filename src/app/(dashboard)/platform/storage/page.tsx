@@ -81,6 +81,7 @@ import type {
     StorageOperationsResponse,
 } from '@/types/platform/storage-ops';
 import { useQualityProfiles } from '@/hooks/use-quality';
+import { useDeliveryInventory, useDeliveryPolicies, useDeliveryRepairStatus, useDeliveryRoutePreview, useRequestDeliveryRepair, useRollbackDeliveryGeneration, useSetDeliveryPolicyActive, useUpdateDeliveryPolicy } from '@/hooks/use-media-delivery';
 import { getPreset } from '@/lib/constants/ingest-presets';
 import EmbeddedQualityPage from '@/app/(dashboard)/platform/quality/page';
 import type {
@@ -91,7 +92,7 @@ import type {
     StorageProofMetrics,
 } from '@/types/platform/storage';
 
-const SECTION_IDS = ['cockpit', 'quality', 'candidates', 'ledger', 'policy', 'operations'] as const;
+const SECTION_IDS = ['cockpit', 'quality', 'delivery', 'candidates', 'ledger', 'policy', 'operations'] as const;
 type StorageSection = typeof SECTION_IDS[number];
 
 type ArtifactTone = 'cyan' | 'emerald' | 'amber' | 'violet' | 'slate';
@@ -271,6 +272,11 @@ export default function StoragePage() {
                 <EmbeddedQualityPage />
             </section>
 
+            <section id="storage-delivery" className="scroll-mt-24 space-y-4">
+                <SectionHeading icon={Layers3} eyebrow="Audio-first delivery" title="Policies, routes, and repair inventory" description="Active generations are immutable. This surface previews policy and repair candidates through CMS only; it has no direct queue or storage authority." />
+                <DeliveryPanel />
+            </section>
+
             <section id="storage-candidates" className="scroll-mt-24 space-y-4">
                 <SectionHeading
                     icon={ListChecks}
@@ -347,6 +353,7 @@ function SectionNav({
     const items: { id: StorageSection; label: string; icon: ElementType }[] = [
         { id: 'cockpit', label: 'Cockpit', icon: Gauge },
         { id: 'quality', label: 'Quality', icon: Sliders },
+        { id: 'delivery', label: 'Delivery', icon: Layers3 },
         { id: 'candidates', label: 'Candidates', icon: ListChecks },
         { id: 'ledger', label: 'Ledger', icon: Workflow },
         { id: 'policy', label: 'Policy', icon: ShieldCheck },
@@ -376,6 +383,72 @@ function SectionNav({
                     );
                 })}
             </div>
+        </div>
+    );
+}
+
+function DeliveryPanel() {
+    const policies = useDeliveryPolicies();
+    const inventory = useDeliveryInventory();
+    const activate = useSetDeliveryPolicyActive();
+    const update = useUpdateDeliveryPolicy();
+    const requestRepair = useRequestDeliveryRepair();
+    const rollback = useRollbackDeliveryGeneration();
+    const [contentId, setContentId] = useState('');
+    const [repairId, setRepairId] = useState('');
+    const [rollbackGenerationId, setRollbackGenerationId] = useState('');
+    const preview = useDeliveryRoutePreview(contentId.trim());
+    const repair = useDeliveryRepairStatus(repairId);
+    const flagged = (inventory.data?.items ?? []).filter((item) => item.classification !== 'healthy');
+
+    return (
+        <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Delivery policies</CardTitle>
+                    <CardDescription>Policy changes affect only future rendition generations. Active generations retain their immutable snapshot.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {(policies.data?.data ?? []).map((policy) => (
+                        <div key={policy.id} className="flex flex-wrap items-center justify-between gap-3 rounded border p-3">
+                            <div>
+                                <p className="font-medium">{policy.name}</p>
+                                <p className="text-xs text-muted-foreground">{policy.media_kind} · {policy.primary_mode} · {policy.rollout_state} · CMAF / {policy.hls_min_variants} minimum variants</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Badge variant={policy.active ? 'success' : 'secondary'}>{policy.active ? 'active' : 'inactive'}</Badge>
+                                <Button size="sm" variant="outline" disabled={activate.isPending} onClick={() => activate.mutate({ id: policy.id, active: !policy.active })}>{policy.active ? 'Deactivate' : 'Activate'}</Button>
+                            </div>
+                            <div className="flex w-full flex-wrap items-center gap-3 border-t pt-2 text-xs text-muted-foreground">
+                                <label className="flex items-center gap-2"><Checkbox checked={policy.allow_hls} onCheckedChange={(checked) => update.mutate({ id: policy.id, input: { allow_hls: checked === true } })} /> Adaptive HLS</label>
+                                <label className="flex items-center gap-2"><Checkbox checked={policy.generate_audio_alternate !== false} onCheckedChange={(checked) => update.mutate({ id: policy.id, input: { generate_audio_alternate: checked === true } })} /> Native audio alternate</label>
+                                <label className="flex items-center gap-2"><Checkbox checked={policy.generate_progressive_fallback} onCheckedChange={(checked) => update.mutate({ id: policy.id, input: { generate_progressive_fallback: checked === true } })} /> Progressive fallback</label>
+                                <span>Variants: {(policy.variants ?? []).slice().sort((a, b) => a.priority - b.priority).map((variant) => `${variant.rendition_type}/${variant.quality_tier}${variant.required ? '' : ' optional'}`).join(' · ') || 'none'}</span>
+                            </div>
+                        </div>
+                    ))}
+                    {policies.isLoading && <Skeleton className="h-20 w-full" />}
+                    {!policies.isLoading && (policies.data?.data.length ?? 0) === 0 && <p className="text-sm text-muted-foreground">No CMS policy rows yet. The migration seeds the default audio-first CMAF policy.</p>}
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader><CardTitle>Route preview</CardTitle><CardDescription>Read-only CMS calculation. A repair must be previewed before it can be requested.</CardDescription></CardHeader>
+                <CardContent className="space-y-3">
+                    <Input value={contentId} onChange={(event) => setContentId(event.target.value)} placeholder="Content UUID" aria-label="Content UUID for delivery route preview" />
+                    {preview.isFetching && <Skeleton className="h-16 w-full" />}
+                    {preview.data && <div className="rounded border bg-muted/20 p-3 text-sm"><p><span className="text-muted-foreground">Route:</span> <strong>{preview.data.route}</strong></p><p className="mt-1 text-muted-foreground">{preview.data.requires_new_generation ? 'A new immutable generation is required.' : 'No generation change required.'}</p>{preview.data.repair_preview ? <div className="mt-3 flex flex-wrap items-center gap-2"><Badge variant="secondary">Proven source · {formatBytes(preview.data.repair_preview.source_bytes)}</Badge><Button size="sm" disabled={requestRepair.isPending} onClick={() => requestRepair.mutate({ contentItemId: contentId.trim(), previewDigest: preview.data!.repair_preview!.preview_digest }, { onSuccess: (result) => setRepairId(result.repair.id) })}>Request generation-safe repair</Button></div> : <p className="mt-2 text-xs text-amber-600">{preview.data.repair_unavailable_reason ?? 'Repair is unavailable until CMS can prove a source manifest.'}</p>}</div>}
+                    {repairId && <div className="rounded border p-3 text-xs"><p className="font-medium">Repair {repair.data?.repair.state ?? 'loading'} · <span className="font-mono">{repairId}</span></p>{repair.data?.attempts[0] && <p className="mt-1 text-muted-foreground">Attempt {repair.data.attempts[0].attempt_number}: {repair.data.attempts[0].state}</p>}</div>}
+                    <div className="flex gap-2 border-t pt-3"><Input value={rollbackGenerationId} onChange={(event) => setRollbackGenerationId(event.target.value)} placeholder="Superseded generation UUID" aria-label="Superseded generation UUID to roll back" /><Button size="sm" variant="outline" disabled={!rollbackGenerationId.trim() || rollback.isPending} onClick={() => rollback.mutate(rollbackGenerationId.trim())}>Rollback verified generation</Button></div>
+                    <p className="text-xs text-muted-foreground">This console cannot run queues, probe storage, or delete legacy objects.</p>
+                </CardContent>
+            </Card>
+            <Card className="xl:col-span-2">
+                <CardHeader><CardTitle>Legacy inventory and repair candidates</CardTitle><CardDescription>Read-only classifications from proven CMS records. Unmatched historical objects stay inventory-only.</CardDescription></CardHeader>
+                <CardContent>
+                    <div className="mb-3 flex items-center gap-2 text-sm"><Badge variant={flagged.length ? 'secondary' : 'success'}>{flagged.length} flagged</Badge><span className="text-muted-foreground">No cleanup is performed from this view.</span></div>
+                    <div className="max-h-64 overflow-auto rounded border"><Table><TableHeader><TableRow><TableHead>Content</TableHead><TableHead>Classification</TableHead><TableHead>Playback</TableHead></TableRow></TableHeader><TableBody>{flagged.slice(0, 100).map((item) => <TableRow key={item.content_item_id}><TableCell className="font-mono text-xs">{item.content_item_id}</TableCell><TableCell><Badge variant="secondary">{item.classification}</Badge></TableCell><TableCell className="text-xs text-muted-foreground">{item.playback_type ?? '—'}</TableCell></TableRow>)}{!inventory.isLoading && flagged.length === 0 && <TableRow><TableCell colSpan={3} className="py-6 text-center text-sm text-muted-foreground">No proven delivery problems in the sampled inventory.</TableCell></TableRow>}</TableBody></Table></div>
+                </CardContent>
+            </Card>
         </div>
     );
 }
