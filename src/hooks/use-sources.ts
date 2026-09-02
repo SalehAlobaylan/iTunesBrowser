@@ -210,13 +210,13 @@ export function useRunSource() {
   return useMutation({
     mutationFn: (id: string) => runSource(id),
     onSuccess: (response, id) => {
-      // Invalidate source detail to show updated last_fetched_at
+      // Refresh source and run surfaces after CMS admits the durable request.
       queryClient.invalidateQueries({ queryKey: sourceKeys.detail(id) });
       invalidateSourceSurfaces(queryClient);
       toast({
-        title: 'Ingestion started',
+        title: 'Ingestion queued',
         description:
-          response.message || 'The source ingestion has been triggered.',
+          response.message || 'The source run is waiting for Aggregation dispatch.',
         variant: 'success',
       });
     },

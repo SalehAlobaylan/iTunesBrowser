@@ -99,7 +99,7 @@ export function SourceActionMenu({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align={align} className="w-48">
-                <DropdownMenuItem onClick={() => run(() => runSource(source.id), 'Ingestion started')}>
+                <DropdownMenuItem onClick={() => run(() => runSource(source.id), 'Ingestion queued')}>
                     <Play className="mr-2 h-4 w-4" /> Run now
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => router.push(editHref)}>

@@ -31,6 +31,7 @@ export function FleetStatRibbon({
 }: FleetStatRibbonProps) {
     const { total, counts } = useMemo(() => {
         const counts: Record<SourceHealth, number> = {
+            active: 0,
             healthy: 0,
             stale: 0,
             never_run: 0,

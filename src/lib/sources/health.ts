@@ -1,6 +1,6 @@
 import type { ContentSource } from '@/types/platform/source';
 
-export type SourceHealthStatus = 'disabled' | 'never_run' | 'stale' | 'healthy';
+export type SourceHealthStatus = 'active' | 'disabled' | 'never_run' | 'stale' | 'healthy';
 
 export interface SourceHealth {
     status: SourceHealthStatus;
@@ -21,6 +21,18 @@ export function sourceHealth(source: ContentSource, now: Date = new Date()): Sou
             variant: 'secondary',
             isStale: false,
             ageMs: null,
+            nextDueAt: null,
+        };
+    }
+
+    if (source.active_run) {
+        const requestedAt = new Date(source.active_run.requested_at);
+        return {
+            status: 'active',
+            label: 'Run active',
+            variant: 'default',
+            isStale: false,
+            ageMs: now.getTime() - requestedAt.getTime(),
             nextDueAt: null,
         };
     }

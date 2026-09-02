@@ -10,6 +10,7 @@ import {
     useMediaCirculationOverrides,
     useMediaSupplyEpisodes,
     useMediaSupplyStatus,
+    useMediaSourceDiversity,
     useRevertRecommendation,
     useUpdateMediaCirculationPolicy,
 } from '@/hooks/use-media-circulation';
@@ -27,6 +28,7 @@ export default function MediaCirculationPage() {
     const deleteOverride = useDeleteMediaCirculationOverride();
     const supply = useMediaSupplyStatus();
     const supplyEpisodes = useMediaSupplyEpisodes();
+    const diversity = useMediaSourceDiversity();
 
     return (
         <MediaCirculationCockpitView
@@ -49,6 +51,9 @@ export default function MediaCirculationPage() {
             supplyLoading={supply.isLoading}
             supplyError={supply.error instanceof Error ? supply.error : null}
             supplyEpisodesError={supplyEpisodes.error instanceof Error ? supplyEpisodes.error : null}
+            diversity={diversity.data}
+            diversityLoading={diversity.isLoading}
+            diversityError={diversity.isError}
         />
     );
 }

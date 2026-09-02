@@ -19,6 +19,7 @@ import {
 	    getMediaSupplyQualificationState,
     getMediaSourceRunTrace,
     getMediaCirculationHealth,
+    getMediaSourceDiversity,
     getMediaCirculationPolicy,
     getMediaIntelligenceDiagnostics,
     listMediaAutopilotRuns,
@@ -43,6 +44,7 @@ export const mediaCirculationKeys = {
     all: ['media-circulation'] as const,
     cockpit: () => [...mediaCirculationKeys.all, 'cockpit'] as const,
     health: () => [...mediaCirculationKeys.all, 'health'] as const,
+    diversity: () => [...mediaCirculationKeys.all, 'source-diversity'] as const,
     policy: () => [...mediaCirculationKeys.all, 'policy'] as const,
     overrides: () => [...mediaCirculationKeys.all, 'overrides'] as const,
     intelligence: () => [...mediaCirculationKeys.all, 'intelligence'] as const,
@@ -352,6 +354,16 @@ export function useMediaCirculationHealth() {
         gcTime: CACHE_CONFIG.lists.gcTime,
         refetchInterval: 60_000,
         refetchIntervalInBackground: false,
+    });
+}
+
+export function useMediaSourceDiversity() {
+    return useQuery({
+        queryKey: mediaCirculationKeys.diversity(),
+        queryFn: getMediaSourceDiversity,
+        staleTime: 30_000,
+        gcTime: 120_000,
+        refetchInterval: 60_000,
     });
 }
 

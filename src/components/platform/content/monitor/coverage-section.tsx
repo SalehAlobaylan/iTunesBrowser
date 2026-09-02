@@ -43,7 +43,7 @@ function EmbeddingCoverage() {
                     {Math.round(data.percentage)}%)
                 </span>
             </div>
-            <EmbeddingCoverageStats data={data.by_type} />
+            <EmbeddingCoverageStats data={data.by_type ?? []} />
         </div>
     );
 }

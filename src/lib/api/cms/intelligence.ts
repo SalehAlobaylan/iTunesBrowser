@@ -66,8 +66,17 @@ export const getEmbeddingClusters = () =>
 export const getSimilarContent = (contentId: string, limit = 10) =>
     cmsClient.get<SimilarContentItem[]>(`/admin/intelligence/embeddings/similar/${contentId}`, { limit });
 
-export const getEmbeddingStats = () =>
-    cmsClient.get<EmbeddingStats>('/admin/intelligence/embeddings/stats');
+export function normalizeEmbeddingStats(stats: EmbeddingStats): EmbeddingStats {
+    return {
+        ...stats,
+        by_type: Array.isArray(stats.by_type) ? stats.by_type : [],
+    };
+}
+
+export const getEmbeddingStats = async () =>
+    normalizeEmbeddingStats(
+        await cmsClient.get<EmbeddingStats>('/admin/intelligence/embeddings/stats'),
+    );
 
 // ---- Analytics ----
 export const getScoreDistribution = () =>

@@ -351,7 +351,9 @@ async function checkMedia(baseUrl: string | undefined): Promise<ServiceHealth> {
         deps.push({
             name: 'arq-worker',
             status: workerStatus,
-            detail: configured ? `${alive ? 'alive' : 'down'} · ${queued} queued` : 'not configured',
+            detail: configured
+                ? `${alive ? 'alive' : 'down'} · ${queued} queued`
+                : 'not configured',
         });
     }
 

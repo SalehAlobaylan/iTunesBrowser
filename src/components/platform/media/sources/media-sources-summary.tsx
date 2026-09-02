@@ -31,6 +31,7 @@ const typeLabel = (key: string) =>
 export function MediaSourcesSummary({ sources, isLoading }: MediaSourcesSummaryProps) {
     const { total, health, types } = useMemo(() => {
         const health: Record<SourceHealth, number> = {
+            active: 0,
             healthy: 0,
             stale: 0,
             never_run: 0,

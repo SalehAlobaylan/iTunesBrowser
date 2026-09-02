@@ -1,5 +1,37 @@
 import type { StorageProofMetrics } from './storage';
 
+export interface MediaSourceDiversityRow {
+    source_id: string;
+    source_name: string;
+    active: boolean;
+    explicitly_scheduled: boolean;
+    outside_intake_circuit: boolean;
+    provider_successful_within_7d: boolean;
+    fetched_candidates_30d: number;
+    legal_candidates_30d: number;
+    filtered_candidates_30d: number;
+    materialized_items_30d: number;
+    verified_media_30d: number;
+    ready_visible_units_30d: number;
+    producing: boolean;
+    failing_boundary: string;
+    gap_reason?: string;
+    scheduling_diagnostics_url: string;
+    discovery_url: string;
+    pending_suggestions_url: string;
+}
+
+export interface MediaSourceDiversity {
+    tenant_id: string;
+    target_producing_sources: number;
+    producing_source_count: number;
+    gap: number;
+    qualified: boolean;
+    generated_at: string;
+    approval_policy: string;
+    sources: MediaSourceDiversityRow[];
+}
+
 export type MediaCirculationHeadline = 'healthy' | 'watch' | 'feed_thin' | 'over_budget' | 'degraded';
 
 export type RecommendationUnitType = 'source' | 'item_family';

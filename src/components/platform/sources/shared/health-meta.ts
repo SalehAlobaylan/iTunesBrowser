@@ -3,9 +3,10 @@ import type { SourceHealth } from '@/types/platform/source';
 // Shared health vocabulary for all source management surfaces (fleet table,
 // fleet grid, media gallery). Mirrors the derivation in lib/sources/health.ts
 // and the CMS GetSourceStats endpoint.
-export const HEALTH_ORDER: SourceHealth[] = ['healthy', 'stale', 'never_run', 'disabled'];
+export const HEALTH_ORDER: SourceHealth[] = ['active', 'healthy', 'stale', 'never_run', 'disabled'];
 
 export const HEALTH_LABELS: Record<SourceHealth, string> = {
+    active: 'Run active',
     healthy: 'Healthy',
     stale: 'Stale',
     never_run: 'Never run',
@@ -14,6 +15,7 @@ export const HEALTH_LABELS: Record<SourceHealth, string> = {
 
 // Solid background per health (tiles, ribbon segments, rings).
 export const HEALTH_BG: Record<SourceHealth, string> = {
+    active: 'bg-blue-500',
     healthy: 'bg-success',
     stale: 'bg-destructive',
     never_run: 'bg-warning',
@@ -22,6 +24,7 @@ export const HEALTH_BG: Record<SourceHealth, string> = {
 
 // Text tone per health (legends, counts).
 export const HEALTH_TEXT: Record<SourceHealth, string> = {
+    active: 'text-blue-600',
     healthy: 'text-success',
     stale: 'text-destructive',
     never_run: 'text-warning',
@@ -30,6 +33,7 @@ export const HEALTH_TEXT: Record<SourceHealth, string> = {
 
 // Ring/border tone per health (card artwork rings).
 export const HEALTH_RING: Record<SourceHealth, string> = {
+    active: 'ring-blue-500',
     healthy: 'ring-success',
     stale: 'ring-destructive',
     never_run: 'ring-warning',

@@ -39,6 +39,15 @@ export interface ContentItem {
     transcript_approved_by?: string;
     latest_transcription_job?: TranscriptionJobSummary;
     transcript_quality?: TranscriptQualitySummary;
+    media_acquisition_state?:
+        | 'awaiting_download'
+        | 'queued'
+        | 'downloading'
+        | 'preparing'
+        | 'ready'
+        | 'failed'
+        | 'reconciling';
+    media_acquisition_phase?: string;
 }
 
 export type TranscriptionJobStatus =
@@ -145,6 +154,7 @@ export interface ListContentParams {
     transcription_status?: TranscriptionJobStatus;
     transcription_trigger?: string;
     quality_status?: TranscriptQualityStatus;
+    media_acquisition_state?: ContentItem['media_acquisition_state'] | 'all';
     source_id?: string;
     source_name?: string;
     min_size_bytes?: number;

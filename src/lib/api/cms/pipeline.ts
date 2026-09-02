@@ -10,6 +10,7 @@ import type {
 	ContentStageHealth,
 	ContentStageLane,
 	ContentStageControl,
+	ContentStageTrace,
 } from '@/types/platform/pipeline';
 
 interface CmsEnvelope<T> {
@@ -136,5 +137,10 @@ export const updateContentStageControl = (
 export const getContentStageQualification = (lane: ContentStageLane) =>
     cmsClient.get<{ lane: ContentStageLane; verification_digest: string }>(`/admin/content-stages/${lane}/qualification`);
 
-export const getContentStageTrace = (contentId: string) =>
-    cmsClient.get<Record<string, unknown>>(`/admin/content-stages/items/${encodeURIComponent(contentId)}/trace`);
+export const getContentStageTrace = ({ contentId, sessionId, playbackDigest }: { contentId: string; sessionId?: string; playbackDigest?: string }) => {
+    const query = new URLSearchParams();
+    if (sessionId?.trim()) query.set('session_id', sessionId.trim());
+    if (playbackDigest?.trim()) query.set('playback_digest', playbackDigest.trim());
+    const suffix = query.size ? `?${query.toString()}` : '';
+    return cmsClient.get<ContentStageTrace>(`/admin/content-stages/items/${encodeURIComponent(contentId)}/trace${suffix}`);
+};

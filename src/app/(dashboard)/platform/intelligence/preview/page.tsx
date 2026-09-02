@@ -178,6 +178,19 @@ export default function PreviewPage() {
                                 ? 'Full-screen audio/video feed order'
                                 : 'Magazine-style editorial slide order'}
                         </CardDescription>
+                        {feedType === 'pods' && podsPreview && (
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline">
+                                    Assembly: {podsPreview.assembly_mode ?? 'canonical'}
+                                </Badge>
+                                <Badge variant="outline">
+                                    Source cap: {podsPreview.source_cap_applied ? 'active' : 'relaxed'}
+                                </Badge>
+                                {podsPreview.constraint_relaxation && (
+                                    <span>Reason: {podsPreview.constraint_relaxation}</span>
+                                )}
+                            </div>
+                        )}
                     </CardHeader>
                     <CardContent>
                         {previewLoading ? (
@@ -202,6 +215,16 @@ export default function PreviewPage() {
                                             <div className="flex items-center gap-2 mt-0.5">
                                                 <Badge variant="outline" className="text-xs">{item.type}</Badge>
                                                 <span className="text-xs text-muted-foreground">{item.source_name}</span>
+                                                {item.freshness_reserved && (
+                                                    <Badge variant="outline" className="text-xs text-amber-600 border-amber-600">
+                                                        Freshness slot
+                                                    </Badge>
+                                                )}
+                                                {item.raw_rank !== undefined && item.raw_rank !== item.ranked_position && (
+                                                    <span className="text-xs text-muted-foreground">
+                                                        raw #{item.raw_rank}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
 

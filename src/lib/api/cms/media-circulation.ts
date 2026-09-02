@@ -13,6 +13,7 @@ import type {
     MediaCirculationPolicy,
     MediaCirculationRecommendation,
     MediaCirculationRun,
+    MediaSourceDiversity,
     MediaSourceRunTrace,
     MediaSupplyEpisodeListResponse,
     MediaSupplyStatusResponse,
@@ -262,6 +263,11 @@ function parseSupplyPayload<T>(schema: z.ZodType<T>, payload: unknown, label: st
 /** GET /admin/media/circulation/health */
 export async function getMediaCirculationHealth(): Promise<MediaCirculationHealth> {
     return cmsClient.get<MediaCirculationHealth>('/admin/media/circulation/health');
+}
+
+/** GET /admin/media/circulation/source-diversity — diagnostic only. */
+export async function getMediaSourceDiversity(): Promise<MediaSourceDiversity> {
+    return cmsClient.get<MediaSourceDiversity>('/admin/media/circulation/source-diversity');
 }
 
 /** GET /admin/media/circulation/cockpit */

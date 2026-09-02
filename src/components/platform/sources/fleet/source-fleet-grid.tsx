@@ -114,7 +114,9 @@ function Tile({
     health: SourceHealth;
     returnTo: string;
 }) {
-    const last = source.last_fetched_at
+    const last = source.active_run
+        ? `run ${source.active_run.state}`
+        : source.last_fetched_at
         ? `fetched ${formatDistanceToNow(new Date(source.last_fetched_at), { addSuffix: true })}`
         : 'never fetched';
     return (

@@ -12,6 +12,7 @@ import type {
     MediaCirculationPolicy,
     MediaSupplyEpisodeListResponse,
     MediaSupplyStatusResponse,
+    MediaSourceDiversity,
 } from '@/types/platform/media-circulation';
 import { AutopilotStrip } from './autopilot-strip';
 import { CockpitHero } from './cockpit-hero';
@@ -23,6 +24,7 @@ import { SettingsForm } from './settings-form';
 import { SourceRunTraceSheet } from './source-run-trace-sheet';
 import { SourceScheduleProof } from './source-schedule-proof';
 import { SupplyContinuityPanel } from './supply-continuity-panel';
+import { SourceDiversityPanel } from './source-diversity-panel';
 
 interface MediaCirculationCockpitProps {
     cockpit?: MediaCirculationCockpit;
@@ -44,6 +46,9 @@ interface MediaCirculationCockpitProps {
     supplyLoading: boolean;
     supplyError?: Error | null;
     supplyEpisodesError?: Error | null;
+    diversity?: MediaSourceDiversity;
+    diversityLoading: boolean;
+    diversityError: boolean;
 }
 
 function metricString(value: unknown): string | undefined {
@@ -87,6 +92,9 @@ export function MediaCirculationCockpitView({
     supplyLoading,
     supplyError,
     supplyEpisodesError,
+    diversity,
+    diversityLoading,
+    diversityError,
 }: MediaCirculationCockpitProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -196,6 +204,8 @@ export function MediaCirculationCockpitView({
             <DeliveryProof proof={cockpit.delivery} onInspect={(requestID) => setParams({ trace: requestID })} />
 
             <SourceScheduleProof proof={cockpit.schedules} onInspect={(requestID) => setParams({ trace: requestID })} />
+
+            <SourceDiversityPanel data={diversity} isLoading={diversityLoading} isError={diversityError} />
 
             <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <DecisionQueue

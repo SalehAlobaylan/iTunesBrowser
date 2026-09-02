@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
     Loader2, Sparkles, Search, MoreHorizontal, SlidersHorizontal, RefreshCw,
     Clapperboard, Trash2, Copy, ExternalLink, ArrowUpDown, Rss, Layers, ChevronRight, ChevronDown,
-    ShieldCheck, X, LayoutGrid, List, HardDrive,
+    ShieldCheck, X, LayoutGrid, List, HardDrive, Download,
 } from 'lucide-react';
 
 import {
@@ -35,6 +35,7 @@ import {
     useTriggerStt,
 } from '@/hooks/use-transcription';
 import { listSourceNames } from '@/lib/api/cms/content';
+import { useBulkRequestMediaAcquisition, useRequestMediaAcquisition } from '@/hooks/use-media-acquisition';
 import {
     CAPTION_STATE_LABELS, CAPTION_STATE_VARIANTS, CONTENT_STATUS_LABELS, CONTENT_STATUS_VARIANTS,
     type CaptionState, type ContentItem, type ContentStatus, type ContentType, type ListContentParams,
@@ -79,6 +80,16 @@ const CAPTION_FILTERS: { value: CaptionState | 'all'; label: string }[] = [
     { value: 'youtube_human', label: 'Human caption' },
     { value: 'stt_done', label: 'STT transcript' },
 ];
+const ACQUISITION_FILTERS = [
+    { value: 'all', label: 'All acquisition states' },
+    { value: 'awaiting_download', label: 'Awaiting download' },
+    { value: 'queued', label: 'Queued' },
+    { value: 'downloading', label: 'Downloading' },
+    { value: 'preparing', label: 'Preparing media' },
+    { value: 'ready', label: 'Media ready' },
+    { value: 'reconciling', label: 'Reconciling' },
+    { value: 'failed', label: 'Acquisition failed' },
+] as const;
 const SORT_OPTIONS = [
     { value: 'newest', label: 'Newest', sort: 'published_at', order: 'desc' as const },
     { value: 'oldest', label: 'Oldest', sort: 'published_at', order: 'asc' as const },
@@ -226,6 +237,7 @@ export function MediaList({ type }: { type: ContentType }) {
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState<ContentStatus | 'all'>('all');
     const [captionFilter, setCaptionFilter] = useState<CaptionState | 'all'>('all');
+    const [acquisitionFilter, setAcquisitionFilter] = useState<(typeof ACQUISITION_FILTERS)[number]['value']>('all');
     const [jobFilter, setJobFilter] = useState<JobFilterValue>('all');
     const [qualityFilter, setQualityFilter] = useState<TranscriptQualityStatus | 'all'>('all');
     const [sizeFilter, setSizeFilter] = useState<SizeFilterValue>('all');
@@ -240,6 +252,7 @@ export function MediaList({ type }: { type: ContentType }) {
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
     const [sttConfirm, setSttConfirm] = useState<ContentItem[] | null>(null);
+    const [acquisitionConfirm, setAcquisitionConfirm] = useState<ContentItem[] | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<ContentItem[] | null>(null);
     const [bulkBusy, setBulkBusy] = useState(false);
     const triggerStt = useTriggerStt();
@@ -247,6 +260,8 @@ export function MediaList({ type }: { type: ContentType }) {
     const cancelBatch = useCancelTranscriptionBatch();
     const { data: activeBatches } = useTranscriptionBatches({ status: 'active', limit: 5 });
     const deleteByIds = useDeleteContentByIds();
+    const requestAcquisition = useRequestMediaAcquisition();
+    const bulkRequestAcquisition = useBulkRequestMediaAcquisition();
 
     const activeBatch = activeBatches?.data[0];
     const batchRunning = activeBatch?.status === 'queued' || activeBatch?.status === 'running';
@@ -262,7 +277,7 @@ export function MediaList({ type }: { type: ContentType }) {
     useEffect(() => {
         setPage(1);
         setSelected(new Set());
-    }, [type, search, status, captionFilter, jobFilter, qualityFilter, sizeFilter, source, dateFrom, dateTo, sortValue, groupBy]);
+    }, [type, search, status, captionFilter, acquisitionFilter, jobFilter, qualityFilter, sizeFilter, source, dateFrom, dateTo, sortValue, groupBy]);
 
     useEffect(() => {
         listSourceNames().then(setSourceNames).catch(() => setSourceNames([]));
@@ -287,6 +302,7 @@ export function MediaList({ type }: { type: ContentType }) {
             published_at: publishedRange.length ? publishedRange : undefined,
             status: status === 'all' ? undefined : status,
             caption_state: captionFilter === 'all' ? undefined : captionFilter,
+            media_acquisition_state: acquisitionFilter === 'all' ? undefined : acquisitionFilter,
             transcription_status: jobFilter === 'all'
                 ? undefined
                 : jobFilter === 'auto_repair_queued'
@@ -304,6 +320,7 @@ export function MediaList({ type }: { type: ContentType }) {
             publishedRange,
             status,
             captionFilter,
+            acquisitionFilter,
             jobFilter,
             qualityFilter,
             source,
@@ -345,6 +362,7 @@ export function MediaList({ type }: { type: ContentType }) {
     const sttConfirmBytes = (sttConfirm ?? []).reduce((sum, item) => sum + Math.max(0, item.file_size_bytes ?? 0), 0);
     const sttConfirmUntracked = (sttConfirm ?? []).filter((item) => !item.file_size_bytes || item.file_size_bytes <= 0).length;
     const sttConfirmEstimatedCost = estimateSttCost(sttConfirm ?? []);
+    const acquisitionDuration = (acquisitionConfirm ?? []).reduce((sum, item) => sum + Math.max(0, item.duration_sec ?? 0), 0);
     const allSelected = items.length > 0 && items.every((i) => selected.has(i.id));
 
     const setMany = (ids: string[], on: boolean) =>
@@ -387,6 +405,18 @@ export function MediaList({ type }: { type: ContentType }) {
         setSelected(new Set());
     };
 
+    const runAcquisition = async (targets: ContentItem[]) => {
+        setAcquisitionConfirm(null);
+        if (targets.length === 1) {
+            requestAcquisition.mutate(targets[0].id);
+            return;
+        }
+        setBulkBusy(true);
+        await bulkRequestAcquisition.mutateAsync(targets.map((item) => item.id)).catch(() => undefined);
+        setBulkBusy(false);
+        setSelected(new Set());
+    };
+
     const copyId = (id: string) => {
         navigator.clipboard?.writeText(id);
         toast({ title: 'ID copied', variant: 'success' });
@@ -410,6 +440,11 @@ export function MediaList({ type }: { type: ContentType }) {
                     <DropdownMenuItem onClick={() => router.push(`/platform/media/atomization?tab=studio&item=${item.id}`)}>
                         <Clapperboard className="mr-2 h-4 w-4" /> Open in Media Studio
                     </DropdownMenuItem>
+                    {item.media_acquisition_state === 'awaiting_download' && (
+                        <DropdownMenuItem onClick={() => setAcquisitionConfirm([item])}>
+                            <Download className="mr-2 h-4 w-4" /> Download &amp; process
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem disabled={!hasMedia} onClick={() => setSttConfirm([item])}>
                         {isReT ? <RefreshCw className="mr-2 h-4 w-4" /> : <Sparkles className="mr-2 h-4 w-4" />}
                         {isReT ? 'Re-transcribe with STT' : 'Enrich with STT'}
@@ -509,6 +544,15 @@ export function MediaList({ type }: { type: ContentType }) {
                     {item.source_name && (
                         <span className="truncate text-xs text-muted-foreground">{item.source_name}</span>
                     )}
+                    {item.media_acquisition_state === 'awaiting_download' && (
+                        <Button
+                            size="sm"
+                            className="mt-1 w-full"
+                            onClick={() => setAcquisitionConfirm([item])}
+                        >
+                            <Download className="mr-1.5 h-3.5 w-3.5" /> Download &amp; process
+                        </Button>
+                    )}
                     <div className="mt-auto flex flex-wrap items-center gap-1 pt-1">
                         <Badge variant={CAPTION_STATE_VARIANTS[state]} className="text-[10px]">
                             {state === 'youtube_auto' && '⚠️ '}
@@ -535,6 +579,11 @@ export function MediaList({ type }: { type: ContentType }) {
                         {jobIsLive && job && (
                             <Badge variant={JOB_STATUS_VARIANTS[job.status]} className="text-[10px]">
                                 {JOB_STATUS_LABELS[job.status]}
+                            </Badge>
+                        )}
+                        {item.media_acquisition_state && item.media_acquisition_state !== 'ready' && (
+                            <Badge variant={item.media_acquisition_state === 'failed' ? 'destructive' : item.media_acquisition_state === 'awaiting_download' ? 'warning' : 'secondary'} className="text-[10px]">
+                                {item.media_acquisition_phase || item.media_acquisition_state.replaceAll('_', ' ')}
                             </Badge>
                         )}
                     </div>
@@ -582,7 +631,14 @@ export function MediaList({ type }: { type: ContentType }) {
                     </div>
                 </TableCell>
                 <TableCell>
-                    <Badge variant={CONTENT_STATUS_VARIANTS[item.status]}>{CONTENT_STATUS_LABELS[item.status]}</Badge>
+                    <div className="space-y-1">
+                        <Badge variant={CONTENT_STATUS_VARIANTS[item.status]}>{CONTENT_STATUS_LABELS[item.status]}</Badge>
+                        {item.media_acquisition_state && item.media_acquisition_state !== 'ready' && (
+                            <Badge variant={item.media_acquisition_state === 'failed' ? 'destructive' : item.media_acquisition_state === 'awaiting_download' ? 'warning' : 'secondary'} className="block w-fit text-[10px]">
+                                {item.media_acquisition_phase || item.media_acquisition_state.replaceAll('_', ' ')}
+                            </Badge>
+                        )}
+                    </div>
                 </TableCell>
                 <TableCell className="tabular-nums text-sm">{formatDuration(item.duration_sec)}</TableCell>
                 <TableCell className="tabular-nums text-sm" title={item.file_size_bytes ? `${item.file_size_bytes.toLocaleString()} bytes` : 'Size not tracked'}>
@@ -606,7 +662,16 @@ export function MediaList({ type }: { type: ContentType }) {
                 <TableCell>
                     {renderJobSummary(item.latest_transcription_job)}
                 </TableCell>
-                <TableCell className="text-right">{renderActions(item)}</TableCell>
+                <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                        {item.media_acquisition_state === 'awaiting_download' && (
+                            <Button size="sm" onClick={() => setAcquisitionConfirm([item])}>
+                                <Download className="mr-1.5 h-3.5 w-3.5" /> Download &amp; process
+                            </Button>
+                        )}
+                        {renderActions(item)}
+                    </div>
+                </TableCell>
             </TableRow>
         );
     };
@@ -765,6 +830,12 @@ export function MediaList({ type }: { type: ContentType }) {
                         {SIZE_FILTERS.map((f) => (<SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>))}
                     </SelectContent>
                 </Select>
+                <Select value={acquisitionFilter} onValueChange={(value) => setAcquisitionFilter(value as (typeof ACQUISITION_FILTERS)[number]['value'])}>
+                    <SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        {ACQUISITION_FILTERS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                    </SelectContent>
+                </Select>
                 {sourceNames.length > 0 && (
                     <Select value={source} onValueChange={setSource}>
                         <SelectTrigger className="w-[170px]">
@@ -817,6 +888,11 @@ export function MediaList({ type }: { type: ContentType }) {
                         {selectedUntracked > 0 ? ` · ${selectedUntracked} untracked` : ''}
                     </span>
                     <div className="flex-1" />
+                    {selectedItems.some((item) => item.media_acquisition_state === 'awaiting_download') && (
+                        <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => setAcquisitionConfirm(selectedItems.filter((item) => item.media_acquisition_state === 'awaiting_download'))}>
+                            <Download className="mr-1.5 h-3.5 w-3.5" /> Download &amp; process
+                        </Button>
+                    )}
                     <Button size="sm" variant="outline" disabled={bulkBusy} onClick={() => setSttConfirm(selectedItems.filter((i) => i.media_url))}>
                         {bulkBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
                         Re-transcribe
@@ -974,6 +1050,28 @@ export function MediaList({ type }: { type: ContentType }) {
                     <Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
                 </div>
             )}
+
+            {/* Media-acquisition confirmation (single or bulk) */}
+            <Dialog open={!!acquisitionConfirm} onOpenChange={(open) => !open && setAcquisitionConfirm(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Download and process {(acquisitionConfirm?.length ?? 0) === 1 ? 'this item' : `${acquisitionConfirm?.length ?? 0} items`}?</DialogTitle>
+                        <DialogDescription>
+                            This starts provider download, probing, R2 upload, rendition or analysis-audio preparation, thumbnail generation, and CMS verification.
+                            <span className="mt-2 block">If the provider supplies captions, they are imported automatically after media acquisition; generated STT remains subject to its separate policy.</span>
+                            <span className="mt-2 block">Combined provider duration: {formatDuration(acquisitionDuration)}.</span>
+                            <span className="mt-1 block">Storage size is unknown until the media probe completes.</span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setAcquisitionConfirm(null)}>Cancel</Button>
+                        <Button onClick={() => acquisitionConfirm && runAcquisition(acquisitionConfirm)} disabled={requestAcquisition.isPending || bulkBusy}>
+                            {(requestAcquisition.isPending || bulkBusy) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Download &amp; process
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* STT confirm (single or bulk) */}
             <Dialog open={!!sttConfirm} onOpenChange={(o) => !o && setSttConfirm(null)}>

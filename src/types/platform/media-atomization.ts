@@ -314,6 +314,10 @@ export interface MediaAtomizationPipelineItem {
     latest_error?: string | null;
     run_status?: string | null;
     run_phase?: string | null;
+    media_stage_state?: string | null;
+    media_stage_phase?: string | null;
+    transcript_stage_state?: string | null;
+    failed_or_stuck?: boolean;
     atomization_override?: 'inherit' | 'disabled' | 'enabled' | string | null;
     atomization_override_reason?: string | null;
     manual_atomization_requested_at?: string | null;

@@ -67,7 +67,7 @@ export function MediaSourceCard({
             await runSource(source.id);
             queryClient.invalidateQueries({ queryKey: sourceKeys.all });
             queryClient.invalidateQueries({ queryKey: [...discoveryKeys.all, 'media-sources-context'] });
-            toast({ title: 'Ingestion started', variant: 'success' });
+            toast({ title: 'Ingestion queued', variant: 'success' });
         } catch (e) {
             toast({
                 title: 'Failed to run',
@@ -120,6 +120,9 @@ export function MediaSourceCard({
                         <Badge variant="outline" className="font-normal">
                             {SOURCE_TYPE_LABELS[source.type as SourceType] ?? source.type}
                         </Badge>
+                        <Badge variant={source.resolved_media_acquisition_mode === 'manual' ? 'secondary' : 'success'} className="font-normal">
+                            {source.resolved_media_acquisition_mode === 'manual' ? 'manual download' : 'automatic download'}
+                        </Badge>
                         {sourceContext?.discovery_profile_id && (
                             <Badge variant="secondary" className="font-normal">
                                 from discovery{profileName ? ` · ${profileName}` : ''}
@@ -131,7 +134,9 @@ export function MediaSourceCard({
                         </span>
                     </div>
                     <p className="mt-2 truncate text-xs text-muted-foreground">
-                        {source.last_fetched_at
+                        {source.active_run
+                            ? `Run ${source.active_run.state} ${formatDistanceToNow(new Date(source.active_run.requested_at), { addSuffix: true })}`
+                            : source.last_fetched_at
                             ? formatDistanceToNow(new Date(source.last_fetched_at), { addSuffix: true })
                             : 'Never fetched'}
                         {' · every '}
@@ -149,7 +154,7 @@ export function MediaSourceCard({
                           ? 'Disabled'
                           : ''}
                 </span>
-                <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleRun(); }} disabled={running} className="h-7">
+                <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleRun(); }} disabled={running || Boolean(source.active_run)} className="h-7">
                     {running ? (
                         <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     ) : (

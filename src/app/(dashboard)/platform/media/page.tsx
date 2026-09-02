@@ -7,6 +7,7 @@ import { Video, Mic, Clapperboard } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { SttSettingsCard } from '@/components/platform/media/stt-settings-card';
+import { MediaAcquisitionSettingsCard } from '@/components/platform/media/media-acquisition-settings-card';
 import { MediaList } from '@/components/platform/media/media-list';
 import { cn } from '@/lib/utils';
 import type { ContentType } from '@/types/platform/content';
@@ -44,8 +45,10 @@ export default function MediaPage() {
                 </Button>
             </div>
 
-            {/* STT settings */}
-            <SttSettingsCard />
+            <div className="grid gap-4 xl:grid-cols-2">
+                <MediaAcquisitionSettingsCard />
+                <SttSettingsCard />
+            </div>
 
             {/* Type toggle — gold active state, the Pods accent */}
             <div className="flex items-center gap-2">

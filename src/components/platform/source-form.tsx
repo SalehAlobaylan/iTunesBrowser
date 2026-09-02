@@ -27,6 +27,7 @@ const sourceSchema = z.object({
     image_url: z.string().url('Must be a valid URL').optional().or(z.literal('')),
     fetch_interval_minutes: z.coerce.number().min(1, 'Minimum 1 minute'),
     is_active: z.boolean(),
+    media_acquisition_mode: z.enum(['inherit', 'automatic', 'manual']).default('inherit'),
     telegram_channel_username: z.string().optional(),
     telegram_min_duration_sec: z.coerce.number().min(1, 'Minimum 1 second').optional(),
     telegram_max_duration_sec: z.coerce.number().min(1, 'Minimum 1 second').optional(),
@@ -52,6 +53,7 @@ type SourceFormSubmitData = {
     image_url?: string;
     fetch_interval_minutes: SourceFormData['fetch_interval_minutes'];
     is_active: SourceFormData['is_active'];
+    media_acquisition_mode?: SourceFormData['media_acquisition_mode'];
     api_config?: Record<string, unknown>;
 };
 
@@ -84,6 +86,7 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             image_url: source?.image_url || '',
             fetch_interval_minutes: source?.fetch_interval_minutes || 60,
             is_active: source?.is_active ?? true,
+            media_acquisition_mode: source?.media_acquisition_mode ?? 'inherit',
             telegram_channel_username: typeof sourceApiConfig?.['channel_username'] === 'string'
                 ? sourceApiConfig['channel_username']
                 : '',
@@ -145,6 +148,7 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
             type: data.type,
             fetch_interval_minutes: data.fetch_interval_minutes,
             is_active: data.is_active,
+            media_acquisition_mode: data.media_acquisition_mode,
             feed_url: data.feed_url || undefined,
             image_url: data.image_url || undefined,
         };
@@ -268,6 +272,29 @@ export function SourceForm({ source, onSubmit, isLoading }: SourceFormProps) {
                             <p className="text-sm text-destructive">{errors.image_url.message}</p>
                         )}
                     </div>
+
+                    {['YOUTUBE', 'PODCAST', 'TELEGRAM'].includes(selectedType) && (
+                        <div className="space-y-2">
+                            <Label htmlFor="media_acquisition_mode">Media acquisition</Label>
+                            <Select
+                                value={watch('media_acquisition_mode')}
+                                onValueChange={(value) => setValue('media_acquisition_mode', value as 'inherit' | 'automatic' | 'manual')}
+                                disabled={isLoading}
+                            >
+                                <SelectTrigger id="media_acquisition_mode">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="inherit">Inherit tenant default</SelectItem>
+                                    <SelectItem value="automatic">Automatic download and processing</SelectItem>
+                                    <SelectItem value="manual">Preview first; require approval</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                Discovery metadata is always saved. Manual mode does not download media until you approve an item.
+                            </p>
+                        </div>
+                    )}
 
                     {showTelegramConfig && (
                         <div className="grid gap-4 md:grid-cols-2" data-testid="telegram-config">

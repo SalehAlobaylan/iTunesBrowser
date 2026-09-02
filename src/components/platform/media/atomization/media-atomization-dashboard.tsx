@@ -73,7 +73,7 @@ import type {
 } from '@/types/platform/media-atomization';
 
 const buckets = ['5m', '10m', '15m', '20m', '30m', '40m'];
-const statusOptions = ['all', 'schema_missing', 'queued', 'waiting_transcript', 'planning', 'cutting', 'embedding', 'needs_review', 'completed', 'failed'];
+const statusOptions = ['all', 'schema_missing', 'queued', 'waiting_media', 'waiting_transcript', 'planning', 'cutting', 'embedding', 'needs_review', 'completed', 'failed'];
 const reviewOptions = ['all', 'needed', 'published', 'embedding_pending', 'rejected'];
 const MIN_FEED_UNIT_SECONDS = 270;
 const HARD_MAX_SECONDS = 2400;
@@ -715,7 +715,7 @@ function AtomizationRail({ pipeline, onOpenStudio }: { pipeline?: MediaAtomizati
                         <Waves className="h-4 w-4 text-[#2CBAC6]" />
                         <h2 className="text-base font-semibold">Atomization workflow</h2>
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground">Pipeline lanes are built by CMS from parent status, runs, transcript state, and child counts.</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Preparing media means download → probe → R2 upload → rendition or analysis audio → thumbnail → CMS verification. Every lane is built from CMS durable state.</p>
                 </div>
                 <div className="md:hidden">
                     <Select value={selected?.key ?? selectedStage} onValueChange={setSelectedStage}>
@@ -730,7 +730,7 @@ function AtomizationRail({ pipeline, onOpenStudio }: { pipeline?: MediaAtomizati
             </div>
 
             <div className="hidden overflow-x-auto p-3 md:block">
-                <div className="grid min-w-[1320px] grid-cols-9 gap-2">
+                <div className="grid min-w-[1500px] grid-cols-10 gap-2">
                     {columns.map((column) => <RailLane key={column.key} column={column} onOpenStudio={onOpenStudio} />)}
                 </div>
             </div>
@@ -753,6 +753,11 @@ function RailLane({ column, mobile = false, onOpenStudio }: { column: MediaAtomi
                 {items.length === 0 ? (
                     <p className="rounded border border-dashed p-3 text-xs text-muted-foreground">No parents in lane.</p>
                 ) : items.map((item) => <RailCard key={item.id} item={item} onOpenStudio={onOpenStudio} />)}
+                {column.count > items.length && (
+                    <p className="rounded border border-dashed p-2 text-center text-xs text-muted-foreground">
+                        +{column.count - items.length} more match this lane
+                    </p>
+                )}
             </div>
         </div>
     );
@@ -774,7 +779,13 @@ function RailCard({ item, onOpenStudio }: { item: MediaAtomizationPipelineItem; 
             <div className="mt-2 flex flex-wrap gap-1">
                 <Badge variant="outline">{formatDurationSec(item.duration_sec)}</Badge>
                 <StatusBadge value={item.chaptering_status} />
+                {item.status === 'FAILED' && <Badge variant="destructive">content failed</Badge>}
+                {item.failed_or_stuck && item.status !== 'FAILED' && <Badge variant="destructive">stuck</Badge>}
                 <Badge variant={item.transcript_state === 'ready' ? 'success' : 'warning'}>{item.transcript_state === 'ready' ? 'transcript' : 'no transcript'}</Badge>
+                {item.media_stage_state && <Badge variant="info">media {item.media_stage_state.replaceAll('_', ' ')}</Badge>}
+                {item.media_stage_phase && <Badge variant="outline">media phase {item.media_stage_phase.replaceAll('_', ' ')}</Badge>}
+                {item.transcript_stage_state && <Badge variant="info">STT {item.transcript_stage_state.replaceAll('_', ' ')}</Badge>}
+                {item.run_phase && <Badge variant="outline">phase {item.run_phase.replaceAll('_', ' ')}</Badge>}
                 {item.atomization_override && item.atomization_override !== 'inherit' && (
                     <Badge variant={item.atomization_override === 'disabled' ? 'secondary' : 'info'}>{item.atomization_override}</Badge>
                 )}
@@ -1359,6 +1370,7 @@ export function MediaAtomizationDashboard() {
                     <>
                         {workflowLoading && !pipeline.data && <TabLoading label="Loading atomization workflow" />}
                         <SummaryStrip>
+                            <KpiCard label="Preparing media" value={statusCount(overviewData, ['waiting_media'])} sub="before transcript" />
                             <KpiCard label="Waiting transcript" value={statusCount(overviewData, ['waiting_transcript'])} sub="parents" />
                             <KpiCard label="Planning + cutting" value={statusCount(overviewData, ['planning', 'cutting', 'renditions', 'children'])} sub="active" />
                             <KpiCard label="Embedding pending" value={childVisibilityCount(overviewData, 'embedding_pending')} sub="hidden from feed" />

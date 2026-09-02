@@ -185,6 +185,7 @@ export interface ScoreBreakdown {
   quality: number;
   diversity: number;
   trending: number;
+  freshness_reserved?: boolean;
   flags: string;
 }
 
@@ -204,11 +205,18 @@ export interface PreviewFeedItem {
   chron_position: number;
   ranked_position: number;
   position_change: number;
+  raw_rank?: number;
+  freshness_reserved?: boolean;
+  source_spacing_movement?: number;
 }
 
 export interface PreviewFeedResponse {
   items: PreviewFeedItem[];
   is_active: boolean;
+  assembly_mode?: 'ranked' | 'chronological' | string;
+  filter_digest?: string;
+  source_cap_applied?: boolean;
+  constraint_relaxation?: string;
 }
 
 // ── Media Value engine (stage-4 Ranking/Intelligence) control room ──────────

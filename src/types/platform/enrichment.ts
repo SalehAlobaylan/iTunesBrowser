@@ -90,6 +90,13 @@ export interface AIServiceHealth {
   error?: string;
   models?: Record<string, boolean>;
   dependencies?: Record<string, boolean>;
+  storage?: {
+    configured: boolean;
+    authenticated: boolean;
+    ready: boolean;
+    evidence_fresh: boolean;
+    failure_class?: string | null;
+  };
 }
 
 export interface EnrichmentHealthResponse {

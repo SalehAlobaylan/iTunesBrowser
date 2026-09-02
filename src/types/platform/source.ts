@@ -3,6 +3,7 @@
 export type SourceType = 'RSS' | 'PODCAST' | 'YOUTUBE' | 'TWITTER' | 'REDDIT' | 'TELEGRAM' | 'MANUAL';
 
 export type SourceCategory = 'news' | 'media';
+export type MediaAcquisitionMode = 'automatic' | 'manual';
 
 export interface ContentSource {
     id: string;
@@ -12,9 +13,21 @@ export interface ContentSource {
     feed_url?: string;
     image_url?: string;
     api_config?: Record<string, unknown>;
+    media_acquisition_mode?: MediaAcquisitionMode;
+    resolved_media_acquisition_mode?: MediaAcquisitionMode;
     is_active: boolean;
     fetch_interval_minutes: number;
     last_fetched_at?: string;
+    last_claimed_at?: string;
+    last_attempted_at?: string;
+    last_provider_success_at?: string;
+    active_run?: {
+        id: string;
+        state: 'requested' | 'accepted' | 'running' | 'verification_required';
+        purpose: string;
+        requested_at: string;
+        accepted_at?: string;
+    };
     created_at: string;
     updated_at: string;
 }
@@ -44,6 +57,7 @@ export interface CreateSourceRequest {
     feed_url?: string;
     image_url?: string;
     api_config?: Record<string, unknown>;
+    media_acquisition_mode?: MediaAcquisitionMode | 'inherit';
     is_active?: boolean;
     fetch_interval_minutes?: number;
 }
@@ -55,19 +69,23 @@ export interface UpdateSourceRequest {
     feed_url?: string;
     image_url?: string;
     api_config?: Record<string, unknown>;
+    media_acquisition_mode?: MediaAcquisitionMode | 'inherit';
     is_active?: boolean;
     fetch_interval_minutes?: number;
 }
 
 export interface RunSourceResponse {
     message: string;
-    job_id?: string;
+    source_run_request_id: string;
+    state: string;
+    created: boolean;
 }
 
 // --- Source monitoring stats (GET /admin/sources/stats) ---------------------
 // Mirrors sourceStatsResponse in CMS adminSourceController.go.
 
-export type SourceHealth = 'healthy' | 'stale' | 'never_run' | 'disabled';
+export type SourceHealth = 'active' | 'healthy' | 'stale' | 'never_run' | 'disabled';
+export type SourceStatsHealth = Exclude<SourceHealth, 'active'>;
 
 export interface SourceFreshness {
     overdue_count: number;
@@ -103,8 +121,8 @@ export interface SourceStats {
     by_category: Record<SourceCategory, number>;
     by_type: Record<string, number>;
     by_status: Record<'active' | 'disabled', number>;
-    by_health: Record<SourceHealth, number>;
-    by_type_health: Record<string, Record<SourceHealth, number>>;
+    by_health: Record<SourceStatsHealth, number>;
+    by_type_health: Record<string, Record<SourceStatsHealth, number>>;
     freshness: SourceFreshness;
     top_sources: SourceOutputStat[];
     recent_failures: SourceAttention[];

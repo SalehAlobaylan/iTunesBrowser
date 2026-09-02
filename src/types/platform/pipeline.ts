@@ -172,10 +172,62 @@ export interface ContentStageLaneHealth {
     stage_state_counts: Record<string, Record<string, number>>;
     oldest_queued_at?: string;
     oldest_active_at?: string;
+    schema_state?: 'available' | 'pending' | string;
+    latest_snapshot?: PipelineLaneSnapshot;
+    latest_snapshots?: Partial<Record<'aggregation' | 'enrichment', PipelineLaneSnapshot>>;
+}
+
+export interface PipelineLaneSnapshot {
+    owner_principal: 'aggregation' | 'enrichment' | string;
+    captured_at: string;
+    required_queue_depth: number;
+    optional_queue_depth: number;
+    required_oldest_age_seconds: number;
+    optional_oldest_age_seconds: number;
+    dlq_delta: number;
+    failure_classes?: Record<string, number>;
+    stage_counts?: Record<string, number>;
+    enrichment_counts?: Record<string, {
+        accepted: number;
+        rejected: number;
+        in_flight: number;
+        retry_after_seconds: number;
+    }>;
+    process_metrics?: Record<string, unknown>;
+    resource_metrics?: Record<string, unknown>;
 }
 
 export interface ContentStageHealth {
     tenant_id: string;
     worker_healthy: boolean;
     lanes: ContentStageLaneHealth[];
+}
+
+export interface ContentStageTrace {
+    item: Record<string, unknown>;
+    source_lineage: Record<string, unknown>;
+    current_generation: number;
+    historical_generations: number[];
+    requests: Array<Record<string, unknown>>;
+    attempts: Array<Record<string, unknown>>;
+    receipts: Array<Record<string, unknown>>;
+    events: Array<Record<string, unknown>>;
+    artifacts: unknown[];
+    lifecycle_decisions: unknown[];
+    feed_generation_membership: unknown[];
+    eligibility: Record<string, unknown>;
+    preference: Record<string, unknown>;
+    ranking?: {
+        raw_rank?: number | null;
+        final_rank?: number | null;
+        freshness_reserved?: boolean;
+        source_spacing_movement?: number;
+    } | null;
+    diagnostic: {
+        classification: string;
+        reason: string;
+        schema_state: string;
+        frozen_session_known?: boolean;
+        boundary_observed?: boolean;
+    };
 }
